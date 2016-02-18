@@ -1,0 +1,1 @@
+<? $arFilesInfo = array( 'FILES' => array("/bitrix/js/fileman/light_editor/le_dialogs.js" => "145579526630956","/bitrix/js/fileman/light_editor/le_controls.js" => "145579526624518","/bitrix/js/fileman/light_editor/le_toolbarbuttons.js" => "145579526643001","/bitrix/js/fileman/light_editor/le_core.js" => "145579526676087",), 'CUR_SEL_CNT' => '0', 'CUR_IE_CNT' => '0'); ?>

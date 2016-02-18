@@ -1,0 +1,39 @@
+<?
+$aMenuLinks = Array(
+	Array(
+		"Главная", 
+		"/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Профиль", 
+		"/personal/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Контент", 
+		"/content/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Общение", 
+		"/communication/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Социальная сеть", 
+		"/club/", 
+		Array(), 
+		Array(), 
+		"" 
+	)
+);
+?>
