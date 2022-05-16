@@ -3,7 +3,7 @@ require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/forum/classes/general/us
 
 class CForumUser extends CAllForumUser
 {
-	function GetList($arOrder = Array("ID"=>"ASC"), $arFilter = Array(), $arAddParams = array())
+	public static function GetList($arOrder = Array("ID"=>"ASC"), $arFilter = Array(), $arAddParams = array())
 	{
 		global $DB;
 		$arSqlSearch = array();
@@ -194,7 +194,7 @@ class CForumUser extends CAllForumUser
 				".$DB->DateToCharFunction("FU.LAST_VISIT", "SHORT")." as LAST_VISIT_SHORT,
 				".$DB->DateToCharFunction("U.DATE_REGISTER", "SHORT")." as DATE_REGISTER_SHORT,
 				U.PERSONAL_ICQ, U.PERSONAL_WWW, U.PERSONAL_PROFESSION, U.DATE_REGISTER,
-				U.PERSONAL_CITY, U.PERSONAL_COUNTRY, U.PERSONAL_PHOTO,
+				U.PERSONAL_CITY, U.PERSONAL_COUNTRY, U.EXTERNAL_AUTH_ID, U.PERSONAL_PHOTO,
 				U.PERSONAL_GENDER, FU.POINTS, FU.HIDE_FROM_ONLINE,
 				".$DB->DateToCharFunction("U.PERSONAL_BIRTHDAY", "SHORT")." as PERSONAL_BIRTHDAY ".
 				(array_key_exists("SHOW_ABC", $arFilter) || array_key_exists("sNameTemplate", $arAddParams) ?
@@ -246,7 +246,7 @@ class CForumUser extends CAllForumUser
 		return $db_res;
 	}
 
-	function GetListEx($arOrder = Array("ID"=>"ASC"), $arFilter = Array())
+	public static function GetListEx($arOrder = Array("ID"=>"ASC"), $arFilter = Array())
 	{
 		global $DB;
 		$arSqlSearch = array();
@@ -268,7 +268,7 @@ class CForumUser extends CAllForumUser
 			"PERSONAL_PROFESSION"=>"S", "PERSONAL_WWW"=>"S", "PERSONAL_ICQ"=>"S", "PERSONAL_GENDER"=>"E",
 			"PERSONAL_PHONE"=>"S", "PERSONAL_FAX"=>"S", "PERSONAL_MOBILE"=>"S", "PERSONAL_PAGER"=>"S",
 			"PERSONAL_STREET"=>"S", "PERSONAL_MAILBOX"=>"S", "PERSONAL_CITY"=>"S", "PERSONAL_STATE"=>"S",
-			"PERSONAL_ZIP"=>"S", "PERSONAL_COUNTRY"=>"I", "PERSONAL_NOTES"=>"S", "WORK_COMPANY"=>"S",
+			"PERSONAL_ZIP"=>"S", "PERSONAL_COUNTRY"=>"I", "EXTERNAL_AUTH_ID"=>"S", "PERSONAL_NOTES"=>"S", "WORK_COMPANY"=>"S",
 			"WORK_DEPARTMENT"=>"S", "WORK_POSITION"=>"S", "WORK_WWW"=>"S", "WORK_PHONE"=>"S", "WORK_FAX"=>"S",
 			"WORK_PAGER"=>"S", "WORK_STREET"=>"S", "WORK_MAILBOX"=>"S", "WORK_CITY"=>"S", "WORK_STATE"=>"S",
 			"WORK_ZIP"=>"S", "WORK_COUNTRY"=>"I", "WORK_PROFILE"=>"S", "WORK_NOTES"=>"S");
@@ -303,7 +303,8 @@ class CForumUser extends CAllForumUser
 			"U.PERSONAL_PROFESSION" => "U.PERSONAL_PROFESSION", 
 			"U.PERSONAL_CITY" => "U.PERSONAL_CITY", 
 			"U.PERSONAL_COUNTRY" => "U.PERSONAL_COUNTRY", 
-			"U.PERSONAL_PHOTO" => "U.PERSONAL_PHOTO", 
+			"U.EXTERNAL_AUTH_ID" => "U.EXTERNAL_AUTH_ID",
+			"U.PERSONAL_PHOTO" => "U.PERSONAL_PHOTO",
 			"U.PERSONAL_GENDER" => "U.PERSONAL_GENDER",
 			"DATE_REG" => $DB->DateToCharFunction("FU.DATE_REG", "SHORT"),
 			"LAST_VISIT" => $DB->DateToCharFunction("FU.LAST_VISIT", "FULL"),
@@ -500,7 +501,7 @@ class CForumUser extends CAllForumUser
 		return $db_res;
 	}
 
-	function SearchUser($template, $arAddParams = array())
+	public static function SearchUser($template, $arAddParams = array())
 	{
 		global $DB;
 		$template = $DB->ForSql(str_replace("*", "%", $template));
@@ -595,7 +596,7 @@ class CForumUser extends CAllForumUser
 	* @param string $sNameTemplate Bitrix name template (ex: #LAST_NAME# #NAME#). Uses site name template if empty @see CSite::GetNameTemplates
 	* @return string (ex: U.LAST_NAME, U.NAME)
 	*/
-	function GetNameFieldsForQuery($sNameTemplate, $userTablePrefix = "U.")
+	public static function GetNameFieldsForQuery($sNameTemplate, $userTablePrefix = "U.")
 	{
 		global $DB;
 		$sNameTemplate = (empty($sNameTemplate) ? CSite::GetDefaultNameFormat() : $sNameTemplate);
@@ -639,7 +640,7 @@ class CForumUser extends CAllForumUser
 		return (!empty($res) ? $res : "''");
 	}
 
-	function GetFormattedNameFieldsForSelect($arParams = array(), $bReturnAll = true)
+	public static function GetFormattedNameFieldsForSelect($arParams = array(), $bReturnAll = true)
 	{
 		$arParams = (is_array($arParams) ? $arParams : array($arParams));
 		$arParams["sNameTemplate"] = trim($arParams["sNameTemplate"]);
@@ -685,7 +686,7 @@ class CForumSubscribe extends CAllForumSubscribe
 class CForumRank extends CAllForumRank
 {
 	// Tekuwie statusy posetitelej srazu ne pereschityvayutsya. Tol'ko postepenno v processe raboty.
-	function Add($arFields)
+	public static function Add($arFields)
 	{
 		global $DB;
 
@@ -708,7 +709,7 @@ class CForumRank extends CAllForumRank
 
 class CForumStat extends CALLForumStat 
 {
-	function GetListEx($arOrder = Array("ID"=>"ASC"), $arFilter = Array(), $arAddParams = array())
+	public static function GetListEx($arOrder = Array("ID"=>"ASC"), $arFilter = Array(), $arAddParams = array())
 	{
 		global $DB;
 		$arSqlSearch = array();
@@ -848,4 +849,3 @@ class CForumStat extends CALLForumStat
 		return $db_res;
 	}
 }
-?>

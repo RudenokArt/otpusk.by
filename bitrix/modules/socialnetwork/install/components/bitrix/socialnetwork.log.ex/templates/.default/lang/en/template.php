@@ -18,11 +18,16 @@ $MESS["SONET_C30_MENU_TITLE_TRANSPORT"] = "Notifications";
 $MESS["SONET_C30_MENU_TITLE_FAVORITES_N"] = "Add to favorites";
 $MESS["SONET_C30_MENU_TITLE_FAVORITES_Y"] = "Remove from favorites";
 $MESS["SONET_C30_MENU_TITLE_LINK"] = "Message link";
+$MESS["SONET_C30_MENU_TITLE_LINK2"] = "Copy link";
 $MESS["SONET_C30_MENU_TITLE_HREF"] = "Open message";
 $MESS["SONET_C30_MENU_TITLE_DELETE"] = "Delete from Activity Stream";
+$MESS["SONET_C30_MENU_TITLE_CREATETASK"] = "Create task";
 $MESS["SONET_ERROR_SESSION"] = "Your session has expired. Please post your comment again.";
 $MESS["SONET_C30_MENU_TITLE_DELETE_CONFIRM"] = "Are you sure you want to delete this post and all the comments added to it?";
 $MESS["SONET_C30_MENU_TITLE_DELETE_SUCCESS"] = "The post has been deleted.";
 $MESS["SONET_C30_MENU_TITLE_DELETE_FAILURE"] = "Error deleting the post.";
 $MESS["SONET_C30_T_RELOAD_ERROR"] = "Error updating Activity Stream";
+$MESS["SONET_C30_T_LINK_COPIED"] = "Link copied";
+$MESS["SONET_C30_T_EMPTY"] = "There are no posts in Activity Stream";
+$MESS["SONET_C30_T_EMPTY_SEARCH"] = "Nothing found";
 ?>

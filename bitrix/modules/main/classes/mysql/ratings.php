@@ -4,13 +4,13 @@ IncludeModuleLangFile(__FILE__);
 
 class CRatings extends CAllRatings
 {
-	function err_mess()
+	public static function err_mess()
 	{
 		return "<br>Class: CRatings<br>File: ".__FILE__;
 	}
 
 	// building rating on computed components
-	function BuildRating($ID)
+	public static function BuildRating($ID)
 	{
 		global $DB;
 
@@ -19,7 +19,8 @@ class CRatings extends CAllRatings
 
 		$resRating = CRatings::GetByID($ID);
 		$arRating = $resRating->Fetch();
-		if ($arRating && $arRating['ACTIVE'] == 'Y') {
+		if ($arRating && $arRating['ACTIVE'] == 'Y')
+		{
 			$DB->Query("UPDATE b_rating SET CALCULATED = 'C' WHERE id = ".$ID, false, $err_mess.__LINE__);
 
 			// Insert new results
@@ -60,7 +61,8 @@ class CRatings extends CAllRatings
 			$res = $DB->Query($strSql, false, $err_mess.__LINE__);
 
 			// Calculation position in rating
-			if ($arRating['POSITION'] == 'Y') {
+			if ($arRating['POSITION'] == 'Y')
+			{
 				$strSql =  "
 					UPDATE
 						b_rating_results RR,
@@ -88,8 +90,12 @@ class CRatings extends CAllRatings
 					".$ID." RATING_ID,
 					U.ID as ENTITY_ID
 				FROM
-					b_user U LEFT JOIN b_rating_user RU ON RU.RATING_ID = ".$ID." and RU.ENTITY_ID = U.ID
-				WHERE RU.ID IS NULL	";
+					b_user U 
+				LEFT JOIN b_rating_user RU ON RU.RATING_ID = ".$ID." and RU.ENTITY_ID = U.ID
+				WHERE 
+					U.ACTIVE = 'Y' 
+					AND (CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", \Bitrix\Main\UserTable::getExternalUserTypes())."') THEN 'Y' ELSE 'N' END) = 'N'
+					AND RU.ID IS NULL	";
 			$res = $DB->Query($strSql, false, $err_mess.__LINE__);
 			// authority calc
 			if ($arRating['AUTHORITY'] == 'Y')
@@ -160,7 +166,6 @@ class CRatings extends CAllRatings
 							and	RU.ENTITY_ID = RP.ENTITY_ID
 					";
 					$res = $DB->Query($strSql, false, $err_mess.__LINE__);
-
 				}
 				else
 				{
@@ -189,7 +194,6 @@ class CRatings extends CAllRatings
 					";
 					$res = $DB->Query($strSql, false, $err_mess.__LINE__);
 				}
-
 			}
 			global $CACHE_MANAGER;
 			$CACHE_MANAGER->CleanDir("b_rating_user");
@@ -199,7 +203,7 @@ class CRatings extends CAllRatings
 		return true;
 	}
 
-	function DeleteByUser($ID)
+	public static function DeleteByUser($ID)
 	{
 		global $DB, $CACHE_MANAGER;
 
@@ -208,10 +212,33 @@ class CRatings extends CAllRatings
 
 		$strSql =  "
 			UPDATE
+				b_rating_voting_reaction RVR,
+				(
+					SELECT
+						ENTITY_TYPE_ID, 
+						ENTITY_ID,
+						SUM(case when VALUE > 0 AND USER_ID <> $ID then '1' else '0' end) as TOTAL_POSITIVE_VOTES
+					FROM b_rating_vote
+					WHERE RATING_VOTING_ID IN (
+						SELECT DISTINCT RV0.RATING_VOTING_ID FROM b_rating_vote RV0 WHERE RV0.USER_ID=$ID
+					)
+					GROUP BY RATING_VOTING_ID
+				) as RP
+			SET
+				RVR.TOTAL_VOTES = RP.TOTAL_POSITIVE_VOTES
+			WHERE
+				RVR.ENTITY_TYPE_ID = RP.ENTITY_TYPE_ID
+				AND RVR.ENTITY_ID = RP.ENTITY_ID
+		";
+		$DB->Query($strSql, false, $err_mess.__LINE__);
+
+		$strSql =  "
+			UPDATE
 				b_rating_voting RV,
 				(
 					SELECT
-						RATING_VOTING_ID, SUM(case when USER_ID <> $ID then VALUE else '0' end) as TOTAL_VALUE,
+						RATING_VOTING_ID, 
+						SUM(case when USER_ID <> $ID then VALUE else '0' end) as TOTAL_VALUE,
 						SUM(case when USER_ID <> $ID then '1' else '0' end) as TOTAL_VOTES,
 						SUM(case when VALUE > 0 AND USER_ID <> $ID then '1' else '0' end) as TOTAL_POSITIVE_VOTES,
 						SUM(case when VALUE < 0 AND USER_ID <> $ID then '1' else '0' end) as TOTAL_NEGATIVE_VOTES
@@ -229,7 +256,7 @@ class CRatings extends CAllRatings
 			WHERE
 				RV.ID = RP.RATING_VOTING_ID
 		";
-		$res = $DB->Query($strSql, false, $err_mess.__LINE__);
+		$DB->Query($strSql, false, $err_mess.__LINE__);
 
 		$DB->Query("DELETE FROM b_rating_vote WHERE USER_ID=$ID", false, $err_mess.__LINE__);
 		$DB->Query("DELETE FROM b_rating_user WHERE ENTITY_ID=$ID", false, $err_mess.__LINE__);
@@ -239,7 +266,7 @@ class CRatings extends CAllRatings
 	}
 
 	// insert result calculate rating
-	function AddResults($arResults)
+	public static function AddResults($arResults)
 	{
 		global $DB;
 		$err_mess = (CRatings::err_mess())."<br>Function: AddComponentResults<br>Line: ";
@@ -272,7 +299,7 @@ class CRatings extends CAllRatings
 	}
 
 	// insert result calculate rating-components
-	function AddComponentResults($arComponentConfigs)
+	public static function AddComponentResults($arComponentConfigs)
 	{
 		global $DB;
 		$err_mess = (CRatings::err_mess())."<br>Function: AddComponentResults<br>Line: ";
@@ -290,7 +317,7 @@ class CRatings extends CAllRatings
 		return true;
 	}
 
-	function SetAuthorityRating($ratingId)
+	public static function SetAuthorityRating($ratingId)
 	{
 		global $DB, $stackCacheManager;
 
@@ -307,7 +334,7 @@ class CRatings extends CAllRatings
 		return true;
 	}
 
-	function GetCommunityInfo($ratingId)
+	public static function GetCommunityInfo($ratingId)
 	{
 		global $DB;
 
@@ -378,7 +405,9 @@ class CRatings extends CAllRatings
 			";
 		}
 
-		$DB->Query("TRUNCATE TABLE b_rating_prepare", false, $err_mess.__LINE__);
+//		$DB->Query("TRUNCATE TABLE b_rating_prepare", false, $err_mess.__LINE__);
+		$DB->Query("DELETE FROM b_rating_prepare", false, $err_mess.__LINE__);
+
 		if ($bAllGroups || empty($arGroups))
 		{
 			$strSql .= "
@@ -388,6 +417,7 @@ class CRatings extends CAllRatings
 					b_user U
 				WHERE ".(!empty($strModulesSql)? "U.ID = MS.ENTITY_ID AND": "")."
 				U.ACTIVE = 'Y'
+				AND (CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", \Bitrix\Main\UserTable::getExternalUserTypes())."') THEN 'Y' ELSE 'N' END) = 'N'	
 				AND U.LAST_LOGIN > DATE_SUB(NOW(), INTERVAL ".intval($communityLastVisit)." DAY)
 			";
 		}
@@ -400,6 +430,7 @@ class CRatings extends CAllRatings
 					b_user U
 				WHERE ".(!empty($strModulesSql)? "U.ID = MS.ENTITY_ID AND": "")."
 				U.ACTIVE = 'Y'
+				AND (CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", \Bitrix\Main\UserTable::getExternalUserTypes())."') THEN 'Y' ELSE 'N' END) = 'N'	
 				AND U.LAST_LOGIN > DATE_SUB(NOW(), INTERVAL ".intval($communityLastVisit)." DAY)
 			";
 		}
@@ -413,7 +444,7 @@ class CRatings extends CAllRatings
 		return $res->Fetch();
 	}
 
-	function CheckAllowVote($arVoteParam)
+	public static function CheckAllowVote($arVoteParam)
 	{
 		global $USER;
 
@@ -475,7 +506,13 @@ class CRatings extends CAllRatings
 
 				$authorityRatingId	 = CRatings::GetAuthorityRating();
 				$arAuthorityUserProp = CRatings::GetRatingUserPropEx($authorityRatingId, $userId);
-				if ($arAuthorityUserProp['VOTE_WEIGHT'] <= 0)
+				if (
+					$arAuthorityUserProp['VOTE_WEIGHT'] < 0
+					|| (
+						$arAuthorityUserProp['VOTE_WEIGHT'] == 0
+						&& !IsModuleInstalled('intranet')
+					)
+				)
 				{
 					$arInfo = $cacheAllowVote[$userId] = array(
 						'RESULT' => false,
@@ -496,7 +533,6 @@ class CRatings extends CAllRatings
 					$cacheVoteSize = $_SESSION['RATING_VOTE_COUNT'] = $countVote['VOTE'];
 
 					$cacheUserVote[$userId] = $_SESSION['RATING_USER_VOTE_COUNT'] = $arAuthorityUserProp['VOTE_COUNT'];
-
 					if ($cacheVoteSize >= $cacheUserVote[$userId])
 					{
 						$arInfo = $cacheAllowVote[$userId] = array(
@@ -545,7 +581,7 @@ class CRatings extends CAllRatings
 		return $arInfo;
 	}
 
-	function SetAuthorityDefaultValue($arParams)
+	public static function SetAuthorityDefaultValue($arParams)
 	{
 		global $DB;
 
@@ -588,7 +624,7 @@ class CRatings extends CAllRatings
 		return true;
 	}
 
-	function AutoAssignGroup($groupId, $authorityValueAdd, $authorityValueDelete)
+	public static function AutoAssignGroup($groupId, $authorityValueAdd, $authorityValueDelete)
 	{
 		global $DB;
 		$err_mess = (CRatings::err_mess())."<br>Function: AutoAssignGroup<br>Line: ";
@@ -601,7 +637,8 @@ class CRatings extends CAllRatings
 		$ratingValueAdd = IntVal($authorityValueAdd);
 		$ratingValueDelete = IntVal($authorityValueDelete);
 		$sRatingWeightType = COption::GetOptionString("main", "rating_weight_type", "auto");
-		if ($sRatingWeightType == 'auto') {
+		if ($sRatingWeightType == 'auto')
+		{
 			$ratingValueAdd = $ratingValueAdd*COption::GetOptionString("main", "rating_vote_weight", 1);
 			$ratingValueDelete = $ratingValueDelete*COption::GetOptionString("main", "rating_vote_weight", 1);
 		}
@@ -638,178 +675,78 @@ class CRatings extends CAllRatings
 		return true;
 	}
 
-	function GetRatingVoteList($arParam)
+	public static function GetRatingVoteListSQL($arParam, $bplus, $bIntranetInstalled)
 	{
 		global $DB, $USER;
 
-		$bplus = true;
-		if (strtoupper($arParam['LIST_TYPE']) == 'MINUS')
-			$bplus = false;
+		$externalAuthTypes = array_diff(\Bitrix\Main\UserTable::getExternalUserTypes(), array('email', 'replica'));
 
-		$sqlStr = "
+		return "
 			SELECT
-				COUNT(RV.ID) as CNT
+				U.ID,
+				U.NAME,
+				U.LAST_NAME,
+				U.SECOND_NAME,
+				U.LOGIN,
+				U.PERSONAL_PHOTO,
+				RV.VALUE AS VOTE_VALUE,
+				RV.USER_ID,
+				SUM(case when RV0.ID is not null then 1 else 0 end) `RANK`
 			FROM
-				b_rating_vote RV
+				b_rating_vote RV LEFT JOIN b_rating_vote RV0 ON RV0.USER_ID = ".intval($USER->GetId())." and RV0.OWNER_ID = RV.USER_ID,
+				b_user U
 			WHERE
-				RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
-			and RV.ENTITY_ID = ".intval($arParam['ENTITY_ID'])."
-			".($bplus? " and RV.VALUE > 0 ": " and RV.VALUE < 0 ");
-		$res_cnt = $DB->Query($sqlStr);
-		$res_cnt = $res_cnt->Fetch();
-		$cnt = $res_cnt["CNT"];
+				(CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", $externalAuthTypes)."') THEN 'Y' ELSE 'N' END) = 'N'
+				AND RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
+				and RV.ENTITY_ID =  ".intval($arParam['ENTITY_ID'])."
+				and RV.USER_ID = U.ID ".
+//				($bplus? " and RV.VALUE > 0 ": " and RV.VALUE < 0 "). // ticket 103248
+				self::getReactionFilterSQL($arParam, $bplus)."
+			GROUP BY RV.USER_ID
+			ORDER BY ".($bIntranetInstalled? "RV.VALUE DESC, `RANK` DESC, RV.ID DESC": "RANK DESC, RV.VALUE DESC, RV.ID DESC");
+	}
 
-		$bIntranetInstalled = IsModuleInstalled("intranet");
+	public static function GetRatingVoteListSQLExtended($arParam, $bplus, $bIntranetInstalled)
+	{
+		global $DB, $USER;
 
-		if (
-			(
-				array_key_exists("USER_FIELDS", $arParam)
-				&& is_array($arParam["USER_FIELDS"])
-			)
-			|| (
-				array_key_exists("USER_SELECT", $arParam)
-				&& is_array($arParam["USER_SELECT"])
-			)
-		)
-		{
-			$bExtended = true;
-			$arUserID = array();
+		$externalAuthTypes = array_diff(\Bitrix\Main\UserTable::getExternalUserTypes(), array('email', 'replica'));
 
-			$sqlStr = "
-				SELECT
-					U.ID,
-					RV.VALUE AS VOTE_VALUE,
-					RV.USER_ID,
-					SUM(case when RV0.ID is not null then 1 else 0 end) RANK
-				FROM
-					b_rating_vote RV LEFT JOIN b_rating_vote RV0 ON RV0.USER_ID = ".IntVal($USER->GetId())." and RV0.OWNER_ID = RV.USER_ID,
-					b_user U
-				WHERE
-					RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
-					and RV.ENTITY_ID =  ".intval($arParam['ENTITY_ID'])."
-					and RV.USER_ID = U.ID
-				".($bplus? " and RV.VALUE > 0 ": " and RV.VALUE < 0 ")."
-				GROUP BY RV.USER_ID
-				ORDER BY ".($bIntranetInstalled? "RV.VALUE DESC, RANK DESC, RV.ID DESC": "RANK DESC, RV.VALUE DESC, RV.ID DESC");
-		}
-		else
-		{
-			$sqlStr = "
-				SELECT
-					U.ID,
-					U.NAME,
-					U.LAST_NAME,
-					U.SECOND_NAME,
-					U.LOGIN,
-					U.PERSONAL_PHOTO,
-					RV.VALUE AS VOTE_VALUE,
-					RV.USER_ID,
-					SUM(case when RV0.ID is not null then 1 else 0 end) RANK
-				FROM
-					b_rating_vote RV LEFT JOIN b_rating_vote RV0 ON RV0.USER_ID = ".IntVal($USER->GetId())." and RV0.OWNER_ID = RV.USER_ID,
-					b_user U
-				WHERE
-					RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
-					and RV.ENTITY_ID =  ".intval($arParam['ENTITY_ID'])."
-					and RV.USER_ID = U.ID
-				".($bplus? " and RV.VALUE > 0 ": " and RV.VALUE < 0 ")."
-				GROUP BY RV.USER_ID
-				ORDER BY ".($bIntranetInstalled? "RV.VALUE DESC, RANK DESC, RV.ID DESC": "RANK DESC, RV.VALUE DESC, RV.ID DESC");
-		}
+		return "
+			SELECT
+				U.ID,
+				RV.VALUE AS VOTE_VALUE,
+				RV.USER_ID,
+				SUM(case when RV0.ID is not null then 1 else 0 end) `RANK`
+			FROM
+				b_rating_vote RV LEFT JOIN b_rating_vote RV0 ON RV0.USER_ID = ".intval($USER->GetId())." and RV0.OWNER_ID = RV.USER_ID,
+				b_user U
+			WHERE
+				(CASE WHEN U.EXTERNAL_AUTH_ID IN ('".join("', '", $externalAuthTypes)."') THEN 'Y' ELSE 'N' END) = 'N'
+				AND RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
+				and RV.ENTITY_ID =  ".intval($arParam['ENTITY_ID'])."
+				and RV.USER_ID = U.ID ".
+//				($bplus? " and RV.VALUE > 0 ": " and RV.VALUE < 0 "). // ticket 103248
+				self::getReactionFilterSQL($arParam, $bplus)."
+			GROUP BY RV.USER_ID
+			ORDER BY ".($bIntranetInstalled? "RV.VALUE DESC, `RANK` DESC, RV.ID DESC": "RANK DESC, RV.VALUE DESC, RV.ID DESC");
+	}
 
-		$arList = Array();
-		$arVoteList = Array();
-		if ($arParam['LIST_LIMIT'] != 0 && ceil($cnt/intval($arParam['LIST_LIMIT'])) >= intval($arParam['LIST_PAGE']))
-		{
-			$res = new CDBResult();
-			$res->NavQuery($sqlStr, $cnt, Array('iNumPage' => intval($arParam['LIST_PAGE']), 'nPageSize' => intval($arParam['LIST_LIMIT'])));
+	private static function getReactionFilterSQL($arParam, $bplus)
+	{
+		global $DB;
 
-			while ($row = $res->Fetch())
-			{
-				$ar = $row;
-
-				if (!$bExtended)
-				{
-					$arFileTmp = CFile::ResizeImageGet(
-						$row["PERSONAL_PHOTO"],
-						array('width' => 58, 'height' => 58),
-						BX_RESIZE_IMAGE_EXACT,
-						false
-					);
-					$ar['PHOTO'] = CFile::ShowImage($arFileTmp['src'], 21, 21, 'border=0');
-					$ar['FULL_NAME'] = CUser::FormatName(CSite::GetNameFormat(false), $row);
-				}
-				else
-					$arUserID[] = $row["ID"];
-
-				if ($ar['ID'] != $USER->GetId())
-					$arList[$ar['ID']] = $ar;
-				else
-					$arVoteList[$ar['ID']] = $ar;
-			}
-			foreach ($arList as $ar)
-				$arVoteList[$ar['ID']] = $ar;
-
-			if (
-				$bExtended
-				&& count($arUserID) > 0
-			)
-			{
-				$arUserListParams = array();
-				$arUsers = array();
-
-				if (
-					array_key_exists("USER_FIELDS", $arParam)
-					&& is_array($arParam["USER_FIELDS"])
+		$result = (
+			$bplus
+			&& !empty($arParam["REACTION"])
+				? (
+					$arParam["REACTION"] == self::REACTION_DEFAULT
+						? " and (RV.REACTION IS NULL OR RV.REACTION = '".$DB->ForSql($arParam["REACTION"])."') "
+						: " and RV.REACTION = '".$DB->ForSql($arParam["REACTION"])."' "
 				)
-					$arUserListParams["FIELDS"] = $arParam["USER_FIELDS"];
-				else
-					$arUserListParams["FIELDS"] = array("NAME", "LAST_NAME", "SECOND_NAME", "LOGIN", "PERSONAL_PHOTO");
-
-				$arUserListParams["FIELDS"] = array_unique(array_merge(array("ID"), $arUserListParams["FIELDS"]));
-
-				if (
-					array_key_exists("USER_SELECT", $arParam)
-					&& is_array($arParam["USER_SELECT"])
-				)
-					$arUserListParams["SELECT"] = $arParam["USER_SELECT"];
-
-				$rsUser = CUser::GetList(
-					($by = "ID"),
-					($order = "ASC"),
-					array("ID" => implode("|", $arUserID)),
-					$arUserListParams
-				);
-
-				while ($arUser = $rsUser->Fetch())
-				{
-					if (array_key_exists("PERSONAL_PHOTO", $arUser))
-					{
-						$arFileTmp = CFile::ResizeImageGet(
-							$arUser["PERSONAL_PHOTO"],
-							array("width" => 58, "height" => 58),
-							BX_RESIZE_IMAGE_EXACT,
-							false
-						);
-						$arUser["PHOTO"] = CFile::ShowImage($arFileTmp["src"], 21, 21, "border=0");
-					}
-					$arUser["FULL_NAME"] = CUser::FormatName(CSite::GetNameFormat(false), $arUser);
-					$arUsers[$arUser["ID"]] = $arUser;
-				}
-
-				foreach($arVoteList as $i => $arVoteUser)
-					if (array_key_exists($arVoteUser["ID"], $arUsers))
-						foreach($arUsers[$arVoteUser["ID"]] as $key => $value)
-							$arVoteList[$i][$key] = $value;
-
-			}
-		}
-
-		return Array(
-			'items_all' => $cnt,
-			'items_page' => count($arVoteList),
-			'items' => $arVoteList
+			: ""
 		);
+
+		return $result;
 	}
 }
-?>

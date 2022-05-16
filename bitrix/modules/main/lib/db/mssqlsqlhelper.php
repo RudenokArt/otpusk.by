@@ -3,12 +3,13 @@ namespace Bitrix\Main\DB;
 
 use Bitrix\Main;
 use Bitrix\Main\Type;
-use Bitrix\Main\Entity;
+use Bitrix\Main\ORM;
+use Bitrix\Main\ORM\Fields\ScalarField;
 
 class MssqlSqlHelper extends SqlHelper
 {
 	/**
-	 * Identificator escaping - left char
+	 * Returns an identificator escaping left character.
 	 *
 	 * @return string
 	 */
@@ -18,7 +19,7 @@ class MssqlSqlHelper extends SqlHelper
 	}
 
 	/**
-	 * Identificator escaping - left char
+	 * Returns an identificator escaping right character.
 	 *
 	 * @return string
 	 */
@@ -133,10 +134,10 @@ class MssqlSqlHelper extends SqlHelper
 	 * - M      A short textual representation of a month, three letters
 	 * - DD     Day of the month, 2 digits with leading zeros
 	 * - HH     24-hour format of an hour with leading zeros
-	 * - H      12-hour format of an hour with leading zeros
-	 * - GG     24-hour format of an hour with leading zeros
-	 * - G      12-hour format of an hour with leading zeros
-	 * - SS     Minutes with leading zeros
+	 * - H      24-hour format of an hour without leading zeros
+	 * - GG     12-hour format of an hour with leading zeros
+	 * - G      12-hour format of an hour without leading zeros
+	 * - SS     Seconds with leading zeros
 	 * - TT     AM or PM
 	 * - T      AM or PM
 	 * <p>
@@ -312,25 +313,50 @@ class MssqlSqlHelper extends SqlHelper
 	}
 
 	/**
-	 * Returns callback to be called for a field value on fetch.
+	 * {@inheritDoc}
 	 *
-	 * @param Entity\ScalarField $field Type "source".
+	 * @param string $fieldName
+	 *
+	 * return string
+	 */
+	public function castToChar($fieldName)
+	{
+		return 'CAST('.$fieldName.' AS varchar)';
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param string $fieldName
+	 *
+	 * return string
+	 */
+	public function softCastTextToChar($fieldName)
+	{
+		return 'CONVERT(VARCHAR(8000), '.$fieldName.')';
+	}
+
+	/**
+	 * Returns callback to be called for a field value on fetch.
+	 * Used for soft conversion. For strict results @see ORM\Query\Result::setStrictValueConverters()
+	 *
+	 * @param ScalarField $field Type "source".
 	 *
 	 * @return false|callback
 	 */
-	public function getConverter(Entity\ScalarField $field)
+	public function getConverter(ScalarField $field)
 	{
-		if ($field instanceof Entity\DatetimeField)
+		if ($field instanceof ORM\Fields\DatetimeField)
 		{
-			return array($this, "convertDatetimeField");
+			return array($this, "convertFromDbDateTime");
 		}
-		elseif ($field instanceof Entity\DateField)
+		elseif ($field instanceof ORM\Fields\DateField)
 		{
-			return array($this, "convertDateField");
+			return array($this, "convertFromDbDate");
 		}
-		elseif ($field instanceof Entity\StringField)
+		elseif ($field instanceof ORM\Fields\StringField)
 		{
-			return array($this, "convertStringField");
+			return array($this, "convertFromDbString");
 		}
 		else
 		{
@@ -339,6 +365,7 @@ class MssqlSqlHelper extends SqlHelper
 	}
 
 	/**
+	 * @deprecated
 	 * Converts string into \Bitrix\Main\Type\DateTime object.
 	 * <p>
 	 * Helper function.
@@ -350,6 +377,17 @@ class MssqlSqlHelper extends SqlHelper
 	 */
 	public function convertDatetimeField($value)
 	{
+		return $this->convertFromDbDateTime($value);
+	}
+
+	/**
+	 * @param $value
+	 *
+	 * @return Type\DateTime
+	 * @throws Main\ObjectException
+	 */
+	public function convertFromDbDateTime($value)
+	{
 		if ($value !== null)
 		{
 			$value = new Type\DateTime(substr($value, 0, 19), "Y-m-d H:i:s");
@@ -359,16 +397,28 @@ class MssqlSqlHelper extends SqlHelper
 	}
 
 	/**
+	 * @deprecated
 	 * Converts string into \Bitrix\Main\Type\Date object.
 	 * <p>
 	 * Helper function.
 	 *
 	 * @param string $value Value fetched.
 	 *
-	 * @return null|\Bitrix\Main\Type\DateTime
+	 * @return \Bitrix\Main\Type\Date
 	 * @see \Bitrix\Main\Db\MssqlSqlHelper::getConverter
 	 */
 	public function convertDateField($value)
+	{
+		return $this->convertFromDbDate($value);
+	}
+
+	/**
+	 * @param $value
+	 *
+	 * @return Type\Date
+	 * @throws Main\ObjectException
+	 */
+	public function convertFromDbDate($value)
 	{
 		if($value !== null)
 		{
@@ -379,6 +429,7 @@ class MssqlSqlHelper extends SqlHelper
 	}
 
 	/**
+	 * @deprecated
 	 * Converts string into \Bitrix\Main\Type\Date object if string has datetime specific format..
 	 * <p>
 	 * Helper function.
@@ -390,47 +441,59 @@ class MssqlSqlHelper extends SqlHelper
 	 */
 	public function convertStringField($value)
 	{
+		return $this->convertFromDbString($value);
+	}
+
+	/**
+	 * @param string $value
+	 * @param null   $length
+	 *
+	 * @return Type\DateTime|string
+	 * @throws Main\ObjectException
+	 */
+	public function convertFromDbString($value, $length = null)
+	{
 		if ($value !== null)
 		{
 			if(preg_match("#^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\$#", $value))
 			{
-				$value = new Type\DateTime($value, "Y-m-d H:i:s");
+				return new Type\DateTime($value, "Y-m-d H:i:s");
 			}
 		}
 
-		return $value;
+		return parent::convertFromDbString($value, $length);
 	}
 
 	/**
 	 * Returns a column type according to ScalarField object.
 	 *
-	 * @param Entity\ScalarField $field Type "source".
+	 * @param ScalarField $field Type "source".
 	 *
 	 * @return string
 	 */
-	public function getColumnTypeByField(Entity\ScalarField $field)
+	public function getColumnTypeByField(ScalarField $field)
 	{
-		if ($field instanceof Entity\IntegerField)
+		if ($field instanceof ORM\Fields\IntegerField)
 		{
 			return 'int';
 		}
-		elseif ($field instanceof Entity\FloatField)
+		elseif ($field instanceof ORM\Fields\FloatField)
 		{
 			return 'float';
 		}
-		elseif ($field instanceof Entity\DatetimeField)
+		elseif ($field instanceof ORM\Fields\DatetimeField)
 		{
 			return 'datetime';
 		}
-		elseif ($field instanceof Entity\DateField)
+		elseif ($field instanceof ORM\Fields\DateField)
 		{
 			return 'date';
 		}
-		elseif ($field instanceof Entity\TextField)
+		elseif ($field instanceof ORM\Fields\TextField)
 		{
 			return 'text';
 		}
-		elseif ($field instanceof Entity\BooleanField)
+		elseif ($field instanceof ORM\Fields\BooleanField)
 		{
 			$values = $field->getValues();
 
@@ -443,7 +506,7 @@ class MssqlSqlHelper extends SqlHelper
 				return 'varchar('.max(strlen($values[0]), strlen($values[1])).')';
 			}
 		}
-		elseif ($field instanceof Entity\EnumField)
+		elseif ($field instanceof ORM\Fields\EnumField)
 		{
 			return 'varchar('.max(array_map('strlen', $field->getValues())).')';
 		}
@@ -453,7 +516,7 @@ class MssqlSqlHelper extends SqlHelper
 			$defaultLength = false;
 			foreach ($field->getValidators() as $validator)
 			{
-				if ($validator instanceof Entity\Validator\Length)
+				if ($validator instanceof ORM\Fields\Validators\LengthValidator)
 				{
 					if ($defaultLength === false || $defaultLength > $validator->getMax())
 					{
@@ -473,7 +536,7 @@ class MssqlSqlHelper extends SqlHelper
 	 * @param mixed $type Database specific type.
 	 * @param array $parameters Additional information.
 	 *
-	 * @return Entity\ScalarField
+	 * @return ScalarField
 	 */
 	public function getFieldByColumnType($name, $type, array $parameters = null)
 	{
@@ -485,7 +548,7 @@ class MssqlSqlHelper extends SqlHelper
 				//int SQL_INTEGER (4)
 				//smallint SQL_SMALLINT (5)
 				//tinyint SQL_TINYINT (-6)
-				return new Entity\IntegerField($name);
+				return new ORM\Fields\IntegerField($name);
 
 			case 2:
 			case 3:
@@ -497,17 +560,17 @@ class MssqlSqlHelper extends SqlHelper
 				//money SQL_DECIMAL (3)
 				//float SQL_FLOAT (6)
 				//real SQL_REAL (7)
-				return new Entity\FloatField($name, array("scale" => $parameters["scale"]));
+				return new ORM\Fields\FloatField($name, array("scale" => $parameters["scale"]));
 
 			case 93:
 				//datetime - SQL_TYPE_TIMESTAMP (93)
 				//datetime2 - SQL_TYPE_TIMESTAMP (93)
 				//smalldatetime - SQL_TYPE_TIMESTAMP (93)
-				return new Entity\DatetimeField($name);
+				return new ORM\Fields\DatetimeField($name);
 
 			case 91:
 				//date - SQL_TYPE_DATE (91)
-				return new Entity\DateField($name);
+				return new ORM\Fields\DateField($name);
 		}
 		//bigint SQL_BIGINT (-5)
 		//binary SQL_BINARY (-2)
@@ -526,7 +589,7 @@ class MssqlSqlHelper extends SqlHelper
 		//varbinary SQL_VARBINARY (-3)
 		//varchar SQL_VARCHAR (12)
 		//xml SQL_SS_XML (-152)
-		return new Entity\StringField($name, array("size" => $parameters["size"]));
+		return new ORM\Fields\StringField($name, array("size" => $parameters["size"]));
 	}
 
 	/**
@@ -536,7 +599,7 @@ class MssqlSqlHelper extends SqlHelper
 	 *
 	 * @param string $sql Sql text.
 	 * @param integer $limit Maximum number of rows to return.
-	 * @param integer $offset Offset of the first row to return.
+	 * @param integer $offset Offset of the first row to return, starting from 0.
 	 *
 	 * @return string
 	 * @throws Main\ArgumentException
@@ -578,6 +641,7 @@ class MssqlSqlHelper extends SqlHelper
 					$sqlTmp = $sql;
 				}
 
+				// ROW_NUMBER() Returns the sequential number of a row within a partition of a result set, starting at 1 for the first row in each partition.
 				$sqlTmp = preg_replace(
 					"/^\\s*SELECT/i",
 					"SELECT ROW_NUMBER() OVER (".$orderBy.") AS ROW_NUMBER_ALIAS,",
@@ -588,7 +652,7 @@ class MssqlSqlHelper extends SqlHelper
 					"WITH ROW_NUMBER_QUERY_ALIAS AS (".$sqlTmp.") ".
 					"SELECT * ".
 					"FROM ROW_NUMBER_QUERY_ALIAS ".
-					"WHERE ROW_NUMBER_ALIAS BETWEEN ".$offset." AND ".($offset + $limit - 1)."";
+					"WHERE ROW_NUMBER_ALIAS BETWEEN ".($offset + 1)." AND ".($offset + $limit);
 			}
 		}
 		return $sql;
@@ -620,7 +684,15 @@ class MssqlSqlHelper extends SqlHelper
 			{
 				$sourceSelectValues[] = $this->convertToDb($insertFields[$columnName], $tableField);
 				$sourceSelectColumns[] = $quotedName;
-				$targetConnectColumns[] = "source.".$quotedName." = target.".$quotedName;
+				if($insertFields[$columnName] === null)
+				{
+					//can't just compare NULLs
+					$targetConnectColumns[] = "(source.".$quotedName." IS NULL AND target.".$quotedName." IS NULL)";
+				}
+				else
+				{
+					$targetConnectColumns[] = "(source.".$quotedName." = target.".$quotedName.")";
+				}
 			}
 
 			if (isset($updateFields[$columnName]) || array_key_exists($columnName, $updateFields))

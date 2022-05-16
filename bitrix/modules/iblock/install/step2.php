@@ -211,9 +211,14 @@ if($obModule->errors===false)
 }
 
 if(is_array($obModule->errors) && count($obModule->errors)):
-	echo CAdminMessage::ShowMessage(Array("TYPE"=>"ERROR", "MESSAGE" =>GetMessage("MOD_INST_ERR"), "DETAILS"=>implode("<br>", $obModule->errors), "HTML"=>true));
+	CAdminMessage::ShowMessage(array(
+		"TYPE"=>"ERROR",
+		"MESSAGE" =>GetMessage("MOD_INST_ERR"),
+		"DETAILS"=>implode("<br>", $obModule->errors),
+		"HTML"=>true
+	));
 else:
-	echo CAdminMessage::ShowNote(GetMessage("MOD_INST_OK"));
+	CAdminMessage::ShowNote(GetMessage("MOD_INST_OK"));
 endif;
 
 if($obModule->errors===false && $news == "Y" && strlen($news_dir) > 0):
@@ -228,10 +233,14 @@ if($obModule->errors===false && $news == "Y" && strlen($news_dir) > 0):
 	$sites = CSite::GetList($by, $order, Array("ACTIVE"=>"Y"));
 	while($site = $sites->Fetch())
 	{
+		$server = '';
+		if (strlen($site["SERVER_NAME"]) > 0)
+			$server .= "http://".$site["SERVER_NAME"];
+		$url = $site["DIR"].$news_dir.'/';
 		?>
 		<tr>
-			<td width="0%"><p>[<?=$site["ID"]?>] <?=$site["NAME"]?></p></td>
-			<td width="0%"><p><a href="<?if(strlen($site["SERVER_NAME"])>0) echo "http://".$site["SERVER_NAME"];?><?=$site["DIR"].$news_dir?>/"><?=$site["DIR"].$news_dir?>/</a></p></td>
+			<td width="0%"><p>[<?=$site["ID"]?>] <?echo htmlspecialcharsbx($site["NAME"]);?></p></td>
+			<td width="0%"><p><a href="<?echo htmlspecialcharsbx($server.$url);?>"><?echo htmlspecialcharsEx($url);?></a></p></td>
 		</tr>
 		<?
 	}
@@ -254,7 +263,7 @@ if($obModule->errors===false && $catalog == "Y" && strlen($catalog_dir) > 0):
 	{
 		?>
 		<tr>
-			<td width="0%"><p>[<?=$site["ID"]?>] <?=$site["NAME"]?></p></td>
+			<td width="0%"><p>[<?=$site["ID"]?>] <?=htmlspecialcharsbx($site["NAME"])?></p></td>
 			<td width="0%"><p><a href="<?if(strlen($site["SERVER_NAME"])>0) echo "http://".$site["SERVER_NAME"];?><?=$site["DIR"].$catalog_dir?>/"><?=$site["DIR"].$catalog_dir?>/</a></p></td>
 		</tr>
 		<?

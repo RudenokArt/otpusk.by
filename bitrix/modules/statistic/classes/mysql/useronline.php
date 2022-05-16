@@ -1,7 +1,8 @@
-<?
+<?php
+
 class CUserOnline
 {
-	function GetGuestCount()
+	public static function GetGuestCount()
 	{
 		$DB = CDatabase::GetModuleConnection('statistic');
 		$err_mess = "File: ".__FILE__."<br>Line: ";
@@ -21,7 +22,7 @@ class CUserOnline
 		return intval($ar["CNT"]);
 	}
 
-	function GetList(&$guest_count, &$session_count, $arOrder=Array(), $arFilter=Array())
+	public static function GetList(&$guest_count, &$session_count, $arOrder=Array(), $arFilter=Array())
 	{
 		$DB = CDatabase::GetModuleConnection('statistic');
 		$err_mess = "File: ".__FILE__."<br>Line: ";
@@ -29,7 +30,6 @@ class CUserOnline
 
 		$arSqlSearch = Array();
 		$from1 = "";
-		$from2 = "";
 		if (is_array($arFilter))
 		{
 			foreach ($arFilter as $key => $val)
@@ -94,7 +94,6 @@ class CUserOnline
 					case "COUNTRY":
 						$match = ($arFilter[$key."_EXACT_MATCH"]=="Y" && $match_value_set) ? "N" : "Y";
 						$arSqlSearch[] = GetFilterQuery("C.NAME", $val, $match);
-						$from2 = "INNER JOIN b_stat_country C ON (C.ID = S.COUNTRY_ID)";
 						break;
 					case "LAST_SITE_ID":
 						$arSqlSearch[] = GetFilterQuery("S.".$key, $val, "N");
@@ -187,7 +186,6 @@ class CUserOnline
 				INNER JOIN b_stat_guest G ON (G.ID = S.GUEST_ID)
 				INNER JOIN b_stat_country C ON (C.ID = S.COUNTRY_ID)
 				".$from1."
-				".$from2."
 				LEFT JOIN b_stat_city CITY ON (CITY.ID = S.CITY_ID)
 			WHERE
 				S.DATE_STAT >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
@@ -211,4 +209,3 @@ class CUserOnline
 		return $rs;
 	}
 }
-?>

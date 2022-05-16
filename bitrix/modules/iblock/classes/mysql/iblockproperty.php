@@ -12,6 +12,7 @@ class CIBlockProperty extends CAllIBlockProperty
 			$this->LAST_ERROR = $this->FormatNotFoundError($ID);
 			return false;
 		}
+		\Bitrix\Iblock\PropertyIndex\Manager::onPropertyUpdate($arProperty["IBLOCK_ID"], $arProperty, $arFields);
 		if($arProperty["VERSION"]!=2)
 		{
 			return true;
@@ -252,6 +253,8 @@ class CIBlockProperty extends CAllIBlockProperty
 			$strType = "longtext";
 		else
 		{
+			if ($arFields["PROPERTY_TYPE"] === null)
+				$arFields["PROPERTY_TYPE"] = "S";
 			switch($arFields["PROPERTY_TYPE"])
 			{
 				case "S":

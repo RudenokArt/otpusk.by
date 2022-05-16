@@ -5,7 +5,6 @@ function forumCommentsCommentMobile(
 	array $arResult,
 	ForumCommentsComponent $component)
 {
-	global $APPLICATION;
 	$arParams["AVATAR_SIZE"] = (intval($arParams["AVATAR_SIZE"]) ?: 58);
 
 	static $parser = null;
@@ -15,6 +14,7 @@ function forumCommentsCommentMobile(
 		$parser->bMobile = true;
 		$parser->LAZYLOAD = ($arParams["LAZYLOAD"] == "Y");
 		$parser->arFiles = $arResult["FILES"];
+		$parser->userPath = "/mobile/users/?user_id=#UID#";
 	}
 
 	$parser->arUserfields = $comment["PROPS"];
@@ -32,6 +32,7 @@ function forumCommentsCommentMobile(
 			"NAME" => $comment["~NAME"],
 			"LAST_NAME" => $comment["~LAST_NAME"],
 			"SECOND_NAME" => $comment["~SECOND_NAME"],
+			"LOGIN" => $comment["~LOGIN"],
 			"AVATAR" => ($comment["AVATAR"] && $comment["AVATAR"]["FILE"] ? $comment["AVATAR"]["FILE"]['src'] : "")
 		),
 		"FILES" => $comment["FILES"],
@@ -48,6 +49,11 @@ function forumCommentsCommentMobile(
 		"BEFORE_RECORD" => "",
 		"AFTER_RECORD" => ""
 	);
+
+	if ($arParams["SHOW_RATING"] == "Y")
+	{
+		$res["RATING_VOTE_ID"] = 'FORUM_POST_'.$res['ID'].'-'.(time()+rand(0, 1000));
+	}
 
 	return $res;
 }

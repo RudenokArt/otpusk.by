@@ -6,8 +6,6 @@
 	$this->addExternalCss("/bitrix/components/bitrix/advertising.banner/templates/nivo/nivo-slider.css");
 	$this->addExternalCss("/bitrix/components/bitrix/advertising.banner/templates/nivo/themes/default/default.css");
 	$this->addExternalCss("/bitrix/themes/.default/banner.css");
-	if ($arParams['JQUERY'] == 'Y' || isset($arParams['PREVIEW']))
-		CJSCore::Init(array("jquery2"));
 	$this->addExternalJs("/bitrix/components/bitrix/advertising.banner/templates/nivo/jquery.nivo.slider.pack.js");
 
 	$arParams['WIDTH'] = intval($arResult['SIZE']['WIDTH']);
@@ -28,7 +26,7 @@
 <?endif;?>
 
 <div class="slider-wrapper theme-default">
-	<div id="slider-<?=$arParams['ID']?>" class="nivoSlider">
+	<div id="slider-<?=$arResult['ID']?>" class="nivoSlider">
 		<?foreach($arResult["BANNERS"] as $k => $banner):?>
 			<?=$banner?>
 		<?endforeach;?>
@@ -37,7 +35,7 @@
 
 <script type="text/javascript">
 	$(window).load(function() {
-		$('#slider-<?=$arParams['ID']?>').nivoSlider({
+		$('#slider-<?=$arResult['ID']?>').nivoSlider({
 			effect: '<?=$arParams['EFFECT']?>',
 			slices: 15, // For slice animations
 			boxCols: 8, // For box animations

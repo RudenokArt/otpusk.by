@@ -1,0 +1,16 @@
+<?
+require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");?>
+<?
+CModule::IncludeModule('iblock'); 
+$arSelect = Array("ID");
+$arFilter = Array("IBLOCK_ID"=>49);
+$res = CIBlockElement::GetList(Array(), $arFilter, false, Array("nPageSize"=>10000), $arSelect);
+while($ob = $res->GetNextElement())
+{
+ $arFields = $ob->GetFields();
+	//print_r($arFields);
+CIBlockElement::Delete($arFields["ID"]); 
+}
+?> 
+
+<?require($_SERVER["DOCUMENT_ROOT"]."/bitrix/footer.php");?>

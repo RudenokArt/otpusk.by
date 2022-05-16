@@ -1,4 +1,9 @@
-<?if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED!==true) die();
+<?
+use Bitrix\Main\Context;
+use Bitrix\Main\Text\Encoding;
+
+if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED!==true) die();
+
 $arParams['IN_COMPLEX'] = 'N';
 if (($arParent =  $this->GetParent()) !== NULL)
 	$arParams['IN_COMPLEX'] = 'Y';
@@ -62,16 +67,12 @@ if(strlen($arParams['PATH_TO_USER'])<=0)
 
 $arResult['PREVIEW'] = !empty($_POST['preview']) && $_POST['preview'] == 'Y' ? 'Y' : 'N';
 $arResult['IMAGE_UPLOAD'] = isset($_GET['image_upload']) || ($_POST['do_upload']) ? 'Y' : 'N';
-$arResult['INSERT_LINK'] = isset($_GET['insert_link']) ? 'Y' : 'N';
-$arResult['INSERT_IMAGE'] = isset($_GET['insert_image']) ? 'Y' : 'N';
-$arResult['INSERT_CATEGORY'] = isset($_GET['insert_category']) ? 'Y' : 'N';
 
-$arResult['LOAD_EDITOR'] = isset($_GET['load_editor']) ? 'Y' : 'N';
 $arResult['DEL_DIALOG'] = isset($_GET['del_dialog']) ? 'Y' : 'N';
 
 if (isset($_REQUEST['post_to_feed']))
 {
-	$arResult['POST_TO_FEED'] = $_REQUEST['post_to_feed'];
+	$arResult['POST_TO_FEED'] = ($_REQUEST['post_to_feed'] === 'Y' ? 'Y' : 'N');
 	CUserOptions::SetOption("wiki", "POST_TO_FEED", $arResult['POST_TO_FEED']);
 }
 else
@@ -142,7 +143,7 @@ if (!CWikiUtils::IsWriteable() || ($arResult['WIKI_oper'] == 'delete' && !CWikiU
 	return;
 }
 $CWiki = new CWiki();
-$arParams['ELEMENT_NAME'] = urldecode($arParams['ELEMENT_NAME']);
+$arParams['ELEMENT_NAME'] = CWikiUtils::htmlspecialcharsback(($arParams['ELEMENT_NAME']));
 $arFilter = array(
 	'IBLOCK_ID' => $arParams['IBLOCK_ID'],
 	'CHECK_PERMISSIONS' => 'N'
@@ -270,59 +271,78 @@ $arResult['PATH_TO_DELETE'] = CHTTP::urlAddParams(
 	$arParams['IN_COMPLEX'] == 'Y' && $arParams['SEF_MODE'] == 'N' ? array($arParams['OPER_VAR'] => 'delete') : array()
 );
 
-if ($arResult['INSERT_LINK'] == 'Y' || $arResult['INSERT_IMAGE'] == 'Y' || $arResult['LOAD_EDITOR'] == 'Y' || $arResult['CLEAR_CONTENT'] == 'Y'
-	|| $arResult['INSERT_CATEGORY'] == 'Y' || ($arResult['DEL_DIALOG'] != 'Y'  && $arResult['WIKI_oper'] == 'delete') || $arResult['WIKI_oper'] == 'rename')
+if (CWikiSocnet::IsSocNet())
 {
-	$APPLICATION->RestartBuffer();
-	header("Pragma: no-cache");
-	if ($arResult['INSERT_CATEGORY'] == 'Y')
-	{
-		if (CWikiSocnet::IsSocNet())
-		{
-			$arFilter['>LEFT_BORDER'] = CWikiSocnet::$iCatLeftBorder;
-			$arFilter['<RIGHT_BORDER'] = CWikiSocnet::$iCatRightBorder;
-		}
-
-		$rsTree = CIBlockSection::GetList(Array('left_margin' => 'asc'), $arFilter);
-		$arTree = array('-1' => GetMessage('WIKI_CHOISE_CATEGORY'));
-		$_iLevel = 0;
-		while($arElement = $rsTree->GetNext())
-		{
-			$_iLevel = (int)$arElement['DEPTH_LEVEL'] - (CWikiSocnet::IsSocNet() ? 2 : 1);
-			$_sSeparator = '';
-			if ($_iLevel > 0)
-				$_sSeparator  = str_pad('', $_iLevel, '--');
-			$arTree[$arElement['NAME']] = $_sSeparator.CWikiUtils::htmlspecialcharsback($arElement['NAME'], false);
-		}
-		$arResult['TREE'] = $arTree;
-	}
+	$arFilter['>LEFT_BORDER'] = CWikiSocnet::$iCatLeftBorder;
+	$arFilter['<RIGHT_BORDER'] = CWikiSocnet::$iCatRightBorder;
 }
-else if ($arResult['IMAGE_UPLOAD'] == 'Y')
+
+$rsTree = CIBlockSection::GetList(Array('left_margin' => 'asc'), $arFilter);
+$arTree = array('-1' => GetMessage('WIKI_CHOISE_CATEGORY'));
+$_iLevel = 0;
+while($arElement = $rsTree->GetNext())
+{
+	$_iLevel = (int)$arElement['DEPTH_LEVEL'] - (CWikiSocnet::IsSocNet() ? 2 : 1);
+	$_sSeparator = '';
+	if ($_iLevel > 0)
+		$_sSeparator  = str_pad('', $_iLevel, '--');
+	$arTree[$arElement['NAME']] = $_sSeparator.CWikiUtils::htmlspecialcharsback($arElement['NAME'], false);
+}
+$arResult['TREE'] = $arTree;
+
+if (($arResult['DEL_DIALOG'] != 'Y'  && $arResult['WIKI_oper'] == 'delete'))
 {
 	$APPLICATION->RestartBuffer();
 	header("Pragma: no-cache");
-	if (isset($_POST['do_upload']))
+	$this->IncludeComponentTemplate('dialog_delete');
+	die();
+}
+else if ($arResult['WIKI_oper'] == 'rename')
+{
+	$APPLICATION->RestartBuffer();
+	header("Pragma: no-cache");
+	$this->IncludeComponentTemplate('dialog_rename');
+	die();
+}
+else if ($arResult['IMAGE_UPLOAD'] == 'Y' && isset($_POST['do_upload']))
+{
+	$APPLICATION->RestartBuffer();
+	header("Content-Type: application/json");
+	header("Pragma: no-cache");
+	$uploadResult = array();
+	if (!empty($_FILES['FILE_ID']) && $_FILES['FILE_ID']['size'] > 0)
 	{
-		if (!empty($_FILES['FILE_ID']) && $_FILES['FILE_ID']['size'] > 0)
+		$file = $_FILES['FILE_ID'];
+		$file['name'] =  Encoding::convertEncoding($file['name'], 'UTF-8', Context::getCurrent()->getCulture()->getCharset());
+		$iCheckResult = CFile::CheckImageFile($file);
+		if (strlen($iCheckResult)==0)
 		{
-			$iCheckResult = CFile::CheckImageFile($_FILES['FILE_ID']);
-			if (strlen($iCheckResult)==0)
+			$_imgID = $CWiki->addImage($arParams['ELEMENT_ID'], $arParams['IBLOCK_ID'], $file);
+			if($_imgID !== false)
 			{
-				$_imgID = $CWiki->addImage($arParams['ELEMENT_ID'], $arParams['IBLOCK_ID'], $_FILES['FILE_ID']);
 				$rsFile = CFile::GetByID($_imgID);
 				$arFile = $rsFile->Fetch();
-				$arResult['IMAGE'] = array(
-					'ID' => $_imgID,
-					'ORIGINAL_NAME' => $arFile['ORIGINAL_NAME'],
-					'FILE_SHOW' => CFile::ShowImage($_imgID, 100, 100, "id=\"$_imgID\" border=\"0\" style=\"cursor:pointer;\" onclick=\"doInsert(\'[File:".CUtil::JSEscape($arFile['ORIGINAL_NAME'])."]\',\'\',false, \'$_imgID\')\" title=\"".GetMessage('WIKI_IMAGE_INSERT')."\"")
+				$uploadResult['IMAGE'] = array(
+						'ID' => $_imgID,
+						'ORIGINAL_NAME' => $arFile['ORIGINAL_NAME'],
+						'FILE_SHOW' => CFile::ShowImage($_imgID, 100, 100, "id=\"$_imgID\" border=\"0\" style=\"cursor:pointer;\" onclick=\"wikiMainEditor.doInsert('[File:".CUtil::JSEscape($arFile['ORIGINAL_NAME'])."]', '' ,false, '$_imgID')\" title=\"".GetMessage('WIKI_IMAGE_INSERT')."\"")
 				);
 			}
 			else
-				$arResult['ERROR_MESSAGE'] = GetMessage('WIKI_IMAGE_UPLOAD_ERROR');
+			{
+				$lastError = array_pop($CWiki->getErrors()->toArray());
+				$uploadResult['ERROR_MESSAGE'] = $lastError->getMessage();
+			}
 		}
 		else
-			$arResult['ERROR_MESSAGE'] = GetMessage('WIKI_IMAGE_UPLOAD_ERROR');
+			$uploadResult['ERROR_MESSAGE'] = GetMessage('WIKI_IMAGE_UPLOAD_ERROR');
 	}
+	else
+		$uploadResult['ERROR_MESSAGE'] = GetMessage('WIKI_IMAGE_UPLOAD_ERROR');
+
+
+	echo Bitrix\Main\Web\Json::encode($uploadResult);
+	die();
 }
 else
 {
@@ -420,7 +440,7 @@ else
 
 							$postUrl = str_replace(
 											array('#group_id#', '#wiki_name#'),
-											array(intval($arParams['SOCNET_GROUP_ID']), urlencode($arFields['NAME'])),
+											array(intval($arParams['SOCNET_GROUP_ID']), rawurlencode($arFields['NAME'])),
 											$arParams['~PATH_TO_POST']
 										);
 
@@ -434,7 +454,9 @@ else
 								}
 							}
 
-							$text4message =  $CWikiParser->Parse($arFields['DETAIL_TEXT'], $arFields['DETAIL_TEXT_TYPE'], $arCurImages);
+							$arCat = array();
+							$text4message = $CWikiParser->parseBeforeSave($arFields['DETAIL_TEXT'], $arCat);
+							$text4message =  $CWikiParser->Parse($text4message, $arFields['DETAIL_TEXT_TYPE'], $arCurImages);
 							$text4message = CWikiSocnet::PrepareTextForFeed($text4message);
 							$text4message = $CWikiParser->Clear($text4message);
 
@@ -453,8 +475,8 @@ else
 									array('ID' => 'DESC'),
 									array(
 										'SOURCE_ID' => $arParams['ELEMENT_ID'],
-									    'ENTITY_ID'=> 'wiki'
-								)); 	//'SITE_ID' => $arGroupSite['SITE_ID']
+										'EVENT_ID'=> 'wiki'
+								));
 
 								if ($arLog = $dbLog->Fetch())
 								{
@@ -490,7 +512,7 @@ else
 											"EXCLUDE_USERS" => array($arSoFields["USER_ID"])
 										);
 
-										CSocNetSubscription::NotifyGroup($arNotifyParams);										
+										CSocNetSubscription::NotifyGroup($arNotifyParams);
 									}
 								}
 							}
@@ -512,7 +534,7 @@ else
 									'MODULE_ID' => 'wiki',
 									'URL' => str_replace(
 										array('#group_id#', '#wiki_name#'),
-										array(intval($arParams['SOCNET_GROUP_ID']), urlencode($arFields['NAME'])),
+										array(intval($arParams['SOCNET_GROUP_ID']), rawurlencode($arFields['NAME'])),
 										$arParams['~PATH_TO_POST']
 									),
 									'CALLBACK_FUNC' => false,
@@ -568,15 +590,17 @@ else
 
 						$dbLog = CSocNetLog::GetList(
 										array('ID' => 'DESC'),
-										array('SOURCE_ID' => $arParams['ELEMENT_ID'])
-										//'SITE_ID' => $arGroupSite['SITE_ID'])
+										array(
+											'EVENT_ID' => 'wiki',
+											'SOURCE_ID' => $arParams['ELEMENT_ID']
+										)
 						);
 						$arLog = $dbLog->Fetch();
 					}
 
 					$CWiki->Delete($arParams['ELEMENT_ID'], $arParams['IBLOCK_ID']);
 
-					if(strlen($strTitleTmp) > 0	&& isset($arLog['ID']) && CWikiSocnet::IsSocNet())
+					if(strlen($strTitleTmp) > 0 && isset($arLog['ID']) && CWikiSocnet::IsSocNet())
 					{
 						$arSoFields = Array(
 							'ENTITY_TYPE' => SONET_SUBSCRIBE_ENTITY_GROUP,
@@ -655,11 +679,17 @@ else
 						{
 							$postUrl = str_replace(
 											array('#group_id#', '#wiki_name#'),
-											array(intval($arParams['SOCNET_GROUP_ID']), urlencode($newName)),
+											array(intval($arParams['SOCNET_GROUP_ID']), rawurlencode($newName)),
 											$arParams['~PATH_TO_POST']
 										);
 
-							$dbLog = CSocNetLog::GetList(array('ID' => 'DESC'), array('SOURCE_ID' => $arParams['ELEMENT_ID']));
+							$dbLog = CSocNetLog::GetList(
+								array('ID' => 'DESC'),
+								array(
+									'EVENT_ID' => 'wiki',
+									'SOURCE_ID' => $arParams['ELEMENT_ID']
+								)
+							);
 							if ($arLog = $dbLog->Fetch())
 							{
 								$arSoFields = Array(
@@ -671,7 +701,6 @@ else
 									'URL' => $postUrl
 								);
 
-								//die(print_r($arSoFields,true));
 								$logID = CSocNetLog::Update($arLog['ID'], $arSoFields);
 								if (intval($logID) > 0)
 								{
@@ -717,7 +746,7 @@ else
 				if (!isset($_POST['apply']))
 					LocalRedirect(CHTTP::urlAddParams(CComponentEngine::MakePathFromTemplate($arParams['PATH_TO_POST'],
 						array(
-							'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+							'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 							'group_id' => CWikiSocnet::$iSocNetId,
 						)),
 						array('wiki_page_cache_clear' => 'Y'))
@@ -725,7 +754,7 @@ else
 				else
 					LocalRedirect(CHTTP::urlAddParams(CComponentEngine::MakePathFromTemplate($arParams['PATH_TO_POST_EDIT'],
 						array(
-							'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+							'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 							'group_id' => CWikiSocnet::$iSocNetId
 						)),
 						$arParams['IN_COMPLEX'] == 'Y' && $arParams['SEF_MODE'] == 'N' ? array($arParams['OPER_VAR'] => $arResult['WIKI_oper']) : array())
@@ -787,7 +816,7 @@ else
 			$aImg = array();
 			$aImg['ID'] = $_imgID;
 			$aImg['ORIGINAL_NAME'] = $arFile['ORIGINAL_NAME'];
-			$aImg['FILE_SHOW'] = CFile::ShowImage($_imgID, 100, 100, "id=\"$_imgID\" border=\"0\" style=\"cursor:pointer;\" onclick=\"doInsert('[File:".CUtil::JSEscape(htmlspecialcharsbx($arFile['ORIGINAL_NAME']))."]','',false, '$_imgID')\" title='".GetMessage('WIKI_IMAGE_INSERT')."'");
+			$aImg['FILE_SHOW'] = CFile::ShowImage($_imgID, 100, 100, "id=\"$_imgID\" border=\"0\" style=\"cursor:pointer;\" onclick=\"wikiMainEditor.doInsert('[File:".CUtil::JSEscape(htmlspecialcharsbx($arFile['ORIGINAL_NAME']))."]','',false, '$_imgID')\" title='".GetMessage('WIKI_IMAGE_INSERT')."'");
 			$arResult['IMAGES'][] = $aImg;
 		}
 	}
@@ -797,20 +826,20 @@ else
 	$arResult['PATH_TO_POST_EDIT'] = CHTTP::urlAddParams(
 		CComponentEngine::MakePathFromTemplate($arParams['PATH_TO_POST_EDIT'],
 			array(
-				'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+				'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 				'group_id' => CWikiSocnet::$iSocNetId
 			)
 		),
 		$arParams['IN_COMPLEX'] == 'Y' && $arParams['SEF_MODE'] == 'N' ? array($arParams['OPER_VAR'] => $arResult['WIKI_oper']) : array()
 	);
-	$arResult['~PATH_TO_POST_EDIT'] = urldecode($arResult['PATH_TO_POST_EDIT']);
+	$arResult['~PATH_TO_POST_EDIT'] = rawurldecode($arResult['PATH_TO_POST_EDIT']);
 
 	//because it can change the page name, and hence the path for the parameter "Action" in tag "Form"
 	if (strpos(POST_FORM_ACTION_URI, 'SEF_APPLICATION_CUR_PAGE_URL=') !== false)
 	{
 		$arResult['PATH_TO_POST_EDIT_SUBMIT'] = CHTTP::urlAddParams(
 			CHTTP::urlDeleteParams(POST_FORM_ACTION_URI, array('SEF_APPLICATION_CUR_PAGE_URL')),
-			array('SEF_APPLICATION_CUR_PAGE_URL' => urlencode($arResult['~PATH_TO_POST_EDIT']))
+			array('SEF_APPLICATION_CUR_PAGE_URL' => rawurlencode($arResult['~PATH_TO_POST_EDIT']))
 		);
 	}
 	else
@@ -822,4 +851,3 @@ else
 
 $this->IncludeComponentTemplate();
 unset($GLOBALS['arParams']);
-?>

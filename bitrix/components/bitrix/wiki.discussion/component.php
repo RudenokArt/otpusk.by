@@ -125,7 +125,7 @@ if (!CWikiUtils::IsReadable())
 	return;
 }
 
-$arParams['ELEMENT_NAME'] = urldecode($arParams['ELEMENT_NAME']);
+$arParams['ELEMENT_NAME'] = rawurldecode($arParams['ELEMENT_NAME']);
 $arFilter = array(
 //	'IBLOCK_LID' => SITE_ID,
 	'IBLOCK_ID' => $arParams['IBLOCK_ID'],
@@ -212,15 +212,26 @@ if (CWikiSocnet::isEnabledSocnet() && !empty($arParams['SOCNET_GROUP_ID']))
 				$parserLog = new logTextParser();
 				$arAllow = array("HTML" => "N", "ANCHOR" => "N", "BIU" => "N", "IMG" => "N", "QUOTE" => "N", "CODE" => "N", "FONT" => "N", "LIST" => "N", "SMILES" => "N", "NL2BR" => "N", "VIDEO" => "N", "TABLE" => "N");
 
-				$text4message = $CWikiParser->Parse($arElement['DETAIL_TEXT'], $arElement['DETAIL_TEXT_TYPE'], $arWikiElement['IMAGES']);
-				$text4message = preg_replace("#<br[\s]*\/>#is", "#BR#", $text4message);
-				$text4message = htmlspecialcharsback($parserLog->convert($text4message, array(), $arAllow));
-				$text4message = preg_replace("#\#BR\##is", "\n", $text4message);
+
+				$arCurImages = array();
+				$rsProperties = CIBlockElement::GetProperty($arElement['IBLOCK_ID'], $arElement['ID'], 'value_id', 'asc', array('ACTIVE' => 'Y', 'CODE' => 'IMAGES'));
+				while($arProperty = $rsProperties->Fetch())
+				{
+					if($arProperty['CODE'] == 'IMAGES')
+					{
+						$arCurImages[] = $arProperty['VALUE'];
+					}
+				}
+
+				$arCat = array();
+				$text4message = $CWikiParser->parseBeforeSave($arElement['DETAIL_TEXT'], $arCat);
+				$text4message =  $CWikiParser->Parse($text4message, $arElement['DETAIL_TEXT_TYPE'], $arCurImages);
+				$text4message = CWikiSocnet::PrepareTextForFeed($text4message);
 				$text4message = $CWikiParser->Clear($text4message);
 
 				$url = str_replace(
 					array('#group_id#', '#wiki_name#'),
-					array(intval($this->SonetGroupID), urlencode($arElement['NAME'])),
+					array(intval($this->SonetGroupID), rawurlencode($arElement['NAME'])),
 					$this->arPath['PATH_TO_POST']
 				);
 
@@ -279,9 +290,9 @@ if (CWikiSocnet::isEnabledSocnet() && !empty($arParams['SOCNET_GROUP_ID']))
 
 			$arForum = CForumNew::GetByID($this->ForumID);
 
-			$parser = new textParser(LANGUAGE_ID, $this->arPath['PATH_TO_SMILE']);
-			$parser->image_params['width'] = false;
-			$parser->image_params['height'] = false;
+			$parser = new forumTextParser(LANGUAGE_ID, $this->arPath['PATH_TO_SMILE']);
+			$parser->imageWidth = false;
+			$parser->imageHeight = false;
 
 			$arAllow = array(
 				'HTML' => "N",
@@ -302,9 +313,9 @@ if (CWikiSocnet::isEnabledSocnet() && !empty($arParams['SOCNET_GROUP_ID']))
 				$arMessage = CForumMessage::GetByIDEx($messageID);
 				$sAuthorForMail = str_replace('#TITLE#', $arMessage['AUTHOR_NAME'], GetMessage('SONET_FORUM_LOG_TEMPLATE_GUEST'));
 
-				$parser = new textParser(LANGUAGE_ID, $this->arPath['PATH_TO_SMILE']);
-				$parser->image_params['width'] = false;
-				$parser->image_params['height'] = false;
+				$parser = new forumTextParser(LANGUAGE_ID, $this->arPath['PATH_TO_SMILE']);
+				$parser->imageWidth = false;
+				$parser->imageHeight = false;
 
 				if (intVal($arMessage['AUTHOR_ID']) > 0)
 					$sAuthorForMail = str_replace(array('#URL#', '#TITLE#'), array('http://'.SITE_SERVER_NAME.CComponentEngine::MakePathFromTemplate(
@@ -316,7 +327,7 @@ if (CWikiSocnet::isEnabledSocnet() && !empty($arParams['SOCNET_GROUP_ID']))
 					'ENTITY_ID' => intval($this->SonetGroupID),
 					'EVENT_ID' => 'wiki_comment',
 					'=LOG_DATE' => $GLOBALS['DB']->CharToDateFunction($arMessage['POST_DATE'], "FULL", SITE_ID),
-					'MESSAGE' => $parser->convert($arMessage['POST_MESSAGE'], $arAllow),
+					'MESSAGE' => $arMessage['POST_MESSAGE'],
 					'TEXT_MESSAGE' => $parser->convert4mail($arMessage['POST_MESSAGE'].$sAuthorForMail),
 					'URL' => $arLogParams["URL"],
 					'MODULE_ID' => false,

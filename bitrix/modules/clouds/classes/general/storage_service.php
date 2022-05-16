@@ -1,8 +1,21 @@
-<?
+<?php
 abstract class CCloudStorageService
 {
+	protected $verb = '';
+	protected $host = '';
+	protected $url = '';
+
+	protected $errno = 0;
+	protected $errstr = '';
+
+	protected $status = 0;
+	protected $headers =/*.(array[string]string).*/array();
+	protected $result = '';
+
+	public $tokenHasExpired = false;
 	/**
 	 * @return CCloudStorageService
+	 * @deprecated
 	*/
 	abstract public function GetObject();
 	/**
@@ -27,7 +40,7 @@ abstract class CCloudStorageService
 	abstract public function GetSettingsHTML($arBucket, $bServiceSet, $cur_SERVICE_ID, $bVarsFromForm);
 	/**
 	 * @param array[string]string $arBucket
-	 * @param array[string]string $arSettings
+	 * @param array[string]string & $arSettings
 	 * @return bool
 	*/
 	abstract public function CheckSettings($arBucket, &$arSettings);
@@ -94,7 +107,56 @@ abstract class CCloudStorageService
 	abstract public function ListFiles($arBucket, $filePath, $bRecursive = false);
 	/**
 	 * @param array[string]string $arBucket
-	 * @param mixed $NS
+	 * @param string $sourcePath
+	 * @param string $targetPath
+	 * @param bool $overwrite
+	 * @return bool
+	*/
+	public function FileRename($arBucket, $sourcePath, $targetPath, $overwrite = true)
+	{
+		if ($this->FileExists($arBucket, $sourcePath))
+		{
+			$contentType = $this->headers["Content-Type"];
+		}
+		else
+		{
+			return false;
+		}
+
+		if ($this->FileExists($arBucket, $targetPath))
+		{
+			if (!$overwrite)
+			{
+				return false;
+			}
+
+			if (!$this->DeleteFile($arBucket, $targetPath))
+			{
+				return false;
+			}
+		}
+
+		$arFile = array(
+			"SUBDIR" => '',
+			"FILE_NAME" => ltrim($sourcePath, "/"),
+			"CONTENT_TYPE" => $contentType,
+		);
+
+		if (!$this->FileCopy($arBucket, $arFile, $targetPath))
+		{
+			return false;
+		}
+
+		if (!$this->DeleteFile($arBucket, $sourcePath))
+		{
+			return false;
+		}
+
+		return true;
+	}
+	/**
+	 * @param array[string]string $arBucket
+	 * @param mixed & $NS
 	 * @param string $filePath
 	 * @param float $fileSize
 	 * @param string $ContentType
@@ -107,14 +169,14 @@ abstract class CCloudStorageService
 	abstract public function GetMinUploadPartSize();
 	/**
 	 * @param array[string]string $arBucket
-	 * @param mixed $NS
+	 * @param mixed & $NS
 	 * @param string $data
 	 * @return bool
 	*/
 	abstract public function UploadPart($arBucket, &$NS, $data);
 	/**
 	 * @param array[string]string $arBucket
-	 * @param mixed $NS
+	 * @param mixed & $NS
 	 * @return bool
 	*/
 	abstract public function CompleteMultipartUpload($arBucket, &$NS);
@@ -134,11 +196,45 @@ abstract class CCloudStorageService
 	{
 	}
 	/**
-	 * @param bool $public
+	 * @param bool $state
 	 * @return void
 	 */
-	public function SetPublic($public)
+	public function SetPublic($state = true)
 	{
 	}
+	/**
+	 * @return array[string]string
+	*/
+	function getHeaders()
+	{
+		return $this->headers;
+	}
+	/**
+	 * @return int
+	*/
+	function GetLastRequestStatus()
+	{
+		return $this->status;
+	}
+	/**
+	 * @param string $headerName
+	 * @return string
+	*/
+	function GetLastRequestHeader($headerName)
+	{
+		$loweredName = strtolower($headerName);
+		foreach ($this->headers as $name => $value)
+		{
+			if (strtolower($name) === $loweredName)
+				return $value;
+		}
+		return null;
+	}
+	/**
+	 * @return CCloudStorageService
+	*/
+	public static function GetObjectInstance()
+	{
+		return new static();
+	}
 }
-?>

@@ -80,8 +80,7 @@ class QueryBuilder
 		)
 		{
 			$where = array();
-			if (isset($filter["SECTION_ID"]))
-				$toUnset[] = array(&$filter, "SECTION_ID");
+			$toUnset[] = array(&$filter, "SECTION_ID");
 
 			if ($filter["INCLUDE_SUBSECTIONS"] === "Y")
 			{
@@ -169,7 +168,7 @@ class QueryBuilder
 
 					$fcJoin = "
 						INNER JOIN (
-							SELECT ".($distinctSelectCapable? "": "DISTINCT")." FC0.ELEMENT_ID
+							SELECT ".($distinctSelectCapable? "DISTINCT": "")." FC0.ELEMENT_ID
 							$subJoin
 							WHERE
 							$subWhere
@@ -224,11 +223,14 @@ class QueryBuilder
 	 */
 	private function fillWhere(&$where, &$hasAdditionalFilters, &$toUnset, &$filter)
 	{
-		$properties = $this->getFilterProperty();
+		$properties = null;
 		foreach ($filter as $filterKey => $filterValue)
 		{
 			if (preg_match("/^(=)PROPERTY\$/i", $filterKey, $keyDetails) && is_array($filterValue))
 			{
+				if ($properties === null)
+					$properties = $this->getFilterProperty();
+
 				foreach ($filterValue as $propertyId => $value)
 				{
 					$facetId = $this->storage->propertyIdToFacetId($propertyId);
@@ -250,6 +252,9 @@ class QueryBuilder
 			}
 			elseif (preg_match("/^(=)PROPERTY_(\\d+)\$/i", $filterKey, $keyDetails))
 			{
+				if ($properties === null)
+					$properties = $this->getFilterProperty();
+
 				$propertyId = $keyDetails[2];
 				$value = $filterValue;
 				$facetId = $this->storage->propertyIdToFacetId($propertyId);
@@ -270,6 +275,9 @@ class QueryBuilder
 			}
 			elseif (preg_match("/^(>=|<=)PROPERTY\$/i", $filterKey, $keyDetails) && is_array($filterValue))
 			{
+				if ($properties === null)
+					$properties = $this->getFilterProperty();
+
 				foreach ($filterValue as $propertyId => $value)
 				{
 					$facetId = $this->storage->propertyIdToFacetId($propertyId);
@@ -305,6 +313,9 @@ class QueryBuilder
 			}
 			elseif (preg_match("/^(><)PROPERTY\$/i", $filterKey, $keyDetails) && is_array($filterValue))
 			{
+				if ($properties === null)
+					$properties = $this->getFilterProperty();
+
 				foreach ($filterValue as $propertyId => $value)
 				{
 					$facetId = $this->storage->propertyIdToFacetId($propertyId);
@@ -342,7 +353,7 @@ class QueryBuilder
 			}
 			elseif (
 				$this->options["PRICE_FILTER"]
-				&& preg_match("/^(>=|<=)CATALOG_PRICE_(\\d+)\$/i", $filterKey, $keyDetails)
+				&& preg_match("/^(>=|<=)(?:CATALOG_|)PRICE_(\\d+)\$/i", $filterKey, $keyDetails)
 				&& !is_array($filterValue)
 			)
 			{
@@ -360,7 +371,7 @@ class QueryBuilder
 			}
 			elseif (
 				$this->options["PRICE_FILTER"]
-				&& preg_match("/^(><)CATALOG_PRICE_(\\d+)\$/i", $filterKey, $keyDetails)
+				&& preg_match("/^(><)(?:CATALOG_|)PRICE_(\\d+)\$/i", $filterKey, $keyDetails)
 				&& is_array($filterValue)
 			)
 			{
@@ -383,7 +394,7 @@ class QueryBuilder
 				&& is_array($filterValue) && count($filterValue) === 3
 				&& isset($filterValue["LOGIC"]) && $filterValue["LOGIC"] === "OR"
 				&& isset($filterValue["=ID"]) && is_object($filterValue["=ID"])
-				&& preg_match("/^(>=|<=)CATALOG_PRICE_(\\d+)\$/i", key($filterValue[0][0]), $keyDetails)
+				&& preg_match("/^(>=|<=)(?:CATALOG_|)PRICE_(\\d+)\$/i", key($filterValue[0][0]), $keyDetails)
 				&& !is_array(current($filterValue[0][0]))
 			)
 			{
@@ -398,7 +409,7 @@ class QueryBuilder
 					"VALUES" => array($doubleValue),
 				);
 				$toUnset[] = array(&$filter, $filterKey);
-				$toUnset[] = array(&$filter, "CATALOG_SHOP_QUANTITY_1");
+				$toUnset[] = array(&$filter, "CATALOG_SHOP_QUANTITY_".$priceId);
 			}
 			elseif (
 				$this->options["PRICE_FILTER"]
@@ -406,7 +417,7 @@ class QueryBuilder
 				&& is_array($filterValue) && count($filterValue) === 3
 				&& isset($filterValue["LOGIC"]) && $filterValue["LOGIC"] === "OR"
 				&& isset($filterValue["=ID"]) && is_object($filterValue["=ID"])
-				&& preg_match("/^(><)CATALOG_PRICE_(\\d+)\$/i", key($filterValue[0][0]), $keyDetails)
+				&& preg_match("/^(><)(?:CATALOG_|)PRICE_(\\d+)\$/i", key($filterValue[0][0]), $keyDetails)
 				&& is_array(current($filterValue[0][0]))
 			)
 			{
@@ -422,7 +433,7 @@ class QueryBuilder
 					"VALUES" => array($doubleValueMin, $doubleValueMax),
 				);
 				$toUnset[] = array(&$filter, $filterKey);
-				$toUnset[] = array(&$filter, "CATALOG_SHOP_QUANTITY_1");
+				$toUnset[] = array(&$filter, "CATALOG_SHOP_QUANTITY_".$priceId);
 			}
 			elseif (
 				$filterKey !== "IBLOCK_ID"
@@ -488,6 +499,7 @@ class QueryBuilder
 	 */
 	private function getFilterProperty()
 	{
+		//TODO: remove this code to \Bitrix\Iblock\Model\Property
 		if (!isset($this->propertyFilter))
 		{
 			$this->propertyFilter = array();

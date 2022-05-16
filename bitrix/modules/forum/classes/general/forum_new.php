@@ -12,7 +12,7 @@ IncludeModuleLangFile(__FILE__);
 class CAllForumNew
 {
 	//---------------> Forum insert, update, delete
-	function CanUserViewForum($FID, $arUserGroups, $ExternalPermission = false)
+	public static function CanUserViewForum($FID, $arUserGroups, $ExternalPermission = false)
 	{
 		$FID = intVal($FID);
 		$arUserGroups = (!is_array($arUserGroups) ? array($arUserGroups) : $arUserGroups);
@@ -29,13 +29,13 @@ class CAllForumNew
 		return ($strPerms < "E" ? false : true);
 	}
 
-	function CanUserAddForum($arUserGroups, $iUserID = 0)
+	public static function CanUserAddForum($arUserGroups, $iUserID = 0)
 	{
 		$arUserGroups = (!is_array($arUserGroups) ? array($arUserGroups) : $arUserGroups);
 		return CForumUser::IsAdmin($arUserGroups);
 	}
 
-	function CanUserUpdateForum($FID, $arUserGroups, $iUserID = 0, $ExternalPermission = false)
+	public static function CanUserUpdateForum($FID, $arUserGroups, $iUserID = 0, $ExternalPermission = false)
 	{
 		$FID = intVal($FID);
 		if ($ExternalPermission === false && CForumUser::IsAdmin($arUserGroups)):
@@ -48,7 +48,7 @@ class CAllForumNew
 		return ($strPerms < "Y" ? false : true);
 	}
 
-	function CanUserDeleteForum($FID, $arUserGroups, $iUserID = 0, $ExternalPermission = false)
+	public static function CanUserDeleteForum($FID, $arUserGroups, $iUserID = 0, $ExternalPermission = false)
 	{
 		$FID = intVal($FID);
 		$arUserGroups = (!is_array($arUserGroups) ? array($arUserGroups) : $arUserGroups);
@@ -62,7 +62,7 @@ class CAllForumNew
 		return ($strPerms < "Y" ? false : true);
 	}
 
-	function CanUserModerateForum($FID, $arUserGroups, $iUserID = 0, $ExternalPermission = false)
+	public static function CanUserModerateForum($FID, $arUserGroups, $iUserID = 0, $ExternalPermission = false)
 	{
 		$FID = intVal($FID);
 		$arUserGroups = (!is_array($arUserGroups) ? array($arUserGroups) : $arUserGroups);
@@ -84,7 +84,7 @@ class CAllForumNew
 		return ($strPerms < "Q" ? false : true);
 	}
 
-	function CanUserEditForum($FID, $arUserGroups, $iUserID = 0, $ExternalPermission = false)
+	public static function CanUserEditForum($FID, $arUserGroups, $iUserID = 0, $ExternalPermission = false)
 	{
 		$FID = intVal($FID);
 		$arUserGroups = (!is_array($arUserGroups) ? array($arUserGroups) : $arUserGroups);
@@ -105,7 +105,7 @@ class CAllForumNew
 		return ($strPerms < "U" ? false : true);
 	}
 
-	function CheckFields($ACTION, &$arFields)
+	public static function CheckFields($ACTION, &$arFields)
 	{
 		$aMsg = array();
 		if (is_set($arFields, "NAME") || $ACTION == "ADD")
@@ -208,7 +208,7 @@ class CAllForumNew
 		return true;
 	}
 
-	function Update($ID, $arFields, $bReindex = true)
+	public static function Update($ID, $arFields, $bReindex = true)
 	{
 		global $DB;
 		$ID = intVal($ID);
@@ -306,7 +306,7 @@ class CAllForumNew
 		return $ID;
 	}
 
-	function Delete($ID)
+	public static function Delete($ID)
 	{
 		global $DB;
 		$ID = intVal($ID);
@@ -409,7 +409,7 @@ class CAllForumNew
 	}
 
 	//---------------> Array of sites (langs) where forum is available
-	function GetSites($ID)
+	public static function GetSites($ID)
 	{
 		global $DB, $CACHE_MANAGER;
 		$ID = intVal($ID);
@@ -442,7 +442,7 @@ class CAllForumNew
 	}
 
 	//---------------> Forum permissions
-	function GetPermissionUserDefault($ID)
+	public static function GetPermissionUserDefault($ID)
 	{
 		$arFields = array(2);
 		if (COption::GetOptionString("main", "new_user_registration", "") == "Y")
@@ -461,47 +461,22 @@ class CAllForumNew
 			return "A";
 	}
 
-	function GetAccessPermissions($ID, $TYPE = "ONE")
+	public static function GetAccessPermissions($ID, $TYPE = "ONE")
 	{
-		global $CACHE_MANAGER;
-		$ID = intVal($ID);
-		$TYPE = ($TYPE == "ONE" ? "ONE" : "ALL");
-		$cache_id = "b_forum_perms_".$ID."_all";
-		$arRes = array();
-		if ($ID <= 0):
-			return false;
-		elseif (!is_array($GLOBALS["FORUM_CACHE"]["FORUM"][$ID])):
-			$GLOBALS["FORUM_CACHE"]["FORUM"][$ID] = array();
-		endif;
-
-		if (!array_key_exists("PERMISSIONS", $GLOBALS["FORUM_CACHE"]["FORUM"][$ID]))
+		$res = \Bitrix\Forum\Forum::getById($ID)->getPermissions();
+		if ($TYPE == "ONE")
 		{
-			if (CACHED_b_forum_perms !== false && $CACHE_MANAGER->Read(CACHED_b_forum_perms, $cache_id, "b_forum_perms"))
+			$result = [];
+			foreach ($res as $key => $val)
 			{
-				$GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSIONS"] = $CACHE_MANAGER->Get($cache_id);
+				$result[] = [$key, $val];
 			}
-			else
-			{
-				$db_res = CForumNew::GetAccessPermsList(array(), array("FORUM_ID" => $ID));
-				while ($res = $db_res->Fetch()):
-					$arRes[$res["GROUP_ID"]] = $res["PERMISSION"];
-				endwhile;
-				$GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSIONS"] = $arRes;
-				if (CACHED_b_forum_perms !== false)
-					$CACHE_MANAGER->Set($cache_id, $GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSIONS"]);
-			}
+			return $result;
 		}
-		$result = $GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSIONS"];
-		if ($TYPE == "ONE"):
-			$result = array();
-			foreach ($GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSIONS"] as $key => $val):
-				$result[] = array($key, $val);
-			endforeach;
-		endif;
-		return $result;
+		return $res;
 	}
 
-	function GetAccessPermsList($arOrder = array("ID"=>"ASC"), $arFilter = array())
+	public static function GetAccessPermsList($arOrder = array("ID"=>"ASC"), $arFilter = array())
 	{
 		global $DB;
 		$arSqlSearch = array();
@@ -567,91 +542,28 @@ class CAllForumNew
 		return $db_res;
 	}
 
-	function SetAccessPermissions($ID, $arGROUP_ID)
+	public static function SetAccessPermissions($ID, $arGROUP_ID)
 	{
-		global $DB, $CACHE_MANAGER, $aForumPermissions;
-		$ID = intVal($ID);
-		$arGROUP_ID = (is_array($arGROUP_ID) ? $arGROUP_ID : array());
-		$arGroups = array();
-		if ($ID <= 0 || empty($arGROUP_ID)):
-			return false;
-		endif;
-/***************** Cleaning cache **********************************/
 		unset($GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSION"]);
 		unset($GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSIONS"]);
 		if (CACHED_b_forum_perms !== false)
 			$GLOBALS["CACHE_MANAGER"]->CleanDir("b_forum_perms");
-/***************** Cleaning cache/**********************************/
-		$db_res = CGroup::GetList($by = "ID", $order = "ASC");
-		if ($db_res && $res = $db_res->Fetch())
-		{
-			do
-			{
-				$arGroups[] = intVal($res["ID"]);
-			} while ($res = $db_res->Fetch());
-
-			$DB->Query("DELETE FROM b_forum_perms WHERE FORUM_ID=".$ID, false, "File: ".__FILE__."<br>Line: ".__LINE__);
-
-			foreach ($arGROUP_ID as $key => $val)
-			{
-				$key = intVal($key); $val = strToUpper($val);
-				if ($key <= 1 || !in_array($val, $aForumPermissions["reference_id"]) || !in_array($key, $arGroups)):
-					continue;
-				endif;
-				$arFields = array(
-					"FORUM_ID" => $ID,
-					"GROUP_ID" => $key,
-					"PERMISSION" => "'".$val."'");
-				$DB->Insert("b_forum_perms", $arFields, "File: ".__FILE__."<br>Line: ".__LINE__);
-			}
-		}
+		\Bitrix\Forum\Forum::getById($ID)->setPermission($arGROUP_ID);
 		return true;
 	}
 
-	function GetUserPermission($ID, $arUserGroups)
+	public static function GetUserPermission($ID, $arUserGroups)
 	{
-		global $DB, $CACHE_MANAGER, $aForumPermissions;
-		$ID = intVal($ID);
-		$arUserGroups = (!is_array($arUserGroups) ? array($arUserGroups) : $arUserGroups);
-		sort($arUserGroups);
-		$key = $ID."_".implode("_", $arUserGroups);
-		$cache_id = "b_forum_perms".$key;
-		if ($ID <= 0 || empty($arUserGroups)):
-			return $aForumPermissions["reference_id"][0];
-		elseif (CForumUser::IsAdmin(false, $arUserGroups)):
-			return $aForumPermissions["reference_id"][count($aForumPermissions["reference_id"])-1];
-		elseif (!is_array($GLOBALS["FORUM_CACHE"]["FORUM"][$ID])):
-			$GLOBALS["FORUM_CACHE"]["FORUM"][$ID] = array("PERMISSION" => array());
-		elseif (!array_key_exists("PERMISSION", $GLOBALS["FORUM_CACHE"]["FORUM"][$ID])):
-			$GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSION"] = array();
-		endif;
-
-		if (!array_key_exists($key, $GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSION"]))
+		if (is_array($arUserGroups))
 		{
-			if (CACHED_b_forum_perms !== false && $CACHE_MANAGER->Read(CACHED_b_forum_perms, $cache_id, "b_forum_perms"))
-			{
-				$GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSION"][$key] = $CACHE_MANAGER->Get($cache_id);
-			}
-			else
-			{
-				$strSql = "SELECT MAX(FP.PERMISSION) as P FROM b_forum_perms FP ".
-					"WHERE FP.FORUM_ID=".$ID." AND FP.GROUP_ID IN (".implode(",", $arUserGroups).")";
-				$res = $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
-				if ($r = $res->Fetch())
-					$GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSION"][$key] = $r["P"];
-			}
-			if (!in_array($GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSION"][$key], $aForumPermissions["reference_id"]))
-			{
-				$GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSION"][$key] = $aForumPermissions["reference_id"][0];
-			}
-			if (CACHED_b_forum_perms !== false)
-				$CACHE_MANAGER->Set($cache_id, $GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSION"][$key]);
+			return \Bitrix\Forum\Forum::getById($ID)->getPermissionForUserGroups($arUserGroups);
 		}
-		return $GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["PERMISSION"][$key];
+		$user = \Bitrix\Forum\User::getById($arUserGroups);
+		return \Bitrix\Forum\Forum::getById($ID)->getPermissionForUser($user);
 	}
 
 	//---------------> Forum Utils
-	function GetFilterOperation($key)
+	public static function GetFilterOperation($key)
 	{
 		$strNegative = "N";
 		if (substr($key, 0, 1)=="!")
@@ -764,7 +676,7 @@ class CAllForumNew
 		return $val;
 	}
 
-	function GetSelectFields($arAddParams = array())
+	public static function GetSelectFields($arAddParams = array())
 	{
 		global $DB;
 		$arAddParams = (is_array($arAddParams) ? $arAddParams : array());
@@ -840,7 +752,7 @@ class CAllForumNew
 	}
 
 	//---------------> Forum list
-	function GetList($arOrder = Array("SORT"=>"ASC"), $arFilter = Array(), $arAddParams = array())
+	public static function GetList($arOrder = Array("SORT"=>"ASC"), $arFilter = Array(), $arAddParams = array())
 	{
 		global $DB;
 		$arSqlSearch = Array();
@@ -979,7 +891,7 @@ class CAllForumNew
 		return $db_res;
 	}
 
-	function GetListEx($arOrder = Array("SORT"=>"ASC"), $arFilter = Array(), $bCount = false, $iNum = 0, $arAddParams = array())
+	public static function GetListEx($arOrder = Array("SORT"=>"ASC"), $arFilter = Array(), $bCount = false, $iNum = 0, $arAddParams = array())
 	{
 		global $DB;
 		$arSqlSearch = array();
@@ -1008,7 +920,7 @@ class CAllForumNew
 				case "LID":
 				case "SITE_ID":
 					if (strLen($val) <= 0):
-						continue;
+						break;
 					endif;
 					$arSqlSelect["PATH2FORUM_MESSAGE"] = "F2S.PATH2FORUM_MESSAGE";
 					$arSqlGroup["PATH2FORUM_MESSAGE"] = "F2S.PATH2FORUM_MESSAGE";
@@ -1031,41 +943,32 @@ class CAllForumNew
 				case "FORUM_GROUP_ID":
 				case "TOPICS":
 				case "POSTS":
-					if ($strOperation == "IN")
-					{
-						if (is_array($val))
-						{
-							$val_int = array();
-							foreach ($val as $v)
-								$val_int[] = intVal($v);
-							$val = implode(", ", $val_int);
-						}
-						$val = trim($val);
-					}
-					if (($strOperation == "IN" && strLen($val) <= 0) || intVal($val) <= 0)
-						$arSqlSearch[] = ($strNegative=="Y"?"NOT":"")."(F.".$key." IS NULL OR F.".$key."<=0)";
-					elseif ($strOperation == "IN")
-						$arSqlSearch[] = ($strNegative=="Y"?" NOT ":"")."(F.".$key." IN (".$DB->ForSql($val)."))";
+					$val = array_map("intval", (is_array($val) ? $val : explode(",", $val)));
+					if (array_sum($val) <= 0)
+						$arSqlSearch[] = ($strNegative == "Y" ? "NOT" : "") . "(F.".$key." IS NULL OR F.".$key."<=0)";
+					elseif ($strOperation == "IN" || count($val) > 1)
+						$arSqlSearch[] = ($strNegative=="Y"?" NOT ":"")."(F.".$key." IN (".$DB->ForSql(implode(",", $val))."))";
 					else
-						$arSqlSearch[] = ($strNegative=="Y"?" F.".$key." IS NULL OR NOT ":"")."(F.".$key." ".$strOperation." ".intVal($val)." )";
+						$arSqlSearch[] = ($strNegative=="Y"?" F.".$key." IS NULL OR NOT ":"")."(F.".$key." ".$strOperation." ".reset($val)." )";
 					break;
 				case "TEXT":
 					$arSqlSearch[] = " (".GetFilterQuery("F.NAME,F.DESCRIPTION", $DB->ForSql($val), "Y").") ";
 					break;
 				case "PERMS":
-					if (!is_array($val) || count($val) <= 0 ):
-						continue;
-					endif;
+					$v = (is_array($val) && isset($val[0]) && !empty($val[0]) ? array_map("intval", is_array($val[0]) ? $val[0] : explode(",", $val[0])) : array());
+					if (empty($v))
+						break;
+					$val[0] = $DB->ForSql(implode(", ", $v));
 					$arSqlFrom["FP"] = "
 					INNER JOIN b_forum_perms FP ON (F.ID = FP.FORUM_ID)";
-					if (strToUpper($val[1]) == "ALLOW_MOVE_TOPIC")
-						$arSqlSearch[] = "FP.GROUP_ID IN (".$DB->ForSql($val[0]).") AND ((FP.PERMISSION > 'M') OR (F.ALLOW_MOVE_TOPIC = 'Y'))";
+					if (strtoupper($val[1]) == "ALLOW_MOVE_TOPIC")
+						$arSqlSearch[] = "FP.GROUP_ID IN (".$val[0].") AND ((FP.PERMISSION > 'M') OR (F.ALLOW_MOVE_TOPIC = 'Y'))";
 					else
-						$arSqlSearch[] = "FP.GROUP_ID IN (".$DB->ForSql($val[0]).") AND FP.PERMISSION > '".$DB->ForSql($val[1])."' ";
+						$arSqlSearch[] = "FP.GROUP_ID IN (".$val[0].") AND FP.PERMISSION > '".$DB->ForSql($val[1])."' ";
 					break;
 				case "APPROVED":
 					if (strLen($val) <= 0):
-						continue;
+						break;
 					endif;
 					$arSqlFrom["FMM"] = "
 					LEFT JOIN b_forum_message FMM ON (FMM.FORUM_ID=F.ID AND (FMM.APPROVED ".$strOperation." '".$DB->ForSql($val)."'))";
@@ -1074,7 +977,7 @@ class CAllForumNew
 				case "RENEW":
 					$val = intVal($val);
 					if ($val <= 0):
-						continue;
+						break;
 					endif;
 
 					$perms = "NOT_CHECK";
@@ -1364,61 +1267,49 @@ class CAllForumNew
 		return new _CForumDBResult($db_res, $arAddParams);
 	}
 
-	function GetForumRenew($arParams)
+	public static function GetForumRenew($data)
 	{
 		global $DB, $USER;
 
-		$userID = false;
-		if (isset($arParams['USER_ID']) && (intval($arParams['USER_ID']) > 0))
+		$userId = false;
+		if (array_key_exists("USER_ID", $data) && $data["USER_ID"] > 0)
 		{
-			$userID = intval($arParams['USER_ID']);
+			$userId = intval($data["USER_ID"]);
 		}
 		else if ($USER->IsAuthorized())
 		{
-			$userID = $USER->GetID();
+			$userId = $USER->GetID();
 		}
 
-		$arForum = array();
-		if (isset($arParams['FORUM_ID']))
-		{
-			if (!is_array($arParams['FORUM_ID']) && (intval($arParams['FORUM_ID']) > 0))
-				$arParams['FORUM_ID'] = array($arParams['FORUM_ID']);
+		$forums = array_key_exists("FORUM_ID", $data) ? $data["FORUM_ID"] : [];
+		$forums = is_array($forums) ? $forums : [$forums];
+		array_map("intval", $forums);
 
-			if (is_array($arParams['FORUM_ID']))
-			{
-				foreach ($arParams['FORUM_ID'] as $forumID)
-				{
-					$forumID = intval($forumID);
-					if ($forumID > 0)
-						$arForum[] = $forumID;
-				}
-			}
-		}
-
-		if ($userID === false || sizeof($arForum) <= 0)
+		if ($userId === false || sizeof($forums) <= 0)
 		{
 			return false;
 		}
 
 		$sWhere = "(1=1)";
-		if (sizeof($arForum) > 0)
-			$sWhere = '(BF.ID IN ('.implode(" ,",$arForum).'))';
+		if (sizeof($forums) > 0)
+		{
+			$sWhere = '(BF.ID IN ('.implode(", ", $forums).'))';
+		}
 
-
-		$strSql = "
+		$strSql = <<<SQL
 			SELECT BF.ID AS FORUM_ID , COUNT(FT_RENEW.ID) TCRENEW
 			FROM b_forum BF
-			LEFT JOIN b_forum_user_forum FUF ON (FUF.USER_ID = ".$userID." AND FUF.FORUM_ID = BF.ID)
-			LEFT JOIN b_forum_user_forum FUF_ALL ON (FUF_ALL.USER_ID =  ".$userID." AND FUF_ALL.FORUM_ID =  0)
+			LEFT JOIN b_forum_user_forum FUF ON (FUF.USER_ID = {$userId} AND FUF.FORUM_ID = BF.ID)
+			LEFT JOIN b_forum_user_forum FUF_ALL ON (FUF_ALL.USER_ID =  {$userId} AND FUF_ALL.FORUM_ID =  0)
 			LEFT JOIN b_forum_topic FT_RENEW ON
 				(
 					BF.ID = FT_RENEW.FORUM_ID AND FT_RENEW.STATE != 'L' AND
 					(FUF_ALL.LAST_VISIT IS NULL OR FT_RENEW.ABS_LAST_POST_DATE >  FUF_ALL.LAST_VISIT)
 				)
 			LEFT JOIN b_forum_user_topic FUT_RENEW ON (
-					FUT_RENEW.FORUM_ID =  BF.ID AND FUT_RENEW.TOPIC_ID =  FT_RENEW.ID AND FUT_RENEW.USER_ID =  ".$userID.")
+					FUT_RENEW.FORUM_ID =  BF.ID AND FUT_RENEW.TOPIC_ID =  FT_RENEW.ID AND FUT_RENEW.USER_ID = {$userId})
 			WHERE(
-				".$sWhere."
+				{$sWhere}
 				AND
 				(
 					FUT_RENEW.LAST_VISIT IS NULL
@@ -1458,12 +1349,12 @@ class CAllForumNew
 				)
 			)
 			GROUP BY BF.ID
-		";
+SQL;
 		$db_res = $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 		return $db_res;
 	}
 
-	function GetByID($ID)
+	public static function GetByID($ID)
 	{
 		global $DB, $CACHE_MANAGER;
 		$ID = intVal($ID);
@@ -1507,7 +1398,7 @@ class CAllForumNew
 		return $GLOBALS["FORUM_CACHE"]["FORUM"][$ID]["MAIN"];
 	}
 
-	function GetByIDEx($ID, $SITE_ID = false, $arAddParams = array())
+	public static function GetByIDEx($ID, $SITE_ID = false, $arAddParams = array())
 	{
 		global $DB, $CACHE_MANAGER;
 		$ID = intVal($ID);
@@ -1578,7 +1469,7 @@ class CAllForumNew
 	}
 
 	//---------------> Forum labels
-	function InitReadLabels($ID, $arUserGroups) // out-of-date function
+	public static function InitReadLabels($ID, $arUserGroups) // out-of-date function
 	{
 		$ID = intVal($ID);
 		if ($ID <= 0)
@@ -1655,7 +1546,7 @@ class CAllForumNew
 		return true;
 	}
 
-	function SetLabelsBeRead($ID, $arUserGroups) // out-of-date function
+	public static function SetLabelsBeRead($ID, $arUserGroups) // out-of-date function
 	{
 		$ID = intVal($ID);
 		$_SESSION["read_forum_".$ID] = "0";
@@ -1697,7 +1588,7 @@ class CAllForumNew
 	}
 
 	//---------------> Forum utils
-	function SetStat($ID = 0, $arParams = array())
+	public static function SetStat($ID = 0, $arParams = array())
 	{
 		global $DB;
 		$ID = intVal($ID);
@@ -1848,49 +1739,75 @@ class CAllForumNew
 		return $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 	}
 
-	function PreparePath2Message($strPath, $arVals = array())
+	/**
+	 * Replace path to forum message link.
+	 * @param string|null $strPath
+	 * @param array $arVals
+	 * @return string|array
+	 */
+	public static function PreparePath2Message($strPath, $arVals = array())
 	{
+		if (!is_array($arVals))
+		{
+			$arVals = array();
+		}
+
 		$pattern = array(
-			"#MESSAGE_ID#" => $arVals["MESSAGE_ID"],
-			"#MID#" => $arVals["MESSAGE_ID"],
-			"#TOPIC_ID#" => $arVals["TOPIC_ID"],
-			"#TID#" => $arVals["TOPIC_ID"],
-			"#TITLE_SEO#" => $arVals["TITLE_SEO"],
-			"#FORUM_ID#" => $arVals["FORUM_ID"],
-			"#FID#" => $arVals["FORUM_ID"],
-			"#PARAM1#" => $arVals["PARAM1"],
-			"#PARAM2#" => $arVals["PARAM2"],
-			"#SOCNET_GROUP_ID#" => $arVals["SOCNET_GROUP_ID"],
-			"#OWNER_ID#" => $arVals["OWNER_ID"]
+			'#MESSAGE_ID#' => $arVals['MESSAGE_ID'],
+			'#MID#' => $arVals['MESSAGE_ID'],
+			'#TOPIC_ID#' => $arVals['TOPIC_ID'],
+			'#TID#' => $arVals['TOPIC_ID'],
+			'#TITLE_SEO#' => $arVals['TITLE_SEO'],
+			'#FORUM_ID#' => $arVals['FORUM_ID'],
+			'#FID#' => $arVals['FORUM_ID'],
+			'#PARAM1#' => $arVals['PARAM1'],
+			'#PARAM2#' => $arVals['PARAM2'],
+			'#SOCNET_GROUP_ID#' => $arVals['SOCNET_GROUP_ID'],
+			'#OWNER_ID#' => $arVals['OWNER_ID']
 		);
 		if ($strPath === NULL)
+		{
 			return array_keys($pattern);
-		else if (strlen($strPath)<=0)
-			return "";
-		$pattern["//"] = "/";
-		return str_replace(array_keys($pattern), array_values($pattern), $strPath);
+		}
+		$strPath = trim($strPath);
+		if ($strPath == '')
+		{
+			return '';
+		}
+		$strPath = preg_replace('/([^:])(\/{2,})/', '$1/', $strPath);
+		$strPath = str_replace(
+						array_keys($pattern),
+						array_values($pattern),
+						$strPath
+					);
+		return $strPath;
 	}
 
 	//---------------> Forum actions
-	function OnGroupDelete($GROUP_ID)
+	public static function OnGroupDelete($GROUP_ID)
 	{
 		global $DB;
 		return $DB->Query("DELETE FROM b_forum_perms WHERE GROUP_ID=".intVal($GROUP_ID), true);
 	}
 
-	function OnBeforeLangDelete($lang)
+	public static function OnBeforeLangDelete($lang)
 	{
 		global $DB;
 		$r = CForumNew::GetList(array(), array("LID"=>$lang));
 		return ($r->Fetch()?false:true);
 	}
 
-	function OnPanelCreate() // out-of-date function
+	public static function OnPanelCreate() // out-of-date function
 	{
 		return false;
 	}
 
-	function ShowPanel($FID, $TID=0, $bGetIcons=false)
+	public static function OnReindex($NS = array(), $oCallback = NULL, $callback_method = "")
+	{
+		return CForumNew::reindex($NS, $oCallback, $callback_method);
+	}
+
+	public static function ShowPanel($FID, $TID=0, $bGetIcons=false)
 	{
 		global $APPLICATION, $REQUEST_URI, $USER;
 
@@ -1930,7 +1847,7 @@ class CAllForumNew
 		}
 	}
 
-	function ClearHTML($ID)
+	public static function ClearHTML($ID)
 	{
 		global $DB;
 		$ID = intVal($ID);
@@ -1947,22 +1864,22 @@ class CAllForumNew
 class CAllForumGroup
 {
 	//---------------> User insert, update, delete
-	function CanUserAddGroup($arUserGroups)
+	public static function CanUserAddGroup($arUserGroups)
 	{
 		return CForumUser::IsAdmin($arUserGroups);
 	}
 
-	function CanUserUpdateGroup($ID, $arUserGroups)
+	public static function CanUserUpdateGroup($ID, $arUserGroups)
 	{
 		return CForumUser::IsAdmin($arUserGroups);
 	}
 
-	function CanUserDeleteGroup($ID, $arUserGroups)
+	public static function CanUserDeleteGroup($ID, $arUserGroups)
 	{
 		return CForumUser::IsAdmin($arUserGroups);
 	}
 
-	function CheckFields($ACTION, &$arFields, $ID = false)
+	public static function CheckFields($ACTION, &$arFields, $ID = false)
 	{
 		$aMsg = array();
 
@@ -1976,7 +1893,7 @@ class CAllForumGroup
 					unset($res[$i]);
 				}
 			}
-			$db_lang = CLanguage::GetList(($b="sort"), ($o="asc"));
+			$db_lang = CLanguage::GetList(($b="sort"), ($o="asc"), ["ACTIVE" => "Y"]);
 			while ($arLang = $db_lang->Fetch())
 			{
 				$bFound = false;
@@ -2033,7 +1950,7 @@ class CAllForumGroup
 		return true;
 	}
 
-	function Delete($ID)
+	public static function Delete($ID)
 	{
 		global $DB;
 		$ID = intVal($ID);
@@ -2067,7 +1984,7 @@ class CAllForumGroup
 		return true;
 	}
 
-	function GetList($arOrder = array("SORT"=>"ASC"), $arFilter = array())
+	public static function GetList($arOrder = array("SORT"=>"ASC"), $arFilter = array())
 	{
 		global $DB;
 		$arSqlSearch = Array();
@@ -2128,7 +2045,7 @@ class CAllForumGroup
 		return $db_res;
 	}
 
-	function GetListEx($arOrder = array("SORT"=>"ASC"), $arFilter = array())
+	public static function GetListEx($arOrder = array("SORT"=>"ASC"), $arFilter = array())
 	{
 		global $DB;
 		$arSqlSearch = Array();
@@ -2199,7 +2116,7 @@ class CAllForumGroup
 		return $db_res;
 	}
 
-	function GetByID($ID)
+	public static function GetByID($ID)
 	{
 		global $DB;
 		$ID = intVal($ID);
@@ -2214,7 +2131,7 @@ class CAllForumGroup
 		return false;
 	}
 
-	function GetByIDEx($ID, $LANGUAGE_ID)
+	public static function GetByIDEx($ID, $LANGUAGE_ID)
 	{
 		global $DB, $CACHE_MANAGER;
 		$ID = intVal($ID);
@@ -2249,7 +2166,7 @@ class CAllForumGroup
 		return $GLOBALS["FORUM_CACHE"]["GROUP"][$key];
 	}
 
-	function GetLangByID($FORUM_GROUP_ID, $strLang)
+	public static function GetLangByID($FORUM_GROUP_ID, $strLang)
 	{
 		global $DB;
 		$FORUM_GROUP_ID = intVal($FORUM_GROUP_ID);
@@ -2268,7 +2185,7 @@ class CAllForumGroup
 		return false;
 	}
 
-	function GetByLang($LANGUAGE_ID)
+	public static function GetByLang($LANGUAGE_ID)
 	{
 		global $CACHE_MANAGER;
 		$LANGUAGE_ID = (!empty($LANGUAGE_ID) ? $LANGUAGE_ID : LANGUAGE_ID);
@@ -2298,7 +2215,7 @@ class CAllForumGroup
 		return $GLOBALS["FORUM_CACHE"]["GROUPS"][$LANGUAGE_ID];
 	}
 
-	function Resort($ID=0, $cnt=0, $depth=0)
+	public static function Resort($ID=0, $cnt=0, $depth=0)
 	{
 		global $DB;
 		$ID = intVal($ID);
@@ -2325,49 +2242,49 @@ class CForumSmile
 	static $smiles = array();
 	static $sets = array();
 
-	function Add()
+	public static function Add()
 	{
 		return false;
 	}
 
-	function CheckFields()
+	public static function CheckFields()
 	{
 		return false;
 	}
 
-	function Update()
+	public static function Update()
 	{
 		return false;
 	}
 
-	function Delete()
+	public static function Delete()
 	{
 		return false;
 	}
 
-	function GetList()
+	public static function GetList()
 	{
 		global $DB;
 		return $DB->Query("", false, "File: ".__FILE__."<br>Line: ".__LINE__);
 	}
 
-	function GetListEx()
+	public static function GetListEx()
 	{
 		global $DB;
 		return $DB->Query("", false, "File: ".__FILE__."<br>Line: ".__LINE__);
 	}
 
-	function GetByID()
+	public static function GetByID()
 	{
 		return false;
 	}
 
-	function GetByIDEx($ID, $strLang)
+	public static function GetByIDEx($ID, $strLang)
 	{
 		return false;
 	}
 
-	function GetLangByID($SMILE_ID, $strLang)
+	public static function GetLangByID($SMILE_ID, $strLang)
 	{
 		return false;
 	}
@@ -2378,7 +2295,7 @@ class CForumSmile
 	 * @param $lang
 	 * @return mixed
 	 */
-	static function GetByType($type, $lang)
+	public static function GetByType($type, $lang)
 	{
 		if (COption::GetOptionInt("forum", "smile_native_gallery_id", 0) <= 0)
 			return self::getSmiles($type, $lang);
@@ -2414,7 +2331,7 @@ class CForumSmile
 		return self::$smiles[$key];
 	}
 
-	static function getSmiles($type, $lang)
+	public static function getSmiles($type, $lang)
 	{
 		$type = ($type == "I" ? CSmile::TYPE_ICON : CSmile::TYPE_SMILE);
 		$key = "new_".$type."_".$lang;
@@ -2441,7 +2358,7 @@ class CForumSmile
 		return self::$smiles[$key];
 	}
 
-	static function getSetsByType($type, $lang)
+	public static function getSetsByType($type, $lang)
 	{
 		$type = ($type == CSmile::TYPE_ICON ? CSmile::TYPE_ICON : CSmile::TYPE_SMILE);
 		$key = $type."_".$lang;
@@ -2529,4 +2446,3 @@ class _CForumDBResult extends CDBResult
 		return $res;
 	}
 }
-?>

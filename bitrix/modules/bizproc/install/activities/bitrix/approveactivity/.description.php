@@ -9,8 +9,14 @@ $arActivityDescription = array(
 	"JSCLASS" => "ApproveActivity",
 	"CATEGORY" => array(
 		"ID" => "document",
+		'OWN_ID' => 'task',
+		'OWN_NAME' => GetMessage('BPAA_DESCR_TASKS')
 	),
 	"RETURN" => array(
+		'TaskId' => [
+			'NAME' => 'ID',
+			'TYPE' => 'int'
+		],
 		"Comments" => array(
 			"NAME" => GetMessage("BPAA_DESCR_CM"),
 			"TYPE" => "string",
@@ -51,12 +57,20 @@ $arActivityDescription = array(
 			"NAME" => GetMessage("BPAA_DESCR_LA_COMMENT"),
 			"TYPE" => "string",
 		),
-		"Approvers" => array(
+		"UserApprovers" => array(
 			"NAME" => GetMessage("BPAA_DESCR_APPROVERS"),
+			"TYPE" => "user",
+		),
+		"Approvers" => array(
+			"NAME" => GetMessage("BPAA_DESCR_APPROVERS_STRING"),
 			"TYPE" => "string",
 		),
-		"Rejecters" => array(
+		"UserRejecters" => array(
 			"NAME" => GetMessage("BPAA_DESCR_REJECTERS"),
+			"TYPE" => "user",
+		),
+		"Rejecters" => array(
+			"NAME" => GetMessage("BPAA_DESCR_REJECTERS_STRING"),
 			"TYPE" => "string",
 		),
 		"IsTimeout" => array(
@@ -65,4 +79,3 @@ $arActivityDescription = array(
 		),
 	),
 );
-?>

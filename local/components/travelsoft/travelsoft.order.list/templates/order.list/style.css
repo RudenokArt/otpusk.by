@@ -1,0 +1,28 @@
+.payBlock {
+	text-align: center;
+	padding: 20px 0;
+}
+
+.dotted {
+	list-style: disc !important;
+	padding-left: 20px;
+
+}
+
+.dotted li {
+	padding-left: 0 !important;
+}
+
+@media (max-width: 479px) {
+
+	.orderBlock {
+
+		text-align: center;
+
+	}
+
+	.dotted {
+		list-style: none !important;
+	}
+
+}

@@ -1,3 +1,7 @@
+/**
+ * @requires module:mobilelib
+ * @module mobileapp
+ */
 ;
 (function ()
 {
@@ -19,491 +23,11 @@
 	 */
 
 	/**
-	 * Class for Web SQL Database
-	 * @param params
-	 * @constructor
-	 */
-	MobileDatabase = function ()
-	{
-		this.tableList = [];
-		this.db = window.openDatabase("Database", "1.0", "Bitrix Base", 20 * 1024 * 1024);
-	};
-
-	MobileDatabase.prototype.init = function ()
-	{
-		ReadyDevice(BX.proxy(function ()
-		{
-			this.db = window.openDatabase("Database", "1.0", "Bitrix Base", 200000);
-		}, this))
-	};
-
-	MobileDatabase.prototype.isTableExists = function (tableName, callback)
-	{
-		var that = this;
-		var tableListCallback = function ()
-		{
-			var length = that.tableList.length;
-			for (var i = 0; i < length; i++)
-			{
-				if (that.tableList[i].toUpperCase() == tableName.toUpperCase())
-				{
-					callback(true);
-					return;
-				}
-			}
-
-			callback(false);
-		};
-
-		if (this.tableList.length <= 0)
-			this.getTableList(tableListCallback);
-		else
-			tableListCallback();
-
-	};
-
-	/**
-	 * Takes the list of existing tables from the database
-	 * @param callback The callback handler will be invoked with boolean parameter as a first argument
-	 * @example
-	 */
-	MobileDatabase.prototype.getTableList = function (callback)
-	{
-		var that = this;
-		var callbackFunc = callback;
-		this.query(
-			{
-				query: "SELECT tbl_name from sqlite_master WHERE type = 'table'",
-				values: {}
-			},
-			function (res)
-			{
-				if (res.count > 0)
-				{
-					for (var i = 0; i < res.items.length; i++)
-						that.tableList[that.tableList.length] = res.items[i].tbl_name;
-				}
-
-				if (callbackFunc != null && typeof (callbackFunc) == "function")
-					callbackFunc(that.tableList)
-			}
-		);
-	};
-
-	/**
-	 * Creates the table in the database
-	 * @param params
-	 */
-	MobileDatabase.prototype.createTable = function (params)
-	{
-		params.action = "create";
-		var str = this.getQuery(params);
-		this.query(str, params.success, params.fail);
-	};
-
-	/**
-	 * Drops the table from the database
-	 * @param params
-	 */
-	MobileDatabase.prototype.dropTable = function (params)
-	{
-		params.action = "drop";
-		var str = this.getQuery(params);
-		this.query(str, params.success, params);
-	};
-
-	/**
-	 * Drops the table from the database
-	 * @param params
-	 */
-	MobileDatabase.prototype.addRow = function (params)
-	{
-		params.action = "insert";
-		this.query(
-			this.getQuery(params),
-			params.success,
-			params.fail
-		);
-	};
-
-	/**
-	 * Gets the data from the table
-	 * @param params
-	 */
-	MobileDatabase.prototype.getRows = function (params)
-	{
-		params.action = "select";
-		this.query(
-			this.getQuery(params),
-			params.success,
-			params.fail
-		);
-	};
-
-	/**
-	 * Updates the table
-	 * @param params
-	 */
-	MobileDatabase.prototype.updateRows = function (params)
-	{
-		params.action = "update";
-		var queryData = this.getQuery(params);
-		this.query(queryData, params.success, params);
-	};
-
-	/**
-	 * Deletes rows from the table
-	 * @param params
-	 */
-	MobileDatabase.prototype.deleteRows = function (params)
-	{
-		params.action = "delete";
-		var str = this.getQuery(params);
-		this.query(str, params.success, params);
-	};
-
-	/**
-	 * Builds the query string and the set of values.
-	 * @param params
-	 * @returns {{query: string, values: Array}}
-	 */
-	MobileDatabase.prototype.getQuery = function (params)
-	{
-		var values = [];
-		var where = params.filter;
-		var select = params.fields;
-		var insert = params.insertFields;
-		var set = params.updateFields;
-		var tableName = params.tableName;
-		var strQuery = "";
-
-		switch (params.action)
-		{
-			case "delete":
-			{
-				strQuery = "DELETE FROM " + tableName.toUpperCase() + " " + this.getFilter(where);
-				values = this.getValues([where]);
-				break;
-			}
-
-			case "update":
-			{
-				strQuery = "UPDATE " + tableName.toUpperCase() + " " + this.getFieldPair(set, "SET ") + " " + this.getFilter(where);
-				values = this.getValues([set, where]);
-				break;
-			}
-
-			case "create":
-			{
-				var fieldsString = "";
-				if (typeof(select) == "object")
-				{
-					var field = "";
-					for (var j = 0; j < select.length; j++)
-					{
-						field = "";
-						if (typeof(select[j]) == "object")
-						{
-							if (select[j].name)
-							{
-
-								field = select[j].name;
-								if (select[j].unique && select[j].unique == true)
-									field += " unique";
-							}
-
-						}
-						else if (typeof(select[j]) == "string" && select[j].length > 0)
-							field = select[j];
-
-						if (field.length > 0)
-						{
-
-							if (fieldsString.length > 0)
-								fieldsString += "," + field.toUpperCase();
-							else
-								fieldsString = field.toUpperCase();
-						}
-					}
-				}
-
-				strQuery = "CREATE TABLE IF NOT EXISTS " + tableName.toUpperCase() + " (" + fieldsString + ") ";
-				break;
-			}
-
-			case "drop":
-			{
-				strQuery = "DROP TABLE IF EXISTS " + tableName.toUpperCase();
-				break;
-			}
-
-			case "select":
-			{
-				strQuery = "SELECT " + this.getValueArrayString(select, "*") + " FROM " + tableName.toUpperCase() + " " + this.getFilter(where);
-				values = this.getValues([where]);
-				break;
-			}
-
-			case "insert":
-			{
-				values = this.getValues([insert]);
-				strQuery = "INSERT INTO " + tableName.toUpperCase() + " (" + this.getKeyString(insert) + ") VALUES(%values%)";
-				var valueTemplate = "";
-				for (var i = 0; i < values.length; i++)
-				{
-					if (valueTemplate.length > 0)
-						valueTemplate += ",?";
-					else
-						valueTemplate = "?"
-				}
-
-				strQuery = strQuery.replace("%values%", valueTemplate);
-
-				break;
-			}
-		}
-
-		return {
-			query: strQuery,
-			values: values
-		}
-	};
-
-	/**
-	 * Gets pairs for query string
-	 * @param {object} fields The object with set of key-value pairs
-	 * @param {string} operator The keyword that will be join on the beginning of the string
-	 * @returns {string}
-	 */
-	MobileDatabase.prototype.getFieldPair = function (fields, operator)
-	{
-		var pairsRow = "";
-		var keyWord = operator || "";
-
-		if (typeof(fields) == "object")
-		{
-			var i = 0;
-			for (var key in fields)
-			{
-				var pair = ((i > 0) ? ", " : "") + (key.toUpperCase() + "=" + "?");
-				if (pairsRow.length == 0 && keyWord.length > 0)
-					pairsRow = keyWord;
-				pairsRow += pair;
-				i++;
-			}
-		}
-
-		return pairsRow;
-	};
-
-	MobileDatabase.prototype.getFilter = function (fields)
-	{
-		var pairsRow = "";
-		var keyWord = "WHERE ";
-
-		if (typeof(fields) == "object")
-		{
-			var i = 0;
-			for (var key in fields)
-			{
-				var pair = "";
-				var count = 1;
-				if (typeof(fields[key]) == "object")
-					count = fields[key].length;
-				for (var j = 0; j < count; j++)
-				{
-					pair = ((j > 0) ? pair + " OR " : "(") + (key.toUpperCase() + "=" + "?");
-					if ((j + 1) == count)
-						pair += ")"
-				}
-				;
-
-				pairsRow += pair;
-				i++;
-			}
-		}
-		return "WHERE " + pairsRow;
-	};
-
-	/**
-	 * Gets the string with keys of fields that have splitted by commas
-	 * @param fields
-	 * @param defaultResult
-	 * @returns {string}
-	 */
-	MobileDatabase.prototype.getKeyString = function (fields, defaultResult)
-	{
-		var result = "";
-		if (!defaultResult)
-			defaultResult = "";
-		if (typeof(fields) == "array")
-		{
-			for (var i = 0; i < valuesItem.length; i++)
-			{
-
-				if (result.length > 0)
-					result += "," + valuesItem[i].toUpperCase();
-				else
-					result = valuesItem[i].toUpperCase();
-			}
-		}
-		else if (typeof(fields) == "object")
-		{
-			for (var key in fields)
-			{
-				if (result.length > 0)
-					result += "," + key.toUpperCase();
-				else
-					result = key.toUpperCase();
-			}
-		}
-
-		if (result.length == 0)
-			result = defaultResult;
-
-		return result;
-	};
-
-	/**
-	 * Gets the string with values of the array that have splitted by commas
-	 * @param fields
-	 * @param defaultResult
-	 * @returns {string}
-	 */
-	MobileDatabase.prototype.getValueArrayString = function (fields, defaultResult)
-	{
-		var result = "";
-		if (!defaultResult)
-			defaultResult = "";
-		if (typeof(fields) == "object")
-		{
-			for (var i = 0; i < fields.length; i++)
-			{
-
-				if (result.length > 0)
-					result += "," + fields[i].toUpperCase();
-				else
-					result = fields[i].toUpperCase();
-			}
-		}
-
-		if (result.length == 0)
-			result = defaultResult;
-
-		return result;
-	};
-
-	/**
-	 * Gets the array of values
-	 * @param values
-	 * @returns {Array}
-	 */
-	MobileDatabase.prototype.getValues = function (values)
-	{
-		var resultValues = [];
-		for (var j = 0; j < values.length; j++)
-		{
-			var valuesItem = values[j];
-
-			if (typeof(valuesItem) == "object")
-			{
-				for (var keyField in valuesItem)
-				{
-					if (typeof(valuesItem[keyField]) != "object")
-						resultValues[resultValues.length] = valuesItem[keyField];
-					else
-						for (var i = 0; i < valuesItem[keyField].length; i++)
-						{
-							resultValues[resultValues.length] = valuesItem[keyField][i];
-						}
-				}
-			}
-			else if (typeof(valuesItem) == "array")
-			{
-				for (var i = 0; i < valuesItem.length; i++)
-				{
-					if (typeof(valuesItem[i]) != "object")
-						resultValues[resultValues.length] = valuesItem[i];
-				}
-			}
-		}
-
-
-		return resultValues;
-	};
-
-	/**
-	 * Executes the query
-	 * @param success The success callback
-	 * @param fail The failture callback
-	 * @returns {string}
-	 * @param query
-	 */
-	MobileDatabase.prototype.query = function (query, success, fail)
-	{
-		this.db.transaction(
-			function (tx)
-			{
-				tx.executeSql(
-					query.query,
-					query.values,
-					function (tx, results)
-					{
-
-						var result = {
-							originalResult: results
-						};
-
-						var len = results.rows.length;
-						if (len >= 0)
-						{
-							result.count = len;
-							result.items = [];
-							for (var i = 0; i < len; i++)
-							{
-								result.items[result.items.length] = results.rows.item(i);
-							}
-						}
-
-						if (success != null)
-							success(result, tx);
-					},
-					function (tx, res)
-					{
-						if (fail != null)
-							fail(res, tx);
-					}
-				);
-			}
-		);
-	};
-
-	/**
-	 * Gets the beautifying result from the query response
-	 * @param results
-	 * @returns {*}
-	 */
-
-	MobileDatabase.prototype.getResponseObject = function (results)
-	{
-
-		var len = results.rows.length;
-
-		var result = [];
-		for (var i = 0; i < len; i++)
-		{
-			result[result.length] = results.rows.item(i);
-		}
-
-		return result;
-	};
-
-	/**
 	 * Base of Cordova Plugin
 	 * @param name
 	 * @constructor
 	 */
-	var BXCordovaPlugin = function (name, sync)
+	window.BXCordovaPlugin = function (name, sync, convertBoolean)
 	{
 		this.pluginName = name;
 		this.useSyncPlugin = (sync == true);
@@ -512,16 +36,15 @@
 		this.callbackIndex = 0;
 		this.dataBrigePath = (typeof mobileSiteDir == "undefined"?"/": mobileSiteDir) + "mobile/";
 		this.available = false;
+		this.convertBoolean = (typeof convertBoolean == "undefined" ? true: convertBoolean);
 		this.platform = null;
+		this.apiVersion = 0;
 		this.db = null;
-		this.isDatabaseSupported = true;
-		if (window.openDatabase)
-			this.db = new MobileDatabase();
-		else
-			this.isDatabaseSupported = false;
 		var _that = this;
+
 		document.addEventListener("deviceready", function ()
 		{
+
 			_that.available = true;
 		}, false);
 	};
@@ -555,7 +78,6 @@
 		var convertBooleanFlag = true;
 		if((typeof convertBoolean) == "boolean")
 		{
-			console.log("NotConvert");
 			convertBooleanFlag = convertBoolean;
 		}
 
@@ -565,7 +87,7 @@
 			for (var key in params)
 			{
 				if (typeof(params[key]) == "object")
-					params[key] = this.prepareParams(params[key]);
+					params[key] = this.prepareParams(params[key], convertBoolean);
 				if (typeof(params[key]) == "function")
 					params[key] = this.RegisterCallBack(params[key]);
 				else if(convertBooleanFlag)
@@ -640,8 +162,12 @@
 
 	BXCordovaPlugin.prototype.exec = function (funcName, params, convertBoolean)
 	{
-
 		var pluginParams = {};
+
+		if(typeof convertBoolean == "undefined")
+		{
+			convertBoolean = this.convertBoolean;
+		}
 
 		if (!this.available)
 		{
@@ -685,90 +211,6 @@
 	};
 
 
-	//:::::::::::::::::::::::::::::
-	//::::::::Mobile WebRTC::::::::
-	//:::::::::::::::::::::::::::::
-	var webrtc = new BXCordovaPlugin("MobileWebRTC");
-	window.webrtc = webrtc;
-
-
-	//UI methods
-	webrtc.UI =
-	{
-		parent: webrtc,
-		state: {
-			"OUTGOING_CALL": "outgoing_call",
-			"INCOMING_CALL": "incoming_call",
-			"CONVERSATION": "conversation",
-			"FAIL_CALL": "fail_call"
-		}
-	};
-
-	webrtc.UI.exec = function (func, params)
-	{
-		this.parent.exec(func, params);
-	};
-
-	webrtc.UI.show = function (state, options)
-	{
-		var params = options || {};
-		params.state = state;
-		return this.exec("showUi", params);
-	};
-
-	webrtc.UI.close = function (params)
-	{
-		return this.exec("closeUi", params);
-	};
-
-	webrtc.UI.showLocalVideo = function (params)
-	{
-		return this.exec("showLocalVideo", params);
-	};
-
-	//WebRTC methods
-	webrtc.createPeerConnection = function (params)
-	{
-		return this.exec("createPeerConnection", params);
-	};
-
-	webrtc.createOffer = function (params)
-	{
-		return this.exec("createOffer", params);
-	};
-
-	webrtc.createAnswer = function (params)
-	{
-		return this.exec("createAnswer", params);
-	};
-
-	webrtc.addIceCandidates = function (params)
-	{
-
-		return this.exec("addIceCandidates", params);
-	};
-
-	webrtc.setRemoteDescription = function (params)
-	{
-		return this.exec("setRemoteDescription", params);
-	};
-
-	webrtc.getUserMedia = function (params)
-	{
-		return this.exec("getUserMedia", params);
-	};
-
-	webrtc.onReconnect = function (params)
-	{
-		return this.exec("onReconnect", params);
-	};
-
-	webrtc.setEventListeners = function (params)
-	{
-		return this.exec("setEventListeners", params);
-	};
-
-
 	/**
 	 * BitrixMobile
 	 * @constructor
@@ -776,6 +218,16 @@
 
 	var app = new BXCordovaPlugin("BitrixMobile", true);
 	window.app = app;
+
+	document.addEventListener("DOMContentLoaded", function(){
+		app.db = BX.dataBase.create({
+			name: "Bitrix Base",
+			displayName: "Bitrix Base",
+			capacity: 1024 * 1024 * 4,
+			version: "1.2"
+		});
+	});
+
 
 	//#############################
 	//#####--api version 12--#######
@@ -1113,6 +565,7 @@
 			return;
 		}
 
+
 		var alertData = {
 			callback: function ()
 			{
@@ -1121,7 +574,8 @@
 			button: "",
 			text: ""
 		};
-		if (params)
+
+		if (typeof params == "object")
 		{
 			if (params.title)
 				alertData.title = params.title;
@@ -1131,6 +585,10 @@
 				alertData.text = params.text;
 			if (params.callback && typeof(params.callback) == "function")
 				alertData.callback = params.callback;
+		}
+		else
+		{
+			alertData.text = params;
 		}
 
 		navigator.notification.alert(
@@ -1346,6 +804,17 @@
 				}
 			}
 		}
+
+		if(typeof params.TABLE_SETTINGS.modal !== "undefined")
+		{
+			params.modal = params.TABLE_SETTINGS.modal;
+		}
+
+		if(typeof params.TABLE_SETTINGS.name !== "undefined")
+		{
+			params.TABLE_SETTINGS.showtitle = true;
+		}
+
 		return this.exec("openBXTable", params);
 	};
 
@@ -1434,7 +903,10 @@
 	 *}
 	 *
 	 * </pre>
-	 * @param params The parameters
+	 * @param params - the set of options
+	 * @config {array} items - array of menu items
+	 * @config {bool} useNavigationBarColor - color of navigation bar will be apply
+	 * as a background color for the page menu. false by default
 	 * @returns {*}
 	 */
 	app.menuCreate = function (params)
@@ -1472,19 +944,28 @@
 	 */
 	app.enableInVersion = function (ver, strict)
 	{
-		//check api version
-		strict = strict == true ? true : false;
+		if(this.apiVersion == 0)
+		{
+			try
+			{
+				if(typeof (BXMobileAppContext) != "undefined" && typeof (BXMobileAppContext.getApiVersion) == "function")
+				{
+					this.apiVersion = BXMobileAppContext.getApiVersion();
+				}
+				else if(typeof(appVersion) != "undefined")
+				{
+					this.apiVersion = appVersion;
+				}
 
-		var api_version = 1;
-		try
-		{
-			api_version = appVersion;
-		} catch (e)
-		{
-			//do nothing
+			} catch (e)
+			{
+				//do nothing
+			}
 		}
 
-		return strict ? (parseInt(api_version) == parseInt(ver) ? true : false) : (parseInt(api_version) >= parseInt(ver) ? true : false);
+		return (typeof(strict)!="undefined" && strict == true)
+					? (parseInt(this.apiVersion) == parseInt(ver))
+					: (parseInt(this.apiVersion) >= parseInt(ver));
 	};
 
 
@@ -1558,6 +1039,7 @@
 	 * Generates the javascript-event
 	 * that can be caught by any application browsers
 	 * except current browser
+	 * @deprecated
 	 * @param eventName
 	 * @param params
 	 * @param where
@@ -1717,6 +1199,13 @@
 	 */
 	app.showModalDialog = function (options)
 	{
+		//"cache" flag must be false by default
+		// for modal pages to save backward compatibility
+		if(typeof(options["cache"]) == "undefined")
+		{
+			options["cache"] = false;
+		}
+
 		return this.exec("showModalDialog", options);
 	};
 
@@ -1793,7 +1282,7 @@
 			};
 			return this.exec("loadPage", params);
 		}
-		this.openContent();
+
 		return this.exec("loadPage", url);
 	};
 
@@ -1895,7 +1384,47 @@
 		//params.pulltext, params.downtext, params.loadtext
 		//params.callback - action on pull-down-refresh
 		//params.enable - true|false
-		return this.exec("pullDown", params);
+
+		var _params = BX.clone(params);
+
+		if(
+			typeof _params.backgroundColor == "undefined"
+			|| !BX.type.isNotEmptyString(_params.backgroundColor)
+		)
+		{
+			var bodySelector = null;
+
+			try
+			{
+				bodySelector = (document.body.className != null && document.body.className.length>0
+						? document.querySelector("."+document.body.className)
+						: null
+				);
+			}
+			catch (e)
+			{
+				//do nothing
+			}
+
+			if(bodySelector != null)
+			{
+				var bodyStyles = getComputedStyle(bodySelector);
+				var rgb2hex = function(rgb){
+					rgb = rgb.match(/^rgba?[\s+]?\([\s+]?(\d+)[\s+]?,[\s+]?(\d+)[\s+]?,[\s+]?(\d+)[\s+]?/i);
+					return (rgb && rgb.length === 4) ? "#" +
+						("0" + parseInt(rgb[1],10).toString(16)).slice(-2) +
+						("0" + parseInt(rgb[2],10).toString(16)).slice(-2) +
+						("0" + parseInt(rgb[3],10).toString(16)).slice(-2) : '';
+				};
+				var color  = rgb2hex(bodyStyles.backgroundColor);
+				if(color != "#000000")
+					_params.backgroundColor = color;
+				else
+					_params.backgroundColor = "#ffffff";
+			}
+		}
+
+		return this.exec("pullDown", _params);
 	};
 	/**
 	 * @deprecated
@@ -2114,7 +1643,7 @@
 	 */
 	app.BasicAuth = function (params)
 	{
-		//basic autorization
+		//basic authorization
 		//params.success, params.check_url
 		params = params || {};
 
@@ -2429,7 +1958,7 @@
 					variable[i] = BitrixMobile.Utils.htmlspecialchars(variable[i]);
 				}
 			}
-			else if (typeof(variable) == "object")
+			else if (typeof(variable) == "object" && variable != null)
 			{
 
 				var obj = {};
@@ -2775,6 +2304,32 @@
 
 	document.addEventListener("deviceready", function ()
 	{
+		if(typeof (BXMobileAppContext) != "undefined")
+		{
+
+			BX.addCustomEvent("onAppPaused", function ()
+				{
+					BXMobileAppContext.active = false;
+				}
+			);
+
+			BX.addCustomEvent("UIApplicationDidBecomeActiveNotification", function ()
+				{
+					BXMobileAppContext.active = true;
+				}
+			);
+
+			BXMobileAppContext.isAppActive = function()
+			{
+				if(typeof (this.active) == "undefined" || !app.enableInVersion(16))
+				{
+					this.active = !BXMobileAppContext.isBackground();
+				}
+
+				return this.active;
+			}
+		}
+
 		app.available = true;
 
 		BX.addCustomEvent("onSessIdChanged", function (data)
@@ -2783,7 +2338,7 @@
 			}
 		);
 
-		BX.addCustomEvent('onPageParamsChangedLegacy', function (params)
+		BXMobileApp.addCustomEvent('onPageParamsChangedLegacy', function (params)
 		{
 			if (params.url != location.pathname+location.search)
 				return false;
@@ -2795,7 +2350,302 @@
 		});
 	}, false);
 
-	MobileAjaxWrapper = function ()
+	BX.mobileAjax = function (config)
+	{
+		console.warn("AJAX",config);
+		var promise = new Promise(function (resolve, reject)
+		{
+			"use strict";
+
+			config.onsuccess = (config.onsuccess ? config.onsuccess : function(){});
+			config.xhr = new BMXMLHttpRequest();
+			config.xhr.setRequestHeader("User-Agent", "Bitrix24/Janative");
+			if(!config["method"])
+				config["method"] = "GET";
+
+			if (config.headers)
+			{
+				if(BX.type.isArray(config.headers))
+				{
+					config.headers.forEach(function(element){
+						config.xhr.setRequestHeader(element.name, element.value);
+					});
+				}
+				else
+				{
+					Object.keys(config.headers).forEach(function (headerName){
+						config.xhr.setRequestHeader(headerName, config.headers[headerName])
+					});
+				}
+			}
+
+			if(config.files)
+			{
+				config.xhr.files = config.files;
+			}
+
+			if(typeof config.prepareData !== "undefined")
+			{
+				config.xhr.prepareData = config.prepareData;
+			}
+			else
+			{
+				config.xhr.prepareData = true;
+			}
+
+			if (config.timeout)
+			{
+				config.xhr.timeout = config.timeout;
+			}
+			if(BX.mobileAjax.debug)
+			{
+				console.log("Ajax request: "+ config.url);
+			}
+			config.xhr.open(config["method"], config["url"]);
+
+			config.xhr.onreadystatechange = function ()
+			{
+				if (config.xhr.readyState === 4)
+				{
+					var isSuccess = BX.mobileAjax.xhrSuccess(config.xhr);
+					console.log(config.xhr);
+					if (isSuccess)
+					{
+						if (config.dataType && config.dataType === "json")
+						{
+							try {
+								var json = BX.parseJSON(config.xhr.responseText);
+
+								if(BX.mobileAjax.debug)
+								{
+									console.log("Ajax success: "+ config.xhr);
+								}
+
+								config.onsuccess(json);
+								resolve(json);
+
+							}
+							catch (e)
+							{
+								var argument = {
+									error: e,
+									xhr: config.xhr
+								};
+
+								if(BX.mobileAjax.debug)
+								{
+									console.log("Ajax fail: ", argument);
+								}
+
+								if(typeof config.onfailure === "function")
+								{
+									config.onfailure(argument.error, argument.xhr);
+								}
+								else
+								{
+									reject(argument)
+								}
+
+
+							}
+						}
+						else {
+
+							if(BX.mobileAjax.debug)
+							{
+								console.log("Ajax success: "+ config.xhr);
+							}
+
+							config.onsuccess(config.xhr.responseText);
+							resolve(config.xhr.responseText);
+						}
+
+					}
+					else {
+						var argument = {
+							error: new Error("XMLHTTPRequest error status", config.xhr.status),
+							xhr: config.xhr
+						};
+
+						if(BX.mobileAjax.debug)
+						{
+							console.log("Ajax fail: ", argument);
+						}
+
+						if(typeof config.onfailure === "function")
+						{
+							config.onfailure(argument.error, argument.xhr);
+						}
+						else
+						{
+							reject(argument)
+						}
+					}
+				}
+
+			};
+			BX.mobileAjax.instances[config.xhr.getUniqueId()] = config.xhr;
+			config.xhr.send(config["data"]);
+
+		});
+
+		//to avoid exception which will be thrown if catch-handler will be not defined
+		promise.catch(function(){});
+
+		return promise;
+	};
+
+	BX.mobileAjax.debug = false;
+	BX.mobileAjax.instances = {};
+	BX.mobileAjax.xhrSuccess = function (xhr)
+	{
+		return (xhr.status >= 200 && xhr.status < 300) || xhr.status === 304 || xhr.status === 1223
+	};
+
+	BX.mobileAjax.prepareData = function (originalData, prefix)
+	{
+		var data = '';
+		if (null !== originalData)
+		{
+			for (var paramName in originalData)
+			{
+				if (originalData.hasOwnProperty(paramName))
+				{
+					if (data.length > 0)
+						data += '&';
+					var name = encodeURIComponent(paramName);
+					if (prefix)
+						name = prefix + '[' + name + ']';
+					if (typeof originalData[paramName] === 'object')
+						data += BX.mobileAjax.prepareData(originalData[paramName], name);
+					else
+						data += name + '=' + encodeURIComponent(originalData[paramName]);
+				}
+			}
+		}
+		return data;
+	};
+
+	BX.mobileAjax.onreadystatechange = function(data){
+		var id = data["id"];
+		if(BX.mobileAjax.instances[id])
+		{
+			if (data["readyState"])
+			{
+				BX.mobileAjax.instances[id].readyState = data["readyState"];
+			}
+
+			if(data["readyState"] === 4)
+			{
+				BX.mobileAjax.instances[id].responseText = data["responseText"];
+				console.timeEnd(data["id"]);
+			}
+
+			if(data["statusCode"])
+			{
+				BX.mobileAjax.instances[id].status = data["statusCode"];
+			}
+		}
+		if(typeof(BX.mobileAjax.instances[id]["onreadystatechange"]) === "function")
+			BX.mobileAjax.instances[id]["onreadystatechange"].call(BX.mobileAjax.instances[id],[]);
+
+	};
+	BX.mobileAjax.onload = function(data){
+		var id = data["id"];
+		if(BX.mobileAjax.instances[id] && BX.mobileAjax.instances[id]["onload"])
+			BX.mobileAjax.instances[id]["onload"].call(BX.mobileAjax.instances[id],[data]);
+	};
+	BX.mobileAjax.onerror = function(data) {
+		var id = data["id"];
+		if(BX.mobileAjax.instances[id] && BX.mobileAjax.instances[id]["onerror"])
+			BX.mobileAjax.instances[id]["onerror"].call(BX.mobileAjax.instances[id],[data.error])
+	};
+	BX.mobileAjax.send = function(object, data)
+	{
+		BX.mobileAjax.instances[object.getUniqueId()] = object;
+		data["id"] = object.getUniqueId();
+		console.time(data["id"]);
+		Object.keys(BX.mobileAjax.preregistredCallbacks).forEach(function(event){ data[event] = BX.mobileAjax.preregistredCallbacks[event]});
+		app.exec("sendAjax", data, false)
+	};
+
+	BX.mobileAjax.abort = function(object, data)
+	{
+		data["id"] = object.getUniqueId();
+		app.exec("abortAjax", data, false)
+	};
+
+	BX.mobileAjax.registerCallbacks = function(){
+		BX.mobileAjax.preregistredCallbacks = {
+			onreadystatechange: app.RegisterCallBack(BX.mobileAjax.onreadystatechange),
+			onload: app.RegisterCallBack(BX.mobileAjax.onload),
+			onerror: app.RegisterCallBack(BX.mobileAjax.onerror),
+		}
+
+	};
+
+	BX.mobileAjax.registerCallbacks();
+
+	window.BMXMLHttpRequest = function(){
+		this.id = "ajaxId"+Math.random();
+		this.headers = {};
+		this.files = [];
+		this.prepareData = false;
+	};
+	BMXMLHttpRequest.prototype = {
+		open:function(method, url){
+			this.method = method;
+			this.url = url;
+		},
+		setRequestHeader:function(name, value)
+		{
+			this.headers[name] = value;
+		},
+		send:function(requestBody){
+
+			// if(requestBody instanceof FormData)
+			// {
+			// 	var object = {};
+			// 	for(var pair of requestBody.entries()) {
+			// 		console.log(pair);
+			// 		object[pair[0]] = pair[1];
+			// 	}
+			//
+			// 	requestBody = object;
+			// }
+
+			if(this.prepareData === true)
+			{
+				if(typeof requestBody === "object")
+					requestBody = BX.mobileAjax.prepareData(requestBody);
+			}
+
+			var data = {
+				headers: this.headers,
+				body: requestBody,
+				method: this.method,
+				url: this.url,
+				prepareData: this.prepareData,
+				files: this.files
+			};
+
+
+			BX.mobileAjax.send(this, data);
+		},
+		abort:function () {
+			BX.mobileAjax.abort(this, {});
+		},
+		onreadystatechange:null,
+		onload:null,
+		onerror:null,
+		getUniqueId:function(){
+			return this.id;
+		}
+	};
+
+
+
+	window.MobileAjaxWrapper = function ()
 	{
 		this.type = null;
 		this.method = null;
@@ -2806,6 +2656,8 @@
 		this.offline = null;
 		this.processData = null;
 		this.xhr = null;
+		this.data = null;
+		this.headers = null;
 };
 
 	MobileAjaxWrapper.prototype.Init = function (params)
@@ -2823,6 +2675,7 @@
 		this.method = params.method;
 		this.url = params.url;
 		this.data = params.data;
+		this.headers = (typeof params.headers != 'undefined' ? params.headers : []);
 		this.processData = params.processData;
 		this.start = params.start;
 		this.preparePost = params.preparePost;
@@ -2836,32 +2689,39 @@
 			this.loadstart_callback = params.callback_loadstart;
 		if (params.callback_loadend != 'undefined')
 			this.loadend_callback = params.callback_loadend;
-	}
+	};
 
 	MobileAjaxWrapper.prototype.Wrap = function (params)
 	{
 		this.Init(params);
 
 		this.xhr = BX.ajax({
-			'timeout': 30,
-			'start' : this.start,
-			'preparePost' : this.preparePost,
-			'method': this.method,
-			'dataType': this.type,
-			'url': this.url,
-			'data': this.data,
-			'processData': this.processData,
-			'onsuccess': BX.defer(
+			timeout: 30,
+			start : this.start,
+			preparePost : this.preparePost,
+			method: this.method,
+			dataType: this.type,
+			url: this.url,
+			data: this.data,
+			headers: this.headers,
+			processData: this.processData,
+			onsuccess: BX.defer(
 				function (response)
 				{
+					var bFailed = false;
+
 					if (this.xhr.status === 0)
-						var bFailed = true;
+					{
+						bFailed = true;
+					}
 					else if (this.type == 'json')
 					{
-						var bFailed = (typeof response == 'object' && typeof response.status != 'undefined' && response.status == 'failed');
+						bFailed = (typeof response == 'object' && typeof response.status != 'undefined' && response.status == 'failed');
 					}
 					else if (this.type == 'html')
-						var bFailed = (response == '{"status":"failed"}');
+					{
+						bFailed = (response == '{"status":"failed"}');
+					}
 
 					if (bFailed)
 					{
@@ -2874,7 +2734,7 @@
 				},
 				this
 			),
-			'onfailure': BX.delegate(function (errorCode, requestStatus)
+			onfailure: BX.delegate(function (errorCode, requestStatus)
 			{
 				if (
 					errorCode !== undefined
@@ -2910,41 +2770,201 @@
 		if (this.abort_callback != null)
 			BX.bind(this.xhr, "abort", this.abort_callback);
 		return this.xhr;
-	}
+	};
+
+	MobileAjaxWrapper.prototype.runComponentAction = function(component, action, config, callbacks)
+	{
+		config.onrequeststart = function(requestXhr) {
+			this.xhr = requestXhr;
+		}.bind(this);
+
+		BX.ajax.runComponentAction(component, action, config).then(function(response) {
+			if (BX.type.isFunction(callbacks.success))
+			{
+				callbacks.success(response);
+			}
+		}.bind(this), function(response) {
+			if (this.xhr.status == 401)
+			{
+				this.repeatComponentAction(component, action, config, callbacks);
+			}
+			else if (BX.type.isFunction(callbacks.failure))
+			{
+				callbacks.failure(response);
+			}
+		}.bind(this));
+
+		if (BX.type.isFunction(this.progress_callback))
+		{
+			BX.bind(this.xhr, "progress", this.progress_callback);
+		}
+		if (BX.type.isFunction(this.load_callback))
+		{
+			BX.bind(this.xhr, "load", this.load_callback);
+		}
+		if (BX.type.isFunction(this.loadstart_callback))
+		{
+			BX.bind(this.xhr, "loadstart", this.loadstart_callback);
+		}
+		if (BX.type.isFunction(this.loadend_callback))
+		{
+			BX.bind(this.xhr, "loadend", this.loadend_callback);
+		}
+		if (BX.type.isFunction(this.error_callback))
+		{
+			BX.bind(this.xhr, "error", this.error_callback);
+		}
+		if (BX.type.isFunction(this.abort_callback))
+		{
+			BX.bind(this.xhr, "abort", this.abort_callback);
+		}
+
+		return this.xhr;
+	};
+
+	MobileAjaxWrapper.prototype.repeatComponentAction = function(component, action, config, callbacks)
+	{
+		app.BasicAuth({
+			success: function (auth_data)
+			{
+				BX.ajax.runComponentAction(component, action, config).then(function(response) {
+					if (BX.type.isFunction(callbacks.success))
+					{
+						callbacks.success(response);
+					}
+				}.bind(this), function(response) {
+					if (BX.type.isFunction(callbacks.failure))
+					{
+						callbacks.failure(response);
+					}
+				}.bind(this));
+
+			}.bind(this),
+			failture: function ()
+			{
+				this.failure_callback();
+			}.bind(this)
+		});
+	};
+
+	MobileAjaxWrapper.prototype.runAction = function(action, config, callbacks)
+	{
+		config.onrequeststart = function(requestXhr) {
+			this.xhr = requestXhr;
+		}.bind(this);
+
+		BX.ajax.runAction(action, config).then(function(response) {
+			if (BX.type.isFunction(callbacks.success))
+			{
+				callbacks.success(response);
+			}
+		}.bind(this), function(response) {
+			if (this.xhr.status == 401)
+			{
+				this.repeatAction(action, config, callbacks);
+			}
+			else if (BX.type.isFunction(callbacks.failure))
+			{
+				callbacks.failure(response);
+			}
+		}.bind(this));
+
+		if (BX.type.isFunction(this.progress_callback))
+		{
+			BX.bind(this.xhr, "progress", this.progress_callback);
+		}
+		if (BX.type.isFunction(this.load_callback))
+		{
+			BX.bind(this.xhr, "load", this.load_callback);
+		}
+		if (BX.type.isFunction(this.loadstart_callback))
+		{
+			BX.bind(this.xhr, "loadstart", this.loadstart_callback);
+		}
+		if (BX.type.isFunction(this.loadend_callback))
+		{
+			BX.bind(this.xhr, "loadend", this.loadend_callback);
+		}
+		if (BX.type.isFunction(this.error_callback))
+		{
+			BX.bind(this.xhr, "error", this.error_callback);
+		}
+		if (BX.type.isFunction(this.abort_callback))
+		{
+			BX.bind(this.xhr, "abort", this.abort_callback);
+		}
+
+		return this.xhr;
+	};
+
+	MobileAjaxWrapper.prototype.repeatAction = function(action, config, callbacks)
+	{
+		app.BasicAuth({
+			success: function (auth_data)
+			{
+				BX.ajax.runAction(action, config).then(function(response) {
+					if (BX.type.isFunction(callbacks.success))
+					{
+						callbacks.success(response);
+					}
+				}.bind(this), function(response) {
+					if (BX.type.isFunction(callbacks.failure))
+					{
+						callbacks.failure(response);
+					}
+				}.bind(this));
+
+			}.bind(this),
+			failture: function ()
+			{
+				this.failure_callback();
+			}.bind(this)
+		});
+	};
 
 	MobileAjaxWrapper.prototype.RepeatRequest = function ()
 	{
 		app.BasicAuth({
-			'success': BX.delegate(
+			success: BX.delegate(
 				function (auth_data)
 				{
 					this.data.sessid = auth_data.sessid_md5;
 					this.xhr = BX.ajax({
-						'timeout': 30,
-						'method': this.method,
-						'dataType': this.type,
-						'url': this.url,
-						'data': this.data,
-						'onsuccess': BX.delegate(
+						timeout: 30,
+						method: this.method,
+						dataType: this.type,
+						url: this.url,
+						data: this.data,
+						onsuccess: BX.delegate(
 							function (response_ii)
 							{
+								var bFailed = false;
+
 								if (this.xhr.status === 0)
-									var bFailed = true;
+								{
+									bFailed = true;
+								}
 								else if (this.type == 'json')
 								{
-									var bFailed = (typeof response_ii == 'object' && typeof response_ii.status != 'undefined' && response_ii.status == 'failed');
+									bFailed = (typeof response_ii == 'object' && typeof response_ii.status != 'undefined' && response_ii.status == 'failed');
 								}
 								else if (this.type == 'html')
-									var bFailed = (response_ii == '{"status":"failed"}');
+								{
+									bFailed = (response_ii == '{"status":"failed"}');
+								}
 
 								if (bFailed)
+								{
 									this.failure_callback();
+								}
 								else
+								{
 									this.callback(response_ii);
+								}
 							},
 							this
 						),
-						'onfailure': BX.delegate(function ()
+						onfailure: BX.delegate(function ()
 						{
 							this.failure_callback();
 						}, this)
@@ -2952,17 +2972,18 @@
 				},
 				this
 			),
-			'failture': BX.delegate(function ()
+			failture: BX.delegate(function ()
 			{
 				this.failure_callback();
 			}, this)
 		});
-	}
+	};
+
 
 	MobileAjaxWrapper.prototype.OfflineAlert = function (callback)
 	{
 		navigator.notification.alert(BX.message('MobileAppOfflineMessage'), (callback || BX.DoNothing), BX.message('MobileAppOfflineTitle'));
-	}
+	};
 
 	BMAjaxWrapper = new MobileAjaxWrapper;
 
@@ -2996,11 +3017,8 @@
 
 })();
 
-
 (function ()
 {
-
-
 	function addListener(el, type, listener, useCapture)
 	{
 		if (el.addEventListener)
@@ -3156,5 +3174,13 @@
 
 function ReadyDevice(func)
 {
-	document.addEventListener("deviceready", func, false);
+	if(app.available == true && typeof(func) == "function")
+	{
+		func();
+	}
+	else
+	{
+		document.addEventListener("deviceready", func, false);
+	}
+
 }

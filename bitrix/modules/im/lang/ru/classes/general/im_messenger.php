@@ -29,8 +29,15 @@ $MESS["IM_MESSAGE_MENTION_M"] = "Упомянул вас в чате \"#TITLE#\"
 $MESS["IM_MESSAGE_MENTION_F"] = "Упомянула вас в чате \"#TITLE#\"";
 $MESS["IM_MESSAGE_MENTION_PUSH_M"] = "#USER# упомянул вас в чате #TITLE#";
 $MESS["IM_MESSAGE_MENTION_PUSH_F"] = "#USER# упомянула вас в чате #TITLE#";
+$MESS["IM_MESSAGE_MENTION_PUSH_2_M"] = "#USER# упомянул вас";
+$MESS["IM_MESSAGE_MENTION_PUSH_2_F"] = "#USER# упомянула вас";
 $MESS["IM_PUSH_GROUP_TITLE"] = "#USER# в чате #GROUP#";
+$MESS["IM_MESSAGE_ICON"] = "иконка";
+$MESS["IM_MESSAGE_ATTACH"] = "Вложение";
 $MESS["IM_MESSAGE_FILE"] = "Файл";
+$MESS["IM_MESSAGE_AUDIO"] = "Аудио";
+$MESS["IM_MESSAGE_VIDEO"] = "Видео";
+$MESS["IM_MESSAGE_IMAGE"] = "Фото";
 $MESS["IM_MESSAGE_FILE_DOWN"] = "Скачать файл:";
 $MESS["IM_QUOTE"] = "Цитата";
 ?>

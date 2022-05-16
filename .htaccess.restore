@@ -1,0 +1,306 @@
+Options -Indexes 
+ErrorDocument 404 /404.php
+
+<ifModule mod_php7.c>
+  #php_flag session.use_trans_sid off
+  php_value display_errors 0
+  #php_value mbstring.internal_encoding UTF-8
+</ifModule>
+
+<ifModule mod_rewrite.c>
+  Options +FollowSymLinks
+  RewriteEngine On
+ 
+ # RewriteBase /
+
+  RewriteCond %{THE_REQUEST} /(.*)index.php.*$
+  RewriteCond %{THE_REQUEST} !/(.*)?forgot_password=yes
+  RewriteCond %{THE_REQUEST} !/(.*)?login=yes
+  RewriteCond %{THE_REQUEST} !bitrix/admin/
+  RewriteCond %{THE_REQUEST} !(/agentstvam/tekhpodderzhka/|bitrix/admin/|bitrix/tools/oauth/google.php|auth_service_id|server-status)
+  RewriteRule .* /%1 [R=301,L]
+
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_URI} !(.*)/$
+  RewriteCond %{THE_REQUEST} !(.*).html.*$
+	RewriteCond %{THE_REQUEST} !/support/
+	RewriteCond %{THE_REQUEST} !(/agentstvam/tekhpodderzhka/|bitrix/admin/|bitrix/tools/oauth/google.php|auth_service_id|server-status)
+  RewriteRule (.*) https://www.otpusk.by/$1/ [R=301,L]
+
+  RewriteCond %{HTTP_HOST} ^otpusk\.by
+  RewriteRule ^(.*)$ https://www.otpusk.by/$1 [R=301,L]
+
+  RewriteCond %{HTTP_HOST} ^xn--j1ahdidh.xn--90ais
+  RewriteRule ^(.*)$ https://www.otpusk.by/$1 [R=301,L]
+
+  RewriteCond %{HTTP_HOST} ^xn--j1ax.xn--90ais
+  RewriteRule ^(.*)$ https://www.otpusk.by/$1 [R=301,L]
+
+	RewriteCond %{THE_REQUEST} //
+   # Проверяем, повторяется ли слеш (//) более двух раз.
+	RewriteRule .* /$0 [R=301,L]
+   # Исключаем все лишние слеши.
+
+  #RewriteCond %{REQUEST_URI} /belarus/tury/item/(.*)$
+  #RewriteRule (.*) /otdykh-v-belarusi/tury-i-ekskursii/ [R=301,L]
+  #RewriteCond %{REQUEST_URI}  /poslednie-novosti/(.*)$
+  #RewriteRule (.*) /turistam/novosti/ [R=301,L]
+
+  RewriteRule ^aviabilety/airports/(.*)/(.*)/$ /aviabilety/airports/details.php?country=$1&amp;app=$2 [L]
+  RewriteRule ^aviabilety/airports/(.*)/$ /aviabilety/airports/country.php?country=$1 [L]
+  RewriteRule ^aviabilety/aviakompanii/(.*)/$ /aviabilety/aviakompanii/details.php?ac=$1 [L]
+  RewriteRule ^aviabilety/bilety/(.*)/$ /aviabilety/bilety/city_details.php?city=$1 [L]
+
+#RewriteCond %{SERVER_PORT} !^80$
+#RewriteRule !^/?(personal) http://www.otpusk.by%{REQUEST_URI} [R=301,L]
+
+RewriteCond %{SERVER_PORT} !^443$
+RewriteRule !^/?(yandex|server-status) https://www.otpusk.by%{REQUEST_URI} [R=301,L]
+
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-l
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !/bitrix/urlrewrite.php$
+  RewriteRule ^(.*)$ /bitrix/urlrewrite.php [L]
+  RewriteRule .* - [E=REMOTE_USER:%{HTTP:Authorization}]
+
+
+</ifModule>
+
+<ifModule mod_dir.c>
+  DirectoryIndex index.php index.html
+</ifModule>
+
+<ifModule mod_headers.c>
+    #кэшировать html и htm файлы на один день
+    
+        Header set Cache-Control "max-age=43200"
+    
+    #кэшировать css, javascript и текстовые файлы на одну неделю
+    
+        Header set Cache-Control "max-age=604800"
+    
+    #кэшировать флэш и изображения на месяц
+    
+        Header set Cache-Control "max-age=2592000"
+    
+    #отключить кэширование
+    
+        Header unset Cache-Control
+    
+</ifModule>
+
+<ifModule mod_expires.c>
+    ExpiresActive On
+    #по умолчанию кеш в 5 секунд
+    ExpiresDefault "access plus 5 seconds"
+    #кэшировать флэш и изображения на месяц
+    ExpiresByType image/x-icon "access plus 2592000 seconds"
+    ExpiresByType image/jpeg "access plus 2592000 seconds"
+    ExpiresByType image/png "access plus 2592000 seconds"
+    ExpiresByType image/gif "access plus 2592000 seconds"
+    ExpiresByType application/x-shockwave-flash "access plus 2592000 seconds"
+    #кэшировать css, javascript и текстовые файлы на одну неделю
+    ExpiresByType text/css "access plus 604800 seconds"
+    ExpiresByType text/javascript "access plus 604800 seconds"
+    ExpiresByType application/javascript "access plus 604800 seconds"
+    ExpiresByType application/x-javascript "access plus 604800 seconds"
+    #кэшировать html и htm файлы на один день
+    ExpiresByType text/html "access plus 43200 seconds"
+    #кэшировать xml файлы на десять минут
+    ExpiresByType application/xhtml+xml "access plus 600 seconds"
+</ifModule>
+#OLD REDIRECT туры беларуси#
+
+Redirect 301 /aktsii/skidki-i-bonusy-dlya-derzhateley-bonusnykh-kart/ /aktsii/bonusnaya-programma/
+Redirect 301 /aktsii/otdykh-s-detmi-v-priozernom/ /oteli/priozernyy/
+Redirect 301 /aktsii/schastlivaya-zima-v-yunosti-rannee-bronirovanie/ /oteli/yunost/
+Redirect 301 /aktsii/skidka-20-v-sanatorii-yunost-na-tury-vykhodnogo-dnya/ /oteli/yunost/
+Redirect 301 /tury/rannee-bronirovanie-v-sanatorii-yunost/ /tury/spetsialnoe-predlozhenie-v-yunosti/
+Redirect 301 /aktsii/goryashchee-predlozhenie-v-ozernom/ /aktsii/
+Redirect 301 /aktsii/v-truskavets-na-pryamom-avtobuse/ /strany/ukraina/truskavets/
+Redirect 301 /o-kompanii/sotrudniki/malysheva-olga/ /o-kompanii/sotrudniki/
+Redirect 301 /o-kompanii/sotrudniki/yablonskaya-evgeniya/ /o-kompanii/sotrudniki/
+Redirect 301 /otdykh-v-belarusi/tury-i-ekskursii/ekskursii-iz-minska/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /otdykh-v-belarusi/tury-i-ekskursii/ekskursii-iz-gomelya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /otdykh-v-belarusi/tury-i-ekskursii/ekskursii-iz-mogileva/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /strany/belarus/ekskursii-v-belovezhskuyu-pushchu/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /strany/belarus/ekskursii-v-brest/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /strany/belarus/ekskursii-v-gomel/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /strany/belarus/ekskursii-v-grodno/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /strany/belarus/ekskursii-v-minsk/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /strany/belarus/ekskursii-v-polotsk/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /strany/belarus/ekskursii-v-vitebsk/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /strany/belarus/otdykh-v-belarusi-zimoy/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /strany/belarus/traditsionnyy-belorusskiy-uzhin-na-agrousadbe/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/albaruthenia-berezina-bivak-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/albaruthenia-brest-pushcha-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/albaruthenia-grodno-korobchitsy-2-dnya-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/albaruthenia-mir-nesvizh-2-dnya-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/albaruthenia-mogilev-bobruysk-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/albaruthenia-nesvizh-mir-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/albaruthenia-polotsk-vitebsk-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/arkhitekturnye-i-istoricheskie-pamyatniki-belorusskogo-poozerya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/arkhitekturnye-i-istoricheskie-pamyatniki-mira-i-nesvizha/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/arkhitekturnye-i-istoricheskie-pamyatniki-slonima-zhirovichey-synkovichey/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/arkhitekturnye-pamyatniki-mira-i-nesvizha/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/arkhitekturnye-pamyatniki-slo-nim-shchi-ny/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belarusskie-vechera/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-berezina-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-bobruysk-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-brest-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-grodno-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-3-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-4-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-5-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-6-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-7-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-berezina-3-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-berezina-4-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-berezina-5-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-berezina-6-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-berezina-7-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-bobruysk-3-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-bobruysk-4-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-bobruysk-5-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-bobruysk-6-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-bobruysk-7-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-brest-3-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-brest-4-dnya-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-brest-5-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-brest-6-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-brest-7-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-grodno-3-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-grodno-4-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-grodno-5-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-grodno-6-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-grodno-7-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-vitebsk-3-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-vitebsk-4-dnya-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-vitebsk-5-dney-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-vitebsk-6-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-vitebsk-7-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-zamki-mir-3-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-zamki-mir-4-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-zamki-mir-5-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-zamki-mir-6-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-zamki-mir-7-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-zamki-nesvizh-3-dnya-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-zamki-nesvizh-4-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-zamki-nesvizh-5-dney-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-zamki-nesvizh-6-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-minsk-zamki-nesvizh-7-dney/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-vitebsk-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-zamki-mir-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaya-rus-zamki-nesvizh-2-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belaz-v-mire-gigantov/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belorusskaya-letopis/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belorusskaya-mozaika/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belorusskaya-mozaika-dlya-shkolnikov/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belorusskiy-kaleydoskop/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/belorusskiy-skansen/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/benefis-znatoka-s-khristoforom-khilkevichem-minsk-misticheskiy-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/be-ne-fis-znatoka-s-ta-tya-noy-bem-bel-art-usad-by/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/benefis-znatoka-s-tatyanoy-bembel-dziwny-jest-ten-wiat-cheslav-nemen/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/benefis-znatoka-s-tatyanoy-bembel-prostranstvo-khaima-sutina/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/benefis-znatoka-s-veroy-savinoy-mark-shagal-nerealnaya-realnost-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/benefis-znatoka-s-veroy-savinoy-pod-zvezdoy-vysotskogo-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/benefis-zna-tsy-z-alenay-lyashkovich-paetychnaya-staronka-yanka-kupala/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/benefis-zna-tsy-z-alyaksandram-marchankam/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/benefis-zna-tsy-z-glebam-labadzenkam-mova-nanova-zaprashae-da-baradulina-i-bykava/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/benefis-zna-tsy-z-glebam-labadzenkam-mova-nanova-zaprashae-da-radzivila-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/benefis-zna-tsy-z-glebam-labadzenkam-mova-nanova-zaprashae-da-tsmoka/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/berezinskiy-biosfernyy-zapovednik/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/brest-geroicheskiy/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/byloe-v-volshebnom-zerkale-ozer/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/dorogami-legend-i-predaniy/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/dorogoy-iz-minska-v-brest/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/dorogoy-k-linii-stalina/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/dorogoy-zamkov/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/dudutki-muzey-pod-otkrytym-nebom/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/ekskursiya-animatsiya-dorogami-voyny-1812g-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/etnokulturnyy-kompleks-nanosy-novosele-s-obedom/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/etyudy-vostochnoy-belarusi/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/geroicheskiy-i-zapovednyy-kray/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/goluboe-ozherele-narochanskogo-kraya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/gorod-ko-ro-lev-skikh-dvor-tsov-i-khra-mov/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/gorod-na-dnepre/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/gorod-na-menke/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/grodno-avgustovskiy-kanal/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/grodno-priglashaet-visa-free/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/i-muzykoy-zvuchat-vospominanya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/kanikuly-v-polshe/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/khramy-pomnyat-vsye/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/kolokola-istorii/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/kray-ozer-kostelov-i-parkov/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/kultura-i-byt-rakova-i-iventsa/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/liki-istorii/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/listaya-stranitsy-istorii/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/literaturnaya-orshanshchina-ya-kupala-i-v-korotkevich/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/maloe-zolotoe-koltso-gomelshchiny/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/memorialnyy-kompleks-khatyn-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/memorialnyy-kompleks-khatyn-kurgan-slavy/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/minsk-puteshestvie-v-stolitsu/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/minsk-stolitsa-respubliki-belarus/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/minsk-stolitsa-respubliki-belarus-/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/mir-belorusskikh-mestechek/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/mogilev-gorod-mnogovekovykh-traditsiy/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/moy-lyubimyy-kray/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/moy-lyuby-kray/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/muzey-materialnoy-kultury-dudutki-s-obedom/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/na-beregakh-dnepra-i-sozha/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/nasledie-gomelskoy-zemli/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/nasledie-velikikh-knyazey/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/obzornaya-ekskursiya-po-minsku /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/obzornaya-ekskursiya-po-minsku-ratusha-kontsert/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/ostrovetskaya-krugosvetka/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/ostrovetskaya-krugosvetkaa/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/pamyatniki-mira-i-nesvizha/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/park-avgustovskiy-kanal-i-g-grodno/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/park-istorii-sula/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/pat-ri-arkh-zem-li-belorusskoy/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/pod-zvezdoy-novogrudka-s-obedom/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/pokazhite-mne-moskvu-moskvichi/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/po-stranitsam-istorii-1000-letnego-vitebska/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/po-stranitsam-istorii-belarusi/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/po-turovskoy-zemle/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/priglashaet-logoyshchina/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/prikasayas-k-mnogovekovym-traditsiyam/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/prirodnoe-i-kulturnoe-nasledie-vitebshchiny/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/puteshestvie-v-dudutki/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/puteshestvie-v-grodno/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/severnyy-kray-belarusi/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/sokrovishcha-belarusi-mir-nesvizh/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/sportivnyy-kompleks-raubichi/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/srednevekovye-zabavy-v-lidskom-zamke/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/sto-let-odinochestva/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/sto-let-odinochestva-3-dnya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/stra-ni-tsy-ka-men-noy-le-to-pi-si/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/svyatyni-vostochnoy-belarusi/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/taki-da-eto-bobruysk/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/tropami-adama-mitskevicha/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/tropami-pervoy-mi-ro-voy/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/v-belarus-bez-vizy/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/v-berezovku-gorod-belorusskogo-stekla/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/vecherniy-minsk/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/vekov-minuvshikh-velikany-a-mitskevich/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/vilnyus-trakay-iz-gomelya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/v-korolevskiy-gorod-grodno/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/vodnoe-tsarstvo-braslava/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/v-pomeste-belorusskogo-deda-moroza/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/zapadnyy-kray-belarusi/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/zapadnyy-trakt/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/zdes-tvorili-shagal-i-repin/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/zemley-kupaly/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/zemlyey-kupaly/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/zhemchuzhina-polesya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/zodchestvo-nalibokskogo-kraya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/zodchestvo-narochanskogo-kraya/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/zolotoe-koltso-gomelshchiny/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/zyamlya-navagrudskaya-krayu-moy-rodny/ /otdykh-v-belarusi/tury-i-ekskursii/
+Redirect 301 /tury/rannee-bronirovanie/rannee-bronirovanie-kipr/ /tury/rannee-bronirovanie/kipr/
+Redirect 301 /tury/rannee-bronirovanie/rannee-bronirovanie-ispaniya/ /tury/rannee-bronirovanie/ispaniya/
+Redirect 301 /tury/rannee-bronirovanie/rannee-bronirovanie-bolgariya/ /tury/rannee-bronirovanie/bolgariya/
+Redirect 301 /tury/rannee-bronirovanie/rannee-bronirovanie-gretsiya/ /tury/rannee-bronirovanie/gretsiya/
+Redirect 301 /tury/rannee-bronirovanie/rannee-bronirovanie-turtsiya/ /tury/rannee-bronirovanie/turtsiya/

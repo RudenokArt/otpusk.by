@@ -8,12 +8,12 @@
 
 namespace Bitrix\Main\Mail\Internal;
 
+use Bitrix\Main\Orm;
 use Bitrix\Main\Entity;
 use Bitrix\Main\Type as Type;
 
 class EventMessageTable extends Entity\DataManager
 {
-
 	/**
 	 * @return string
 	 */
@@ -36,7 +36,7 @@ class EventMessageTable extends Entity\DataManager
 			'TIMESTAMP_X' => array(
 				'data_type' => 'datetime',
 				'required' => true,
-				'default_value' => new Type\DateTime(),
+				'default_value' => function(){return new Type\DateTime();},
 			),
 			'EVENT_NAME' => array(
 				'data_type' => 'string',
@@ -104,13 +104,13 @@ class EventMessageTable extends Entity\DataManager
 			'SITE_TEMPLATE_ID' => array(
 				'data_type' => 'string',
 			),
-			'ADDITIONAL_FIELD' => array(
-				'data_type' => 'string',
-				'serialized' => true,
-			),
+			(new Orm\Fields\ArrayField('ADDITIONAL_FIELD'))->configureSerializationPhp(),
 			'EVENT_MESSAGE_SITE' => array(
 				'data_type' => 'Bitrix\Main\Mail\Internal\EventMessageSite',
 				'reference' => array('=this.ID' => 'ref.EVENT_MESSAGE_ID'),
+			),
+			'LANGUAGE_ID' => array(
+				'data_type' => 'string',
 			),
 		);
 	}

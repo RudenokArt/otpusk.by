@@ -22,6 +22,7 @@ use Bitrix\Main\Entity;
  * <li> RETURN_PROPERTIES text optional
  * <li> DOCUMENT_TYPE text optional
  * <li> FILTER text optional
+ * <li> IS_ROBOT bool optional default 'N'
  * </ul>
  *
  * @package Bitrix\Bizproc
@@ -93,6 +94,10 @@ class RestActivityTable extends Entity\DataManager
 			'USE_SUBSCRIPTION' => array(
 				'data_type' => 'string'
 			),
+			'USE_PLACEMENT' => array(
+				'data_type' => 'boolean',
+				'values' => ['Y', 'N']
+			),
 			'NAME' => array(
 				'data_type' => 'text',
 				'required' => true,
@@ -119,6 +124,10 @@ class RestActivityTable extends Entity\DataManager
 			'FILTER' => array(
 				'data_type' => 'text',
 				'serialized' => true,
+			),
+			'IS_ROBOT' => array(
+				'data_type' => 'boolean',
+				'values' => array('Y', 'N')
 			),
 		);
 	}
@@ -189,13 +198,13 @@ class RestActivityTable extends Entity\DataManager
 		$langId = strtoupper($langId);
 		if (is_string($field))
 			$result = $field;
-		elseif (isset($field[$langId]))
+		elseif (!empty($field[$langId]))
 			$result = $field[$langId];
-		elseif ($langId == 'UA' && isset($field['RU']))
+		elseif ($langId == 'UA' && !empty($field['RU']))
 			$result = $field['RU'];
-		elseif (isset($field['EN']))
+		elseif (!empty($field['EN']))
 			$result = $field['EN'];
-		elseif (isset($field['*']))
+		elseif (!empty($field['*']))
 			$result = $field['*'];
 		return $result;
 	}

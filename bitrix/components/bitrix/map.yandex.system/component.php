@@ -6,6 +6,9 @@ if (!isset($arParams['YANDEX_VERSION']))
 
 $arParams['DEV_MODE'] = $arParams['DEV_MODE'] == 'Y' ? 'Y' : 'N';
 
+if(strlen($arParams['API_KEY']) <= 0)
+	$arParams['API_KEY'] =  \Bitrix\Main\Config\Option::get('fileman', 'yandex_map_api_key', '');
+
 if (!$arParams['LOCALE'])
 {
 	switch (LANGUAGE_ID)
@@ -28,7 +31,23 @@ if (!$arParams['LOCALE'])
 if (!defined('BX_YMAP_SCRIPT_LOADED'))
 {
 	$scheme = (CMain::IsHTTPS() ? "https" : "http");
-	$arResult['MAPS_SCRIPT_URL'] = $scheme.'://api-maps.yandex.ru/'.$arParams['YANDEX_VERSION'].'/?load=package.full&mode=release&lang='.$arParams['LOCALE'].'&wizard=bitrix';
+
+	if(strlen($arParams['API_KEY']) <= 0)
+	{
+		$host = 'api-maps.yandex.ru';
+	}
+	else
+	{
+		$host = 'enterprise.api-maps.yandex.ru';
+	}
+
+	$arResult['MAPS_SCRIPT_URL'] = $scheme.'://'.$host.'/'.$arParams['YANDEX_VERSION'].'/?load=package.full&mode=release&lang='.$arParams['LOCALE'].'&wizard=bitrix';
+
+	if(strlen($arParams['API_KEY']) > 0)
+	{
+		$arResult['MAPS_SCRIPT_URL'] .= '&apikey='.$arParams['API_KEY'];
+	}
+
 	if ($arParams['DEV_MODE'] != 'Y')
 	{
 		?>
@@ -47,7 +66,7 @@ if (!defined('BX_YMAP_SCRIPT_LOADED'))
 
 $arParams['MAP_ID'] =
 	(strlen($arParams["MAP_ID"])<=0 || !preg_match("/^[A-Za-z_][A-Za-z01-9_]*$/", $arParams["MAP_ID"])) ?
-	'MAP_'.RandString() : $arParams['MAP_ID'];
+	'MAP_'.$this->randString() : $arParams['MAP_ID'];
 
 $arParams['INIT_MAP_LON'] = floatval($arParams['INIT_MAP_LON']);
 $arParams['INIT_MAP_LON'] = $arParams['INIT_MAP_LON'] ? $arParams['INIT_MAP_LON'] : 37.64;

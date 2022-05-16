@@ -62,7 +62,10 @@ if (strlen($arResult["FatalErrorMessage"]) <= 0 && !$arParams['COUNTERS_ONLY'])
 	$arResult['USE_SUBORDINATION'] = (bool)CModule::IncludeModule('intranet');
 	$arResult["GRID_ID"] = "bizproc_task_list";
 
-	$arSelectFields = array("ID", "WORKFLOW_ID", "PARAMETERS", "MODIFIED", "OVERDUE_DATE", 'IS_INLINE', 'STATUS', 'USER_ID', 'USER_STATUS', 'WORKFLOW_STATE', 'ACTIVITY');
+	$arSelectFields = [
+		"ID", "WORKFLOW_ID", "PARAMETERS", "MODIFIED", "OVERDUE_DATE", 'IS_INLINE', 'STATUS',
+		'USER_ID', 'USER_STATUS', 'WORKFLOW_STATE', 'ACTIVITY', 'DOCUMENT_NAME'
+	];
 
 	$gridOptions = new CGridOptions($arResult["GRID_ID"]);
 	$gridColumns = $gridOptions->GetVisibleColumns();
@@ -114,10 +117,10 @@ if (strlen($arResult["FatalErrorMessage"]) <= 0 && !$arParams['COUNTERS_ONLY'])
 
 	$arResult['DOCUMENT_TYPES'] = array(
 		'*' => array('NAME' => GetMessage('BPATL_FILTER_DOCTYPE_ALL'), 'COUNTER_KEY' => '*'),
-		'processes' => array('NAME' => GetMessage('BPATL_FILTER_DOCTYPE_CLAIMS'), 'FILTER' => array('MODULE_ID' => 'lists'), 'COUNTER_KEY' => 'lists'),
+		'processes' => array('NAME' => GetMessage('BPATL_FILTER_DOCTYPE_CLAIMS'), 'FILTER' => array('MODULE_ID' => 'lists', 'ENTITY' => 'BizprocDocument'), 'COUNTER_KEY' => 'lists'),
 		'crm' => array('NAME' => GetMessage('BPATL_FILTER_DOCTYPE_CRM'), 'FILTER' => array('MODULE_ID' => 'crm'), 'COUNTER_KEY' => 'crm'),
 		'disk' => array('NAME' => GetMessage('BPATL_FILTER_DOCTYPE_DISK'), 'FILTER' => array('MODULE_ID' => 'disk'), 'COUNTER_KEY' => 'disk'),
-		'lists' => array('NAME' => GetMessage('BPATL_FILTER_DOCTYPE_LISTS'), 'FILTER' => array('MODULE_ID' => 'iblock'), 'COUNTER_KEY' => 'iblock')
+		'lists' => array('NAME' => GetMessage('BPATL_FILTER_DOCTYPE_LISTS'), 'FILTER' => array('MODULE_ID' => 'lists', 'ENTITY' => 'Bitrix\Lists\BizprocDocumentLists'), 'COUNTER_KEY' => 'iblock')
 	);
 
 	if (!empty($_REQUEST['type']) && isset($arResult['DOCUMENT_TYPES'][$_REQUEST['type']]))
@@ -131,21 +134,28 @@ if (strlen($arResult["FatalErrorMessage"]) <= 0 && !$arParams['COUNTERS_ONLY'])
 	else
 		$arResult['DOCUMENT_TYPES']['*']['ACTIVE'] = true;
 
+	if (!empty($arParams['MODULE_ID']))
+	{
+		$arFilter['MODULE_ID'] = $arParams['MODULE_ID'];
+		unset($arFilter['ENTITY']);
+	}
+
 	if (empty($arParams["WORKFLOW_ID"]))
 	{
 		$ar = array("" => GetMessage("BPATL_WORKFLOW_ID_ANY"));
-		$tmpFilter = $arFilter;
-		unset($tmpFilter['USER_STATUS']);
-
-		$dbResTmp = CBPTaskService::GetList(
-			array("WORKFLOW_TEMPLATE_NAME" => "ASC"),
-			$tmpFilter,
-			array("WORKFLOW_TEMPLATE_TEMPLATE_ID", "WORKFLOW_TEMPLATE_NAME"),
-			false,
-			array("WORKFLOW_TEMPLATE_TEMPLATE_ID", "WORKFLOW_TEMPLATE_NAME")
+		$dbResTmp = CBPWorkflowTemplateLoader::GetList(
+			array('NAME' => 'ASC'),
+			array(
+				"ACTIVE" => "Y",
+				"USER_ID" => $currentUserId,
+				'<AUTO_EXECUTE' => CBPDocumentEventType::Automation
+			),
+			false, false,
+			array('ID', 'NAME')
 		);
+
 		while ($arResTmp = $dbResTmp->GetNext())
-			$ar[$arResTmp["WORKFLOW_TEMPLATE_TEMPLATE_ID"]] = $arResTmp["WORKFLOW_TEMPLATE_NAME"];
+			$ar[$arResTmp['ID']] = $arResTmp["NAME"];
 
 		$arResult["FILTER"][] = array("id" => "WORKFLOW_TEMPLATE_ID", "name" => GetMessage("BPATL_WORKFLOW_ID"), "type" => "list", "items" => $ar);
 	}
@@ -164,16 +174,23 @@ if (strlen($arResult["FatalErrorMessage"]) <= 0 && !$arParams['COUNTERS_ONLY'])
 		{
 			$op = ">=";
 			$newKey = substr($key, 0, -5);
+
+			if (in_array($newKey, array("MODIFIED", "OVERDUE_DATE")) && strlen($value) <= 10)
+			{
+				$dt = MakeTimeStamp($value, FORMAT_DATE);
+				$value = FormatDate('FULL', $dt);
+			}
+
 		}
 		elseif (substr($key, -3) == "_to")
 		{
 			$op = "<=";
 			$newKey = substr($key, 0, -3);
 
-			if (in_array($newKey, array("MODIFIED", "OVERDUE_DATE")))
+			if (in_array($newKey, array("MODIFIED", "OVERDUE_DATE")) && strlen($value) <= 10)
 			{
-				if (!preg_match("/\\d\\d:\\d\\d:\\d\\d\$/", $value))
-					$value .= " 23:59:59";
+				$dt = MakeTimeStamp($value, FORMAT_DATE) + 86399;// + 23:59:59
+				$value = FormatDate('FULL', $dt);
 			}
 		}
 		else
@@ -200,7 +217,7 @@ if (strlen($arResult["FatalErrorMessage"]) <= 0 && !$arParams['COUNTERS_ONLY'])
 			}
 			if ($value == 1)
 			{
-				$value = array(CBPTaskUserStatus::Ok, CBPTaskUserStatus::Yes, CBPTaskUserStatus::No);
+				$value = array(CBPTaskUserStatus::Ok, CBPTaskUserStatus::Yes, CBPTaskUserStatus::No, CBPTaskUserStatus::Cancel);
 				$arResult['IS_COMPLETED'] = true;
 			}
 			else
@@ -243,12 +260,23 @@ if (strlen($arResult["FatalErrorMessage"]) <= 0 && !$arParams['COUNTERS_ONLY'])
 			}
 			if ($action == 'delegate_to' && !empty($_REQUEST['ACTION_DELEGATE_TO_ID']))
 			{
-				if ($isAdmin || CBPHelper::checkUserSubordination($currentUserId, $_REQUEST['ACTION_DELEGATE_TO_ID']))
+				$allowedDelegationType = array(CBPTaskDelegationType::AllEmployees);
+				if ($isAdmin)
 				{
-					CBPDocument::delegateTasks($targetUserId, $_REQUEST['ACTION_DELEGATE_TO_ID'], $ids, $arResult['ERRORS']);
+					$allowedDelegationType = null;
 				}
-				else
-					$arResult['ERRORS'][] = GetMessage('BPATL_ERROR_DELEGATE');
+				elseif (CBPHelper::checkUserSubordination($currentUserId, $_REQUEST['ACTION_DELEGATE_TO_ID']))
+				{
+					$allowedDelegationType[] = CBPTaskDelegationType::Subordinate;
+				}
+
+				CBPDocument::delegateTasks(
+					$targetUserId,
+					$_REQUEST['ACTION_DELEGATE_TO_ID'],
+					$ids,
+					$arResult['ERRORS'],
+					$allowedDelegationType
+				);
 			}
 		}
 	}
@@ -273,22 +301,33 @@ if (strlen($arResult["FatalErrorMessage"]) <= 0 && !$arParams['COUNTERS_ONLY'])
 
 		$arRecord["IS_MY"] = $arResult['IS_MY_TASKS'];
 		$arRecord['MODIFIED'] = FormatDateFromDB($arRecord['MODIFIED']);
-		$arRecord["DOCUMENT_URL"] = CBPDocument::GetDocumentAdminPage($arRecord["PARAMETERS"]["DOCUMENT_ID"]);
+		$documentId = isset($arRecord["PARAMETERS"]["DOCUMENT_ID"]) && is_array($arRecord["PARAMETERS"]["DOCUMENT_ID"]) ?
+			$arRecord["PARAMETERS"]["DOCUMENT_ID"] : null;
+		$arRecord["DOCUMENT_URL"] = $documentId ? CBPDocument::GetDocumentAdminPage($documentId) : '';
 
-		$arRecord["MODULE_ID"] = $arRecord["PARAMETERS"]["DOCUMENT_ID"][0];
-		$arRecord["ENTITY"] = $arRecord["PARAMETERS"]["DOCUMENT_ID"][1];
-		$arRecord["DOCUMENT_ID"] = $arRecord["PARAMETERS"]["DOCUMENT_ID"][2];
+		$arRecord["MODULE_ID"] = $documentId ? $documentId[0] : '';
+		$arRecord["ENTITY"] = $documentId ? $documentId[1] : '';
+		$arRecord["DOCUMENT_ID"] = $documentId ? $documentId[2] : '';
 
 		if (empty($arRecord['DOCUMENT_NAME']))
+		{
 			$arRecord['DOCUMENT_NAME'] = GetMessage("BPATL_DOCUMENT_NAME");
+		}
 
-		$arRecord["URL"] = array(
-			"~TASK" => CComponentEngine::MakePathFromTemplate($arParams["~TASK_EDIT_URL"], $arRecord), 
-			"TASK" => CComponentEngine::MakePathFromTemplate($arParams["TASK_EDIT_URL"], $arRecord)
-		);
-
-		if (array_key_exists("DESCRIPTION", $arRecord))
-			$arRecord["DESCRIPTION"] = nl2br($arRecord["DESCRIPTION"]);
+		if (!empty($arRecord["PARAMETERS"]["TASK_EDIT_URL"]))
+		{
+			$arRecord["URL"] = array(
+				"~TASK" => CComponentEngine::MakePathFromTemplate($arRecord["PARAMETERS"]["TASK_EDIT_URL"], $arRecord),
+				"TASK" => CComponentEngine::MakePathFromTemplate($arRecord["PARAMETERS"]["TASK_EDIT_URL"], $arRecord)
+			);
+		}
+		else
+		{
+			$arRecord["URL"] = array(
+				"~TASK" => CComponentEngine::MakePathFromTemplate($arParams["~TASK_EDIT_URL"], $arRecord),
+				"TASK" => CComponentEngine::MakePathFromTemplate($arParams["TASK_EDIT_URL"], $arRecord)
+			);
+		}
 
 		if (isset($arRecord['WORKFLOW_TEMPLATE_NAME']))
 			$arRecord["WORKFLOW_NAME"] = $arRecord["WORKFLOW_TEMPLATE_NAME"]; // compatibility
@@ -344,6 +383,8 @@ if (strlen($arResult["FatalErrorMessage"]) <= 0 && !$arParams['COUNTERS_ONLY'])
 	$arResult["NAV_STRING"] = $dbRecordsList->GetPageNavStringEx($navComponentObject, GetMessage("INTS_TASKS_NAV"), "", false);
 	$arResult["NAV_CACHED_DATA"] = $navComponentObject->GetTemplateCachedData();
 	$arResult["NAV_RESULT"] = $dbRecordsList;
+
+	$arResult['HIDE_WORKFLOW_PROGRESS'] = $gridColumns && is_array($gridColumns) && !in_array('WORKFLOW_PROGRESS', $gridColumns);
 }
 
 if ($arParams["SHOW_TRACKING"] == "Y")

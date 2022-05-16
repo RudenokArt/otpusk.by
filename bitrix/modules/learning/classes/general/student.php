@@ -4,7 +4,7 @@
 class CStudent
 {
 	// 2012-04-16 Checked/modified for compatibility with new data model
-	function CheckFields(&$arFields, $ID = false)
+	public static function CheckFields(&$arFields, $ID = false)
 	{
 		global $DB, $APPLICATION;
 		$arMsg = array();
@@ -48,7 +48,7 @@ class CStudent
 
 
 	// 2012-04-16 Checked/modified for compatibility with new data model
-	function GenerateTranscipt($TranscriptLength = 8)
+	public static function GenerateTranscipt($TranscriptLength = 8)
 	{
 		$TranscriptLength = intval($TranscriptLength);
 
@@ -65,7 +65,7 @@ class CStudent
 
 
 	// 2012-04-16 Checked/modified for compatibility with new data model
-	function Add($arFields)
+	public static function Add($arFields)
 	{
 		global $DB;
 
@@ -95,7 +95,7 @@ class CStudent
 
 
 	// 2012-04-16 Checked/modified for compatibility with new data model
-	function Update($ID, $arFields)
+	public static function Update($ID, $arFields)
 	{
 		global $DB;
 
@@ -114,8 +114,11 @@ class CStudent
 			CLearnHelper::FireEvent('OnBeforeStudentUpdate', $arFields);
 
 			$strUpdate = $DB->PrepareUpdate("b_learn_student", $arFields, "learning");
-			$strSql = "UPDATE b_learn_student SET ".$strUpdate." WHERE USER_ID=".$ID;
-			$DB->QueryBind($strSql, $arBinds, false, "File: ".__FILE__."<br>Line: ".__LINE__);
+			if($strUpdate <> '')
+			{
+				$strSql = "UPDATE b_learn_student SET ".$strUpdate." WHERE USER_ID=".$ID;
+				$DB->QueryBind($strSql, $arBinds, false, "File: ".__FILE__."<br>Line: ".__LINE__);
+			}
 
 			CLearnHelper::FireEvent('OnAfterStudentUpdate', $arFields);
 
@@ -127,7 +130,7 @@ class CStudent
 
 
 	// 2012-04-16 Checked/modified for compatibility with new data model
-	function Delete($ID)
+	public static function Delete($ID)
 	{
 		global $DB;
 
@@ -140,8 +143,14 @@ class CStudent
 		$records = CCertification::GetList(Array(), Array("STUDENT_ID" => $ID));
 		while($arRecord = $records->Fetch())
 		{
-			if(!CCertification::Delete($arRecord["ID"]))
-				return false;
+			\CCertification::Delete($arRecord["ID"]);
+		}
+
+		//GradeBook
+		$gradeBooks = \CGradeBook::GetList([], ["STUDENT_ID" => $ID]);
+		while ($gradeBook = $gradeBooks->Fetch())
+		{
+			\CGradeBook::Delete($gradeBook["ID"]);
 		}
 
 		$strSql = "DELETE FROM b_learn_student WHERE USER_ID = ".$ID;
@@ -156,14 +165,14 @@ class CStudent
 
 
 	// 2012-04-16 Checked/modified for compatibility with new data model
-	function GetByID($ID)
+	public static function GetByID($ID)
 	{
 		return CStudent::GetList(Array(),Array("USER_ID"=> $ID));
 	}
 
 
 	// 2012-04-16 Checked/modified for compatibility with new data model
-	function GetFilter($arFilter)
+	public static function GetFilter($arFilter)
 	{
 
 		if (!is_array($arFilter))
@@ -202,16 +211,20 @@ class CStudent
 
 
 	// 2012-04-16 Checked/modified for compatibility with new data model
-	function GetList($arOrder=Array(), $arFilter=Array())
+	public static function GetList($arOrder=Array(), $arFilter=Array())
 	{
 		global $DB, $USER;
 
 		$arSqlSearch = CStudent::GetFilter($arFilter);
 
 		$strSqlSearch = "";
-		for($i=0; $i<count($arSqlSearch); $i++)
-			if(strlen($arSqlSearch[$i])>0)
+		for ($i = 0, $length = count($arSqlSearch); $i < $length; $i++)
+		{
+			if (strlen($arSqlSearch[$i]) > 0)
+			{
 				$strSqlSearch .= " AND ".$arSqlSearch[$i]." ";
+			}
+		}
 
 		$strSql =
 		"SELECT S.* ".
@@ -241,14 +254,22 @@ class CStudent
 
 		$strSqlOrder = "";
 		DelDuplicateSort($arSqlOrder);
-		for ($i=0; $i<count($arSqlOrder); $i++)
-		{
-			if($i==0)
-				$strSqlOrder = " ORDER BY ";
-			else
-				$strSqlOrder .= ",";
 
-			$strSqlOrder .= $arSqlOrder[$i];
+		if (!empty($arSqlOrder) && is_array($arSqlOrder))
+		{
+			for ($i = 0, $length = count($arSqlOrder); $i < $length; $i++)
+			{
+				if ($i == 0)
+				{
+					$strSqlOrder = " ORDER BY ";
+				}
+				else
+				{
+					$strSqlOrder .= ",";
+				}
+
+				$strSqlOrder .= $arSqlOrder[$i];
+			}
 		}
 
 		$strSql .= $strSqlOrder;

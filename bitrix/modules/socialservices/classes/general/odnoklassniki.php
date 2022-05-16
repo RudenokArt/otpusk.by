@@ -14,7 +14,7 @@ class CSocServOdnoklassniki extends CSocServAuth
 			array("odnoklassniki_appid", GetMessage("socserv_odnoklassniki_client_id"), "", Array("text", 40)),
 			array("odnoklassniki_appkey", GetMessage("socserv_odnoklassniki_client_key"), "", Array("text", 40)),
 			array("odnoklassniki_appsecret", GetMessage("socserv_odnoklassniki_client_secret"), "", Array("text", 40)),
-			array("note"=>GetMessage("socserv_odnoklassniki_form_note", array('#URL#'=>CSocServUtil::ServerName()."/bitrix/tools/oauth/odnoklassniki.php"))),
+			array("note"=>GetMessage("socserv_odnoklassniki_form_note", array('#URL#'=>\CHTTP::URN2URI("/bitrix/tools/oauth/odnoklassniki.php")))),
 		);
 	}
 
@@ -49,7 +49,7 @@ class CSocServOdnoklassniki extends CSocServAuth
 		if(IsModuleInstalled('bitrix24') && defined('BX24_HOST_NAME'))
 		{
 			$redirect_uri = self::CONTROLLER_URL."/redirect.php";
-			$state = CSocServUtil::ServerName()."/bitrix/tools/oauth/odnoklassniki.php?state=";
+			$state = \CHTTP::URN2URI("/bitrix/tools/oauth/odnoklassniki.php")."?state=";
 			$backurl = urlencode($GLOBALS["APPLICATION"]->GetCurPageParam('check_key='.$_SESSION["UNIQUE_KEY"], array("logout", "auth_service_error", "auth_service_id", "backurl"))).'&mode='.$location;
 			$state .= urlencode(urlencode("backurl=".$backurl));
 		}
@@ -59,7 +59,7 @@ class CSocServOdnoklassniki extends CSocServAuth
 				'check_key='.$_SESSION["UNIQUE_KEY"],
 				array("logout", "auth_service_error", "auth_service_id", "backurl")
 			);
-			$redirect_uri = CSocServUtil::ServerName()."/bitrix/tools/oauth/odnoklassniki.php";
+			$redirect_uri = \CHTTP::URN2URI("/bitrix/tools/oauth/odnoklassniki.php");
 			$state = 'site_id='.SITE_ID.'&backurl='.urlencode($backurl).(isset($arParams['BACKURL']) ? '&redirect_url='.urlencode($arParams['BACKURL']) : '').'&mode='.$location;
 		}
 
@@ -81,7 +81,7 @@ class CSocServOdnoklassniki extends CSocServAuth
 			if(IsModuleInstalled('bitrix24') && defined('BX24_HOST_NAME'))
 				$redirect_uri = self::CONTROLLER_URL."/redirect.php";
 			else
-				$redirect_uri= CSocServUtil::ServerName()."/bitrix/tools/oauth/odnoklassniki.php";
+				$redirect_uri= \CHTTP::URN2URI("/bitrix/tools/oauth/odnoklassniki.php");
 
 			$appID = trim(self::GetOption("odnoklassniki_appid"));
 			$appSecret = trim(self::GetOption("odnoklassniki_appsecret"));
@@ -121,11 +121,17 @@ class CSocServOdnoklassniki extends CSocServAuth
 						if($date = MakeTimeStamp($arOdnoklUser['birthday'], "YYYY-MM-DD"))
 							$arFields["PERSONAL_BIRTHDAY"] = ConvertTimeStamp($date);
 					if(isset($arOdnoklUser['pic_2']) && self::CheckPhotoURI($arOdnoklUser['pic_2']))
-						if ($arPic = CFile::MakeFileArray($arOdnoklUser['pic_2'].'&name=/'.md5($arOdnoklUser['pic_2']).'.jpg'))
+					{
+						if($arPic = CFile::MakeFileArray($arOdnoklUser['pic_2']))
+						{
+							$arPic['name'] = md5($arOdnoklUser['pic_2']).'.jpg';
 							$arFields["PERSONAL_PHOTO"] = $arPic;
+						}
+					}
 					$arFields["PERSONAL_WWW"] = "http://odnoklassniki.ru/profile/".$uid;
 					if(strlen(SITE_ID) > 0)
 						$arFields["SITE_ID"] = SITE_ID;
+
 					$bSuccess = $this->AuthorizeUser($arFields);
 				}
 			}
@@ -332,8 +338,11 @@ class COdnoklassnikiInterface
 
 	private function SetOauthKeys($socServUserId)
 	{
-		$dbSocservUser = CSocServAuthDB::GetList(array(), array('ID' => $socServUserId), false, false, array("OATOKEN", "XML_ID", "REFRESH_TOKEN"));
-		while($arOauth = $dbSocservUser->Fetch())
+		$dbSocservUser = \Bitrix\Socialservices\UserTable::getList([
+			'filter' => ['=ID' => $socServUserId],
+			'select' => ["OATOKEN", "XML_ID", "REFRESH_TOKEN"]
+		]);
+		while($arOauth = $dbSocservUser->fetch())
 		{
 			$this->access_token = $arOauth["OATOKEN"];
 			$this->userId = preg_replace("|\D|", '', $arOauth["XML_ID"]);
@@ -354,7 +363,7 @@ class COdnoklassnikiInterface
 		if(isset($arResult["access_token"]) && $arResult["access_token"] <> '')
 		{
 			$this->access_token = $arResult["access_token"];
-			CSocServAuthDB::Update($socServUserId, array("OATOKEN" => $arResult["access_token"]));
+			\Bitrix\Socialservices\UserTable::update($socServUserId, array("OATOKEN" => $arResult["access_token"]));
 			return true;
 		}
 		return false;

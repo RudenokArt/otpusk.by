@@ -1,4 +1,7 @@
 <?
+$MESS["expire_mess_timelicense1"] = "<font class=\"tablebodytext\"><font color=\"#FF0000\">Your current license has expired. This website will stop
+functioning completely in two weeks. Please contact <a href=\"mailto:sales@bitrix24.com\">Bitrix24
+Sales Department</a> immeadiately to renew your license.</font></font>";
 $MESS["TOOLS_DN"] = "days";
 $MESS["TOOLS_DAYS"] = "days";
 $MESS["TOOLS_CALENDAR"] = "Calendar";
@@ -120,7 +123,7 @@ $MESS["COUNTRY_82"] = "Cuba";
 $MESS["COUNTRY_83"] = "Kuwait";
 $MESS["COUNTRY_84"] = "Liberia";
 $MESS["COUNTRY_85"] = "Liechtenstein";
-$MESS["COUNTRY_86"] = "Luxemburg";
+$MESS["COUNTRY_86"] = "Luxembourg";
 $MESS["COUNTRY_87"] = "Mauritania";
 $MESS["COUNTRY_88"] = "Madagascar";
 $MESS["COUNTRY_89"] = "Macedonia";
@@ -274,12 +277,15 @@ $MESS["MAIN_MAILTO"] = "Send message";
 $MESS["MAIN_F_TIMESTAMP"] = "Modified";
 $MESS["AJAX_WAIT"] = "Loading...";
 $MESS["HTTP_CLIENT_ERROR_CONNECT"] = "Error connecting to %HOST%:%PORT%. Error code: \"%ERRNO%\", error description: \"%ERRSTR%\"";
-$MESS["TOOLS_TRIAL_EXP"] = "Trial period of the product has expired. You can purchase the full version of the product on the site <a href=\"http://www.bitrixsoft.com/\">www.bitrixsoft.com</a>.";
+$MESS["TOOLS_TRIAL_EXP"] = "Trial period of the product has expired. You can purchase the full version of the product on the site <a href=\"https://www.bitrix24.com/prices/self-hosted.php\">www.bitrix24.com</a>.";
 $MESS["expire_mess1"] = "<font class=\"tablebodytext\"><font color=\"#FF0000\">
 		Trial period of the product has expired.
-		You can purchase the full version of the product on the site <a href=\"http://www.bitrixsoft.com/\">www.bitrixsoft.com</a>.
+		The current trial product copy will be automatically blocked in 2 weeks.
+		You can purchase the full version of the product on the site <a href=\"https://www.bitrix24.com/prices/self-hosted.php\">www.bitrix24.com</a>.
 		</font></font>";
-$MESS["expire_mess2"] = "Trial period of the product has expired. You can purchase the full version of the product on the site <a href=\"http://www.bitrixsoft.com/\">www.bitrixsoft.com</a>. <a href=\"/bitrix/coupon_activation.php?lang=en\">Registration</a>.";
+$MESS["expire_mess2"] = "Your free 30-day trial period is over. You are welcome to continue using your product copy with a commercial license key (no need to make a new product installation). To purchase a commercial license key, please visit our site: <a href=\"https://www.bitrix24.com\" target=\"_blank\">www.bitrix24.com</a>.
+<br /><br />
+If you have a commercial license key, please use it to <a href=\"/bitrix/coupon_activation.php?lang=en\" target=\"_blank\">activate and unblock</a> your product copy.";
 $MESS["main_tools_menu_left"] = "Section menu";
 $MESS["main_tools_menu_top"] = "Main menu";
 $MESS["top_panel_updates"] = "There are updates available";
@@ -424,4 +430,17 @@ $MESS["FD_YEARS_DIFF_MOD_OTHER"] = "#VALUE# years";
 $MESS["CAL_BUTTON"] = "Select";
 $MESS["CAL_TIME_SET"] = "Set time";
 $MESS["CAL_TIME"] = "Time";
+$MESS["FD_SECOND_SHORT"] = "#VALUE# s";
+$MESS["FD_MINUTE_SHORT"] = "#VALUE# m";
+$MESS["FD_HOUR_SHORT"] = "#VALUE# h";
+$MESS["FD_DAY_SHORT"] = "#VALUE# d";
+$MESS["FD_MONTH_SHORT"] = "#VALUE# mon";
+$MESS["FD_YEARS_SHORT_0"] = "#VALUE# y";
+$MESS["FD_YEARS_SHORT_1"] = "#VALUE# y";
+$MESS["FD_YEARS_SHORT_10_20"] = "#VALUE# y";
+$MESS["FD_YEARS_SHORT_MOD_1"] = "#VALUE# y";
+$MESS["FD_YEARS_SHORT_MOD_2_4"] = "#VALUE# y";
+$MESS["FD_YEARS_SHORT_MOD_OTHER"] = "#VALUE# y";
+$MESS["YEAR_PATTERN"] = "";
+$MESS["DOM_PATTERN"] = "";
 ?>

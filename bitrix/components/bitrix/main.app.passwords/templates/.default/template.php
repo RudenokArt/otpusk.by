@@ -2,7 +2,10 @@
 if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true)
 	die();
 
-use Bitrix\Main\Text\String;
+use Bitrix\Main\Text\HtmlFilter;
+\Bitrix\Main\UI\Extension::load("ui.common");
+\Bitrix\Main\UI\Extension::load("ui.forms");
+\Bitrix\Main\UI\Extension::load("ui.buttons");
 
 /**
  * @var array $arParams
@@ -27,22 +30,22 @@ var bx_app_pass_mess = {
 </script>
 
 <div class="bx-otp-wrap-container">
-	<h3 class="bx-otp-wrap-container-title"><?echo GetMessage("main_app_pass_title")?></h3>
-	<p class="bx-otp-wrap-container-description">
-		<?echo GetMessage("main_app_pass_text1")?>
-	</p>
-	<p class="bx-otp-wrap-container-description">
-		<?echo GetMessage("main_app_pass_text2")?>
-	</p>
+	<div class="ui-title-4"><?echo GetMessage("main_app_pass_title")?></div>
+	<div class="ui-text-1 ui-color-medium"><?echo GetMessage("main_app_pass_text1")?></div>
+	<div class="ui-text-1 ui-color-medium"><?echo GetMessage("main_app_pass_text2")?></div>
 
 	<div class="bx-otp-section-white">
 
 	<?
 	foreach($arResult["APPLICATIONS"] as $app_id => $app):
+		if(isset($app["VISIBLE"]) && $app["VISIBLE"] === false)
+		{
+			continue;
+		}
 	?>
 		<div class="bx-otp-accordion-container <?=(!empty($arResult["ROWS"][$app_id])? "open" : "close")?>" id="bx_app_pass_container_<?=$app_id?>">
 			<div class="bx-otp-accordion-head-block" onclick="return bx_app_pass_toggle('bx_app_pass_container_<?=$app_id?>')">
-				<div class="bx-otp-accordion-head-title"><?=String::htmlEncode($app["NAME"])?></div>
+				<div class="bx-otp-accordion-head-title"><?=HtmlFilter::encode($app["NAME"])?></div>
 				<div class="bx-otp-accordion-head-description"><?=$app["DESCRIPTION"]?></div>
 				<div class="bx-otp-accordion-action"></div>
 			</div>
@@ -66,8 +69,8 @@ var bx_app_pass_mess = {
 					?>
 						<tr id="bx_app_pass_row_<?=$pass["ID"]?>">
 							<td class="bx-otp-access-table-param">
-								<?=String::htmlEncode($pass["SYSCOMMENT"])?>
-								<small><?=String::htmlEncode($pass["COMMENT"])?></small>
+								<?=HtmlFilter::encode($pass["SYSCOMMENT"])?>
+								<small><?=HtmlFilter::encode($pass["COMMENT"])?></small>
 							</td>
 							<td class="bx-otp-access-table-value">
 								<?=$pass["DATE_CREATE"]?>
@@ -90,29 +93,34 @@ var bx_app_pass_mess = {
 						<tr>
 							<td class="bx-otp-access-table-param" colspan="3">
 								<form id="bx_app_pass_form_<?=$app_id?>">
-									<table>
+									<table style="width: 100%;">
 										<thead>
 											<tr>
-												<td class="tal" style="padding: 0 30px 0 0;"><small class="fwn ttn m0"><?=($app["OPTIONS_CAPTION"] <> ''? String::htmlEncode($app["OPTIONS_CAPTION"]) : GetMessage("main_app_pass_link"))?></small></td>
+												<td class="tal" style="padding: 0 30px 0 0;"><small class="fwn ttn m0"><?=($app["OPTIONS_CAPTION"] <> ''? HtmlFilter::encode($app["OPTIONS_CAPTION"]) : GetMessage("main_app_pass_link"))?></small></td>
 												<td class="tal" style="padding: 0;"><small class="fwn ttn m0"><?echo GetMessage("main_app_pass_comment")?></small></td>
 											</tr>
 										</thead>
 										<tbody>
 											<tr>
-												<td class="tal" style="padding: 0 30px 0 0;">
-													<select name="SYSCOMMENT" id="" class="bx-otp-slt medium">
-													<?if(!empty($app["OPTIONS"]) && is_array($app["OPTIONS"])):?>
-														<?foreach($app["OPTIONS"] as $opt):?>
-														<option value="<?=String::htmlEncode($opt)?>"><?=String::htmlEncode($opt)?></option>
-														<?endforeach?>
-														<option value="<?echo GetMessage("main_app_pass_other")?>"><?echo GetMessage("main_app_pass_other")?></option>
-													<?else:?>
-														<option value="<?=String::htmlEncode($app["NAME"])?>"><?=String::htmlEncode($app["NAME"])?></option>
-													<?endif?>
-													</select>
+												<td class="tal" style="padding: 0 10px 0 0;">
+													<div class="ui-ctl ui-ctl-w100 ui-ctl-after-icon ui-ctl-dropdown">
+														<div class="ui-ctl-after ui-ctl-icon-angle"></div>
+														<select name="SYSCOMMENT" id="" class="ui-ctl-element">
+														<?if(!empty($app["OPTIONS"]) && is_array($app["OPTIONS"])):?>
+															<?foreach($app["OPTIONS"] as $opt):?>
+															<option value="<?=HtmlFilter::encode($opt)?>"><?=HtmlFilter::encode($opt)?></option>
+															<?endforeach?>
+															<option value="<?echo GetMessage("main_app_pass_other")?>"><?echo GetMessage("main_app_pass_other")?></option>
+														<?else:?>
+															<option value="<?=HtmlFilter::encode($app["NAME"])?>"><?=HtmlFilter::encode($app["NAME"])?></option>
+														<?endif?>
+														</select>
+													</div>
 												</td>
 												<td class="tal" style="padding: 0;">
-													<input type="text" name="COMMENT" class="bx-otp-slt medium m0" placeholder="<?echo GetMessage("main_app_pass_comment_ph")?>">
+													<div class="ui-ctl ui-ctl-textbox">
+														<input type="text" name="COMMENT" class="ui-ctl-element" placeholder="<?echo GetMessage("main_app_pass_comment_ph")?>">
+													</div>
 												</td>
 											</tr>
 										</tbody>
@@ -121,7 +129,7 @@ var bx_app_pass_mess = {
 								</form>
 							</td>
 							<td class="bx-otp-access-table-value" colspan="2">
-								<a class="bx-otp-btn big green mb0" href="javascript:void(0);" onclick="bx_app_pass_show_create_window('bx_app_pass_form_<?=$app_id?>')"><?echo GetMessage("main_app_pass_get_pass")?></a>
+								<a class="ui-btn ui-btn-success" href="javascript:void(0);" onclick="bx_app_pass_show_create_window('bx_app_pass_form_<?=$app_id?>')"><?echo GetMessage("main_app_pass_get_pass")?></a>
 							</td>
 						</tr>
 					</tbody>
@@ -141,8 +149,7 @@ var bx_app_pass_mess = {
 			<div class="bx-otp-popup-lottery-container">
 
 			<p><?echo GetMessage("main_app_pass_create_pass_text")?> </p>
-			<div class="bx-otp-popup-lottery">
-				<div class="bx-otp-popup-lottery-animate" id="bx_app_pass_lottery"></div>
+			<div class="bx-otp-popup-lottery bx-otp-popup-lottery-black" id="bx_app_pass_lottery">
 				<span id="bx_app_pass_password"></span>
 			</div>
 		</div>

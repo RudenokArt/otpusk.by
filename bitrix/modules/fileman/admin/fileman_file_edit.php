@@ -106,7 +106,7 @@ else
 		$arParsedPath = CFileMan::ParsePath($path, true, false, "", $logical == "Y");
 		$abs_path = $DOC_ROOT.$path;
 	}
-	elseif(!$USER->IsAdmin() && substr(CFileman::GetFileName($abs_path), 0, 1)==".")
+	elseif(!$USER->CanDoOperation('edit_php') && substr(CFileman::GetFileName($abs_path), 0, 1)==".")
 	{
 		$strWarning = GetMessage("FILEMAN_FILEEDIT_BAD_FNAME")." ";
 		$bEdit = false;
@@ -385,6 +385,15 @@ if($bEdit)
 else
 	$APPLICATION->SetTitle(GetMessage("FILEMAN_NEWFILEEDIT_TITLE"));
 
+if(count($arParsedPath["AR_PATH"]) == 1)
+{
+	$adminChain->AddItem(
+		array(
+			"TEXT" => htmlspecialcharsex($DOC_ROOT),
+			"LINK" => "fileman_admin.php?lang=".LANGUAGE_ID."&site=".urlencode($site)."&path=/"
+		)
+	);
+}
 
 foreach ($arParsedPath["AR_PATH"] as $chainLevel)
 {
@@ -792,7 +801,7 @@ BX.ready(function() {
 		<?endif?>
 	<?endif?>
 		<tr><td colspan="2">
-			<textarea id="bx-filesrc" name="filesrc" rows="37" style="width:100%; overflow:auto;" wrap="OFF"><?= htmlspecialcharsEx($filesrc)?></textarea></td></tr>
+			<textarea id="bx-filesrc" name="filesrc" rows="37" style="width:100%; overflow:auto;" wrap="OFF"><?= htmlspecialcharsbx($filesrc)?></textarea></td></tr>
 
 <?
 $tabControl->EndTab();

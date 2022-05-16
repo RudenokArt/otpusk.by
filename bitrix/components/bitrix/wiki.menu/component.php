@@ -98,7 +98,7 @@ if (!CWikiUtils::IsWriteable())
 if(CWikiUtils::isCategoryVirtual($arParams["ELEMENT_NAME"]))
 	return;
 
-//$arParams['ELEMENT_NAME'] = urldecode($arParams['ELEMENT_NAME']);
+$arParams['ELEMENT_NAME'] = CWikiUtils::htmlspecialcharsback($arParams['ELEMENT_NAME']);
 $arFilter = array(
 	'IBLOCK_ID' => $arParams['IBLOCK_ID'],
 	'CHECK_PERMISSIONS' => 'N',
@@ -177,7 +177,7 @@ if ($bNotEl && !empty($arResult['TOPLINKS']))
 	$arResult['TOPLINKS']['add']['LINK'] = CHTTP::urlAddParams(
 		CComponentEngine::MakePathFromTemplate($arParams['PATH_TO_POST_EDIT'],
 			array(
-				'wiki_name' => urlencode($arResult['ELEMENT']['NAME']),
+				'wiki_name' => rawurlencode($arResult['ELEMENT']['NAME']),
 				'group_id' => CWikiSocnet::$iSocNetId
 			)
 		),

@@ -18,8 +18,14 @@ if(!Loader::includeModule('iblock'))
 }
 
 $FILTER_NAME = (string)$arParams["FILTER_NAME"];
+$PREFILTER_NAME = (string)$arParams["PREFILTER_NAME"];
 
-if($this->StartResultCache(false, ($arParams["CACHE_GROUPS"]? $USER->GetGroups(): false)))
+global ${$PREFILTER_NAME};
+$preFilter = ${$PREFILTER_NAME};
+if (!is_array($preFilter))
+	$preFilter = array();
+
+if($this->StartResultCache(false, array('v10', $preFilter, ($arParams["CACHE_GROUPS"]? $USER->GetGroups(): false))))
 {
 	$arResult["FACET_FILTER"] = false;
 	$arResult["COMBO"] = array();
@@ -42,45 +48,58 @@ if($this->StartResultCache(false, ($arParams["CACHE_GROUPS"]? $USER->GetGroups()
 				"CHECK_PERMISSIONS" => "Y",
 			);
 			if ($this->arParams['HIDE_NOT_AVAILABLE'] == 'Y')
-				$arResult["FACET_FILTER"]['CATALOG_AVAILABLE'] = 'Y';
+				$arResult["FACET_FILTER"]['AVAILABLE'] = 'Y';
+			if (!empty($preFilter))
+				$arResult["FACET_FILTER"] = array_merge($preFilter, $arResult["FACET_FILTER"]);
+
+			$cntProperty = 0;
+			$tmpProperty = array();
+			$dictionaryID = array();
+			$elementDictionary = array();
+			$sectionDictionary = array();
+			$directoryPredict = array();
 
 			$res = $this->facet->query($arResult["FACET_FILTER"]);
 			CTimeZone::Disable();
-			while ($row = $res->fetch())
+			while ($rowData = $res->fetch())
 			{
-				$facetId = $row["FACET_ID"];
+				$facetId = $rowData["FACET_ID"];
 				if (\Bitrix\Iblock\PropertyIndex\Storage::isPropertyId($facetId))
 				{
 					$PID = \Bitrix\Iblock\PropertyIndex\Storage::facetIdToPropertyId($facetId);
-					if ($arResult["ITEMS"][$PID]["PROPERTY_TYPE"] == "N")
+					if (!array_key_exists($PID, $arResult["ITEMS"]))
+						continue;
+					++$cntProperty;
+
+					$rowData['PID'] = $PID;
+					$tmpProperty[] = $rowData;
+					$item = $arResult["ITEMS"][$PID];
+					$arUserType = CIBlockProperty::GetUserType($item['USER_TYPE']);
+
+					if ($item["PROPERTY_TYPE"] == "S")
 					{
-						$this->fillItemValues($arResult["ITEMS"][$PID], $row["MIN_VALUE_NUM"]);
-						$this->fillItemValues($arResult["ITEMS"][$PID], $row["MAX_VALUE_NUM"]);
-						if ($row["VALUE_FRAC_LEN"] > 0)
-							$arResult["ITEMS"][$PID]["DECIMALS"] = $row["VALUE_FRAC_LEN"];
+						$dictionaryID[] = $rowData["VALUE"];
 					}
-					elseif ($arResult["ITEMS"][$PID]["DISPLAY_TYPE"] == "U")
+
+					if ($item["PROPERTY_TYPE"] == "E" && $item['USER_TYPE'] == '')
 					{
-						$this->fillItemValues($arResult["ITEMS"][$PID], FormatDate("Y-m-d", $row["MIN_VALUE_NUM"]));
-						$this->fillItemValues($arResult["ITEMS"][$PID], FormatDate("Y-m-d", $row["MAX_VALUE_NUM"]));
+						$elementDictionary[] = $rowData['VALUE'];
 					}
-					elseif ($arResult["ITEMS"][$PID]["PROPERTY_TYPE"] == "S")
+
+					if ($item["PROPERTY_TYPE"] == "G" && $item['USER_TYPE'] == '')
 					{
-						$addedKey = $this->fillItemValues($arResult["ITEMS"][$PID], $this->facet->lookupDictionaryValue($row["VALUE"]), true);
-						if ($addedKey)
-						{
-							$arResult["ITEMS"][$PID]["VALUES"][$addedKey]["FACET_VALUE"] = $row["VALUE"];
-							$arResult["ITEMS"][$PID]["VALUES"][$addedKey]["ELEMENT_COUNT"] = $row["ELEMENT_COUNT"];
-						}
+						$sectionDictionary[] = $rowData['VALUE'];
 					}
-					else
+
+					if ($item['USER_TYPE'] == 'directory' && isset($arUserType['GetExtendedValue']))
 					{
-						$addedKey = $this->fillItemValues($arResult["ITEMS"][$PID], $row["VALUE"], true);
-						if ($addedKey)
-						{
-							$arResult["ITEMS"][$PID]["VALUES"][$addedKey]["FACET_VALUE"] = $row["VALUE"];
-							$arResult["ITEMS"][$PID]["VALUES"][$addedKey]["ELEMENT_COUNT"] = $row["ELEMENT_COUNT"];
-						}
+						$tableName = $item['USER_TYPE_SETTINGS']['TABLE_NAME'];
+						$directoryPredict[$tableName]['PROPERTY'] = array(
+							'PID' => $item['ID'],
+							'USER_TYPE_SETTINGS' => $item['USER_TYPE_SETTINGS'],
+							'GetExtendedValue' => $arUserType['GetExtendedValue'],
+						);
+						$directoryPredict[$tableName]['VALUE'][] = $rowData["VALUE"];
 					}
 				}
 				else
@@ -90,15 +109,39 @@ if($this->StartResultCache(false, ($arParams["CACHE_GROUPS"]? $USER->GetGroups()
 					{
 						if ($arPrice["ID"] == $priceId && isset($arResult["ITEMS"][$NAME]))
 						{
-							$this->fillItemPrices($arResult["ITEMS"][$NAME], $row);
+							$this->fillItemPrices($arResult["ITEMS"][$NAME], $rowData);
+
 							if (isset($arResult["ITEMS"][$NAME]["~CURRENCIES"]))
 							{
 								$arResult["CURRENCIES"] += $arResult["ITEMS"][$NAME]["~CURRENCIES"];
 							}
+
+							if ($rowData["VALUE_FRAC_LEN"] > 0)
+							{
+								$arResult["ITEMS"][$PID]["DECIMALS"] = $rowData["VALUE_FRAC_LEN"];
+							}
 						}
 					}
 				}
+
+				if ($cntProperty > 200)
+				{
+					$this->predictIBElementFetch($elementDictionary);
+					$this->predictIBSectionFetch($sectionDictionary);
+					$this->processProperties($arResult, $tmpProperty, $dictionaryID, $directoryPredict);
+					$cntProperty = 0;
+					$tmpProperty = array();
+					$dictionaryID = array();
+					$lookupDictionary = array();
+					$directoryPredict = array();
+					$elementDictionary = array();
+					$sectionDictionary = array();
+				}
 			}
+
+			$this->predictIBElementFetch($elementDictionary);
+			$this->predictIBSectionFetch($sectionDictionary);
+			$this->processProperties($arResult, $tmpProperty, $dictionaryID, $directoryPredict);
 			CTimeZone::Enable();
 		}
 		else
@@ -112,7 +155,9 @@ if($this->StartResultCache(false, ($arParams["CACHE_GROUPS"]? $USER->GetGroups()
 				"CHECK_PERMISSIONS" => "Y",
 			);
 			if ('Y' == $this->arParams['HIDE_NOT_AVAILABLE'])
-				$arElementFilter['CATALOG_AVAILABLE'] = 'Y';
+				$arElementFilter['AVAILABLE'] = 'Y';
+			if (!empty($preFilter))
+				$arElementFilter = array_merge($preFilter, $arElementFilter);
 
 			$arElements = array();
 
@@ -139,7 +184,7 @@ if($this->StartResultCache(false, ($arParams["CACHE_GROUPS"]? $USER->GetGroups()
 					"=PROPERTY_".$this->SKU_PROPERTY_ID => array_keys($arElements),
 				);
 				if ($this->arParams['HIDE_NOT_AVAILABLE'] == 'Y')
-					$arSkuFilter['CATALOG_AVAILABLE'] = 'Y';
+					$arSkuFilter['AVAILABLE'] = 'Y';
 
 				$rsElements = CIBlockElement::GetPropertyValues($this->SKU_IBLOCK_ID, $arSkuFilter, false, array('ID' => $this->arResult["SKU_PROPERTY_ID_LIST"]));
 				while($arSku = $rsElements->Fetch())
@@ -201,8 +246,10 @@ if($this->StartResultCache(false, ($arParams["CACHE_GROUPS"]? $USER->GetGroups()
 			{
 				if (!$value['CAN_VIEW'] && !$value['CAN_BUY'])
 					continue;
-				$arSelect[] = $value["SELECT"];
-				$arFilter["CATALOG_SHOP_QUANTITY_".$value["ID"]] = 1;
+				$arSelect = array_merge($arSelect, $value["SELECT_EXTENDED"]);
+				$arElementFilter["DEFAULT_PRICE_FILTER_".$value["ID"]] = 1;
+				if (isset($arSkuFilter))
+					$arSkuFilter["DEFAULT_PRICE_FILTER_".$value["ID"]] = 1;
 			}
 			unset($value);
 
@@ -261,6 +308,7 @@ if($this->StartResultCache(false, ($arParams["CACHE_GROUPS"]? $USER->GetGroups()
 		}
 	}
 	$this->setCurrencyTag();
+	$this->setIblockTag();
 
 	$this->EndResultCache();
 }
@@ -416,6 +464,19 @@ if ($_CHECK)
 							unset($facetIndex[$pp][$row["VALUE"]]["DISABLED"]);
 							$facetIndex[$pp][$row["VALUE"]]["ELEMENT_COUNT"] = $row["ELEMENT_COUNT"];
 						}
+						elseif (isset($arResult["ITEMS"][$pp]["VALUES"]))
+						{
+							if (isset($arResult["ITEMS"][$pp]["VALUES"]["MIN"]))
+							{
+								unset($arResult["ITEMS"][$pp]["VALUES"]["MIN"]["DISABLED"]);
+								$arResult["ITEMS"][$pp]["VALUES"]["MIN"]["ELEMENT_COUNT"] = $row["ELEMENT_COUNT"];
+							}
+							if (isset($arResult["ITEMS"][$pp]["VALUES"]["MAX"]))
+							{
+								unset($arResult["ITEMS"][$pp]["VALUES"]["MAX"]["DISABLED"]);
+								$arResult["ITEMS"][$pp]["VALUES"]["MAX"]["ELEMENT_COUNT"] = $row["ELEMENT_COUNT"];
+							}
+						}
 					}
 				}
 				else
@@ -429,8 +490,28 @@ if ($_CHECK)
 							&& is_array($arResult["ITEMS"][$NAME]["VALUES"])
 						)
 						{
-							$arResult["ITEMS"][$NAME]["VALUES"]["MIN"]["FILTERED_VALUE"] = $row["MIN_VALUE_NUM"];
-							$arResult["ITEMS"][$NAME]["VALUES"]["MAX"]["FILTERED_VALUE"] = $row["MAX_VALUE_NUM"];
+							$currency = $row["VALUE"];
+							$existCurrency = strlen($currency) > 0;
+							if ($existCurrency)
+								$currency = $this->facet->lookupDictionaryValue($currency);
+
+							$priceValue = $this->convertPrice($row["MIN_VALUE_NUM"], $currency);
+							if (
+								!isset($arResult["ITEMS"][$NAME]["VALUES"]["MIN"]["FILTERED_VALUE"])
+								|| $arResult["ITEMS"][$NAME]["VALUES"]["MIN"]["FILTERED_VALUE"] > $priceValue
+							)
+							{
+								$arResult["ITEMS"][$NAME]["VALUES"]["MIN"]["FILTERED_VALUE"] = $priceValue;
+							}
+
+							$priceValue = $this->convertPrice($row["MAX_VALUE_NUM"], $currency);
+							if (
+									!isset($arResult["ITEMS"][$NAME]["VALUES"]["MAX"]["FILTERED_VALUE"])
+									|| $arResult["ITEMS"][$NAME]["VALUES"]["MAX"]["FILTERED_VALUE"] > $priceValue
+							)
+							{
+								$arResult["ITEMS"][$NAME]["VALUES"]["MAX"]["FILTERED_VALUE"] = $priceValue;
+							}
 						}
 					}
 				}
@@ -670,6 +751,11 @@ if ($arResult["FACET_FILTER"] && $this->arResult["CURRENCIES"])
 	);
 }
 
+if (!empty($preFilter))
+{
+	${$FILTER_NAME} = array_merge($preFilter, ${$FILTER_NAME});
+}
+
 /*Save to session if needed*/
 if($arParams["SAVE_IN_SESSION"])
 {
@@ -677,22 +763,35 @@ if($arParams["SAVE_IN_SESSION"])
 }
 
 $arResult["JS_FILTER_PARAMS"] = array();
-if ($arParams["SEF_MODE"] == "Y" && $this->SECTION_ID > 0)
+if ($arParams["SEF_MODE"] == "Y")
 {
-	$sectionList = CIBlockSection::GetList(array(), array(
-		"=ID" => $this->SECTION_ID,
-		"IBLOCK_ID" => $this->IBLOCK_ID,
-	), false, array("ID", "IBLOCK_ID", "SECTION_PAGE_URL"));
-	$sectionList->SetUrlTemplates($arParams["SEF_RULE"]);
-	$section = $sectionList->GetNext();
+	$section = false;
+	if ($this->SECTION_ID > 0)
+	{
+		$sectionList = CIBlockSection::GetList(array(), array(
+			"=ID" => $this->SECTION_ID,
+			"IBLOCK_ID" => $this->IBLOCK_ID,
+		), false, array("ID", "IBLOCK_ID", "SECTION_PAGE_URL"));
+		$sectionList->SetUrlTemplates($arParams["SEF_RULE"]);
+		$section = $sectionList->GetNext();
+	}
+
 	if ($section)
 	{
-		$arResult["JS_FILTER_PARAMS"]["SEF_SET_FILTER_URL"] = $this->makeSmartUrl($section["DETAIL_PAGE_URL"], true);
-		$arResult["JS_FILTER_PARAMS"]["SEF_DEL_FILTER_URL"] = $this->makeSmartUrl($section["DETAIL_PAGE_URL"], false);
+		$url = $section["DETAIL_PAGE_URL"];
 	}
+	else
+	{
+		$url = CIBlock::ReplaceSectionUrl($arParams["SEF_RULE"], array());
+	}
+
+	$arResult["JS_FILTER_PARAMS"]["SEF_SET_FILTER_URL"] = $this->makeSmartUrl($url, true);
+	$arResult["JS_FILTER_PARAMS"]["SEF_DEL_FILTER_URL"] = $this->makeSmartUrl($url, false);
 }
 
-$pageURL = $APPLICATION->GetCurPageParam();
+$uri = new \Bitrix\Main\Web\Uri($this->request->getRequestUri());
+$uri->deleteParams(\Bitrix\Main\HttpRequest::getSystemParameters());
+$pageURL = $uri->GetUri();
 $paramsToDelete = array("set_filter", "del_filter", "ajax", "bxajaxid", "AJAX_CALL", "mode");
 foreach($arResult["ITEMS"] as $PID => $arItem)
 {
@@ -757,6 +856,8 @@ else
 if(isset($_REQUEST["ajax"]) && $_REQUEST["ajax"] === "y")
 {
 	$arFilter = $this->makeFilter($FILTER_NAME);
+	if (!empty($preFilter))
+		$arFilter = array_merge($preFilter, $arFilter);
 	$arResult["ELEMENT_COUNT"] = CIBlockElement::GetList(array(), $arFilter, array(), false);
 
 	if (isset($_GET["bxajaxid"]))
@@ -789,7 +890,10 @@ $arInputNames = array();
 foreach($arResult["ITEMS"] as $PID => $arItem)
 {
 	foreach($arItem["VALUES"] as $key => $ar)
+	{
 		$arInputNames[$ar["CONTROL_NAME"]] = true;
+		$arInputNames[$ar["CONTROL_NAME_ALT"]] = true;
+	}
 }
 $arInputNames["set_filter"]=true;
 $arInputNames["del_filter"]=true;
@@ -851,23 +955,23 @@ if ($arParams["XML_EXPORT"] === "Y" && $_REQUEST["mode"] === "xml")
 	$APPLICATION->RestartBuffer();
 	while(ob_end_clean());
 	header("Content-Type: text/xml; charset=utf-8");
-	echo $APPLICATION->convertCharset($xml, LANG_CHARSET, "utf-8");
-	define("PUBLIC_AJAX_MODE", true);
-	require_once($_SERVER["DOCUMENT_ROOT"].BX_ROOT."/modules/main/include/epilog_after.php");
+	$error = "";
+	echo \Bitrix\Main\Text\Encoding::convertEncoding($xml, LANG_CHARSET, "utf-8", $error);
+	CMain::FinalActions();
 	die();
 }
 elseif(isset($_REQUEST["ajax"]) && $_REQUEST["ajax"] === "y")
 {
 	$this->setFrameMode(false);
+	define("BX_COMPRESSION_DISABLED", true);
 	ob_start();
 	$this->IncludeComponentTemplate("ajax");
 	$json = ob_get_contents();
 	$APPLICATION->RestartBuffer();
 	while(ob_end_clean());
 	header('Content-Type: application/x-javascript; charset='.LANG_CHARSET);
+	CMain::FinalActions();
 	echo $json;
-	define("PUBLIC_AJAX_MODE", true);
-	require_once($_SERVER["DOCUMENT_ROOT"].BX_ROOT."/modules/main/include/epilog_after.php");
 	die();
 }
 else

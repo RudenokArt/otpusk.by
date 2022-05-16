@@ -10,6 +10,7 @@ class CBPSequentialWorkflowActivity
 {
 	private $documentId = array();
 	private $workflowTemplateId = null;
+	private $templateUserId = null;
 	protected $documentType = array();
 
 	private $workflowStatus = CBPWorkflowStatus::Created;
@@ -47,6 +48,16 @@ class CBPSequentialWorkflowActivity
 		$this->workflowTemplateId = $workflowTemplateId;
 	}
 
+	public function getTemplateUserId()
+	{
+		return $this->templateUserId;
+	}
+
+	public function setTemplateUserId($userId)
+	{
+		$this->templateUserId = (int) $userId;
+	}
+
 	public function GetWorkflowStatus()
 	{
 		return $this->workflowStatus;
@@ -55,10 +66,35 @@ class CBPSequentialWorkflowActivity
 	public function SetWorkflowStatus($status)
 	{
 		$this->workflowStatus = $status;
+		if ($status == CBPWorkflowStatus::Running && $this->{CBPDocument::PARAM_USE_FORCED_TRACKING})
+		{
+			/** @var CBPTrackingService $trackingService */
+			$trackingService = $this->workflow->GetService("TrackingService");
+			$trackingService->setForcedMode($this->workflow->GetInstanceId());
+		}
+
 		if ($status == CBPWorkflowStatus::Completed || $status == CBPWorkflowStatus::Terminated)
 		{
 			$this->ClearVariables();
 			$this->ClearProperties();
+
+			/** @var CBPActivity $event */
+			foreach ($this->arEventsMap as $eventName)
+			{
+				foreach ($eventName as $event)
+				{
+					if (method_exists($event, 'Cancel'))
+						$event->Cancel();
+				}
+			}
+			//Clean workflow subscriptions
+			\Bitrix\Bizproc\SchedulerEventTable::deleteByWorkflow($this->workflow->GetInstanceId());
+			//Finalize workflow activities
+			$this->workflow->FinalizeActivity($this);
+
+			/** @var CBPTrackingService $trackingService */
+			$trackingService = $this->workflow->GetService("TrackingService");
+			$trackingService->setCompletedByWorkflow($this->workflow->GetInstanceId());
 		}
 		try
 		{
@@ -67,7 +103,12 @@ class CBPSequentialWorkflowActivity
 			 */
 
 			$documentService = $this->workflow->GetService("DocumentService");
-			$documentService->onWorkflowStatusChange($this->GetDocumentId(), $this->workflow->GetInstanceId(), $status);
+			$documentService->onWorkflowStatusChange(
+				$this->GetDocumentId(),
+				$this->workflow->GetInstanceId(),
+				$status,
+				$this
+			);
 
 			/**
 			 * @var CBPAllStateService $stateService

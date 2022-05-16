@@ -1,1 +1,0 @@
-<? $arFilesInfo = array( 'FILES' => array("/bitrix/components/bitrix/iblock.wizard/templates/standard/style.css" => "1455795316431",), 'CUR_SEL_CNT' => '7', 'CUR_IE_CNT' => '0'); ?>

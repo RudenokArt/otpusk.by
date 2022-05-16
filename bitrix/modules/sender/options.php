@@ -11,13 +11,16 @@ $arAllOptions = array(
 	array("auto_method", GetMessage("opt_method"), array("selectbox", array("agent"=>GetMessage("opt_method_agent"), "cron"=>GetMessage("opt_method_cron")))),
 	array("max_emails_per_hit", GetMessage("opt_max_per_hit"), array("text", 10)),
 	array("auto_agent_interval", GetMessage("opt_auto_agent_interval"), array("text", 10)),
+	array("max_emails_per_cron", GetMessage("opt_max_per_cron"), array("text", 10)),
 	array("reiterate_method", GetMessage("opt_reiterate_method"), array("selectbox", array("agent"=>GetMessage("opt_method_agent"), "cron"=>GetMessage("opt_method_cron")))),
 	array("reiterate_interval", GetMessage("opt_reiterate_interval"), array("text", 10)),
 	array("link_protocol", GetMessage("opt_link_protocol"), array("selectbox", array(""=>"http", "https"=>"https"))),
+	array("track_mails", GetMessage("opt_track_mails"), array("checkbox", 35)),
 	array("unsub_link", GetMessage("opt_unsub_link"), array("text", 35)),
 	array("sub_link", GetMessage("opt_sub_link"), array("text", 35)),
 	array("address_from", GetMessage("opt_address_from"), array("text-list", 3, 20)),
-	array("address_send_to_me", GetMessage("opt_address_send_to_me"), array("text-list", 3, 20))
+	array("address_send_to_me", GetMessage("opt_address_send_to_me"), array("text-list", 3, 20)),
+	array("mail_headers", GetMessage("opt_mail_headers"), array("srlz-list", 3, 20))
 );
 $aTabs = array(
 	array("DIV" => "edit1", "TAB" => GetMessage("MAIN_TAB_SET"), "ICON" => "sender_settings", "TITLE" => GetMessage("MAIN_TAB_TITLE_SET")),
@@ -39,7 +42,14 @@ if($REQUEST_METHOD=="POST" && strlen($Update.$Apply.$RestoreDefaults)>0 && $POST
 		foreach($arAllOptions as $arOption)
 		{
 			$name = $arOption[0];
-			if($arOption[2][0]=="text-list")
+			if($arOption[2][0]=="srlz-list")
+			{
+				$val = ${$name};
+				TrimArr($val);
+				sort($val);
+				$val = serialize($val);
+			}
+			else if($arOption[2][0]=="text-list")
 			{
 				$val = "";
 				$valCount = count(${$name});
@@ -59,10 +69,7 @@ if($REQUEST_METHOD=="POST" && strlen($Update.$Apply.$RestoreDefaults)>0 && $POST
 	}
 
 	CModule::IncludeModule('sender');
-	\Bitrix\Sender\MailingManager::actualizeAgent();
-	CAgent::RemoveAgent( \Bitrix\Sender\MailingManager::getAgentNamePeriod(), "sender");
-	if(COption::GetOptionString("sender", "reiterate_method")!=="cron")
-		CAgent::AddAgent( \Bitrix\Sender\MailingManager::getAgentNamePeriod(), "sender", "N", COption::GetOptionString("sender", "reiterate_interval"));
+	\Bitrix\Sender\Runtime\Job::actualizeAll();
 
 	$Update = $Update.$Apply;
 	ob_start();
@@ -103,8 +110,18 @@ $tabControl->BeginNextTab();
 				?><input type="text" size="<?echo $type[1]?>" maxlength="255" value="<?echo htmlspecialcharsbx($val)?>" name="<?echo htmlspecialcharsbx($Option[0])?>"><?
 			elseif($type[0]=="textarea"):
 				?><textarea rows="<?echo $type[1]?>" cols="<?echo $type[2]?>" name="<?echo htmlspecialcharsbx($Option[0])?>"><?echo htmlspecialcharsbx($val)?></textarea><?
-			elseif($type[0]=="text-list"):
-				$aVal = explode(",", $val);
+			elseif($type[0]=="text-list" || $type[0]=="srlz-list"):
+				if ($type[0]=="srlz-list")
+				{
+					$aVal = !empty($val) ? unserialize($val) : '';
+				}
+				else
+				{
+					$aVal = explode(",", $val);
+				}
+				$aVal = is_array($aVal) ? $aVal : [];
+
+				sort($aVal);
 				$aValCount = count($aVal);
 				for($j=0; $j<$aValCount; $j++):
 					?><input type="text" size="<?echo $type[2]?>" value="<?echo htmlspecialcharsbx($aVal[$j])?>" name="<?echo htmlspecialcharsbx($Option[0])."[]"?>"><br><?

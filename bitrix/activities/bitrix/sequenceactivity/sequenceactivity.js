@@ -6,6 +6,17 @@ function _SequenceActivityClick(act_i, i)
 {
 	_SequenceActivityCurClick.AddActivity(CreateActivity({'Properties': {'Title': HTMLEncode(arAllActivities[act_i]['NAME'])}, 'Type': arAllActivities[act_i]['CLASS'], 'Children': []}), i);
 }
+function _SequenceActivityMyActivityClick(isn, i)
+{
+	if (
+		arUserParams
+		&& BX.type.isArray(arUserParams['SNIPPETS'])
+		&& arUserParams['SNIPPETS'][isn]
+	)
+	{
+		_SequenceActivityCurClick.AddActivity(CreateActivity(arUserParams['SNIPPETS'][isn]), i);
+	}
+}
 
 SequenceActivity = function()
 {
@@ -33,28 +44,72 @@ SequenceActivity = function()
 		*/
 		_SequenceActivityCurClick = ob;
 		var jsMnu_WFAct = [];
-		var groupId;
+		var groupId, oSubMenu;
 		for (groupId in arAllActGroups)
 		{
-			var oSubMenu = [];
+			oSubMenu = [];
 			for(var act_i in arAllActivities)
 			{
-				if(!arAllActivities[act_i]["CATEGORY"] || arAllActivities[act_i]["CATEGORY"]["ID"]!=groupId)
+				if (!arAllActivities.hasOwnProperty(act_i))
 					continue;
-				if(arAllActivities[act_i]["EXCLUDED"])
+
+				if (arAllActivities[act_i]["EXCLUDED"] || !arAllActivities[act_i]["CATEGORY"])
+					continue;
+
+				var activityGroupId = arAllActivities[act_i]["CATEGORY"]["ID"];
+				if (arAllActivities[act_i]["CATEGORY"]["OWN_ID"])
+					activityGroupId = arAllActivities[act_i]["CATEGORY"]["OWN_ID"];
+				if (activityGroupId !=groupId)
 					continue;
 
 				if(act_i == 'setstateactivity' && rootActivity.Type == ob.Type)
 					continue;
 
-				oSubMenu.push({'ICON': 'url('+arAllActivities[act_i]['ICON']+')', 'TEXT': '<img src="'+(arAllActivities[act_i]['ICON']?arAllActivities[act_i]['ICON']:'/bitrix/images/bizproc/act_icon.gif')+'" align="left" style="margin-right: 7px;margin-left: 0px">' + '<b>' + HTMLEncode(arAllActivities[act_i]['NAME']) + '</b><br>' + HTMLEncode(arAllActivities[act_i]['DESCRIPTION']), 
+				oSubMenu.push({
+					'ICON': 'url('+arAllActivities[act_i]['ICON']+')',
+					'TEXT': '<img src="'+(arAllActivities[act_i]['ICON']?arAllActivities[act_i]['ICON']:'/bitrix/images/bizproc/act_icon.gif')+'" align="left" style="margin-right: 7px;margin-left: 0px">' + '<b>' + HTMLEncode(arAllActivities[act_i]['NAME']) + '</b><br>' + HTMLEncode(arAllActivities[act_i]['DESCRIPTION']),
 					'ONCLICK': '_SequenceActivityClick(\''+act_i+'\', '+this.ind+');'
-					
-					});
+				});
+			}
+
+			if (groupId === 'rest' && BX.getClass('BX.rest.Marketplace'))
+			{
+				oSubMenu.push({
+					'ICON': 'url(/bitrix/images/bizproc/act_icon_plus.png)',
+					'TEXT': '<img src="/bitrix/images/bizproc/act_icon_plus.png" align="left" style="margin-right: 7px;margin-left: 0px">'
+					+ '<b>' + HTMLEncode(BPMESS['BPSA_MARKETPLACE_ADD_TITLE']) + '</b><br>' + HTMLEncode(BPMESS['BPSA_MARKETPLACE_ADD_DESCR']),
+					'ONCLICK': 'BX.rest.Marketplace.open({}, \'auto_pb\'); if(window.jsPopup_WFAct) {window.jsPopup_WFAct.PopupHide();}'
+				});
 			}
 
 			if (oSubMenu.length > 0)
 				jsMnu_WFAct.push({'TEXT': HTMLEncode(arAllActGroups[groupId]), 'MENU': oSubMenu});
+		}
+
+		if (arUserParams && BX.type.isArray(arUserParams['SNIPPETS']))
+		{
+			oSubMenu = [];
+			for(var isn in arUserParams['SNIPPETS'])
+			{
+				if (!arUserParams['SNIPPETS'].hasOwnProperty(isn))
+				{
+					continue;
+				}
+
+				var icon = arUserParams['SNIPPETS'][isn]['Icon'];
+				if (!icon)
+				{
+					icon = '/bitrix/images/bizproc/act_icon.gif';
+				}
+				var name = arUserParams['SNIPPETS'][isn]['Properties']['Title'];
+
+				oSubMenu.push({'ICON': 'url('+icon+')', 'TEXT': '<img src="'+icon+'" align="left" style="margin-right: 7px;margin-left: 0px">' + '<b>' + HTMLEncode(name) + '</b>',
+					'ONCLICK': '_SequenceActivityMyActivityClick(\''+isn+'\', '+this.ind+');'
+				});
+			}
+
+			if (oSubMenu.length > 0)
+				jsMnu_WFAct.push({'TEXT': HTMLEncode(BPMESS['BPSA_MY_ACTIVITIES']), 'MENU': oSubMenu});
 		}
 
 		if(window.jsPopup_WFAct)
@@ -63,7 +118,7 @@ SequenceActivity = function()
 			window.jsPopup_WFAct = new PopupMenu('PopupWFAct', 30000);
 
 		window.jsPopup_WFAct.ShowMenu(this, jsMnu_WFAct); 
-	}
+	};
 
 	ob.lastDrop = false;
 	ob.ondragging = function (e, X, Y)
@@ -81,11 +136,8 @@ SequenceActivity = function()
 			{
 				arrow.onmouseover();
 				ob.lastDrop = arrow;
-				//console.debug(ob.Name + ob.childsContainer.rows[i*2 + ob.iHead].cells[0].childNodes.length + '('+pos.left+', '+pos.right+', '+pos.top+', '+pos.bottom+')' + '; X = ' + X + '; Y = ' + Y + '; ');
 				return;
 			}
-
-			//console.debug(ob.Name + ob.childsContainer.rows[i*2 + ob.iHead].cells[0].childNodes.length + '('+pos.left+', '+pos.right+', '+pos.top+', '+pos.bottom+')' + '; X = ' + X + '; Y = ' + Y + '; ');
 		}
 
 		if(ob.lastDrop)
@@ -93,11 +145,11 @@ SequenceActivity = function()
 			ob.lastDrop.onmouseout();
 			ob.lastDrop = false;
 		}
-	}
+	};
 
 	ob.h1id = DragNDrop.AddHandler('ondragging', ob.ondragging);
 
-	ob.ondrop = function (e, X, Y)
+	ob.ondrop = function (X, Y, e)
 	{
 		if(!ob.childsContainer)
 		 	return false;
@@ -105,7 +157,7 @@ SequenceActivity = function()
 		if(ob.lastDrop)
 		{
 			var oActivity;
-			if(DragNDrop.obj.parentActivity)
+			if(DragNDrop.obj.parentActivity && e.ctrlKey == false)
 			{
 
 				var i, pos = -1, pa = DragNDrop.obj.parentActivity;
@@ -237,6 +289,7 @@ SequenceActivity = function()
 		for(i = 0; i <= ob.childActivities.length; i++)
 			ob.childsContainer.rows[i*2 + ob.iHead].cells[0].childNodes[0].ind = i;
 
+		BPTemplateIsModified = true;
 		//alert(document.styleSheets[0].rules[0]);
 		//setTimeout(ob.DDD2, 110);
 	}
@@ -266,6 +319,8 @@ SequenceActivity = function()
 		ob.CreateLine(0);
 		for(var i in ob.childActivities)
 		{
+			if (!ob.childActivities.hasOwnProperty(i))
+				continue;
 			ob.childActivities[i].Draw(ob.childsContainer.rows[i*2 + 1 + ob.iHead].cells[0]);
 			ob.CreateLine(parseInt(i) + 1);
 		}

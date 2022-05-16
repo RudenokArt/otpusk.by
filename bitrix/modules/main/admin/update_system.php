@@ -4,7 +4,7 @@
 //**    MODIFICATION OF THIS FILE WILL ENTAIL SITE FAILURE            **/
 //**********************************************************************/
 if (!defined("UPDATE_SYSTEM_VERSION"))
-	define("UPDATE_SYSTEM_VERSION", "15.5.1");
+	define("UPDATE_SYSTEM_VERSION", "20.0.900");
 
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_before.php");
 define("HELP_FILE", "marketplace/sysupdate.php");
@@ -20,6 +20,7 @@ if(!$USER->CanDoOperation('install_updates'))
 	$APPLICATION->AuthForm(GetMessage("ACCESS_DENIED"));
 
 $errorMessage = "";
+$strongSystemMessage = "";
 $systemMessage = "";
 
 $stableVersionsOnly = COption::GetOptionString("main", "stable_versions_only", "Y");
@@ -112,18 +113,77 @@ if (extension_loaded('eaccelerator'))
 }
 
 // MySQL 5.0.0, PHP 5.3.0
-if ($DB->type == "MYSQL")
+if ($DB->type === "MYSQL")
 {
 	$dbQueryRes = $DB->Query("select VERSION() as ver", True);
 	if ($arQueryRes = $dbQueryRes->Fetch())
 	{
-		$curMySqlVer = Trim($arQueryRes["ver"]);
-		$arCurMySqlVer = Explode(".", $curMySqlVer);
-		if (IntVal($arCurMySqlVer[0]) < 5
-			|| IntVal($arCurMySqlVer[0]) == 5 && IntVal($arCurMySqlVer[1]) < 0
-			|| IntVal($arCurMySqlVer[0]) == 5 && IntVal($arCurMySqlVer[1]) == 0 && IntVal($arCurMySqlVer[2]) < 0)
+		$curMySqlVer = trim($arQueryRes["ver"]);
+
+		$minMySqlErrorVersion = "5.6.0";
+		$minMariaDbErrorVersion = "10.0.5";
+
+		$minMySqlWarningVersion = "0.0.0";
+		$minMySqlWarningVersionBest = "0.0.0";
+		$minMySqlWarningVersionDate = "";
+
+		$minMariaDbWarningVersion = "0.0.0";
+		$minMariaDbWarningVersionBest = "0.0.0";
+		$minMariaDbWarningVersionDate = "";
+
+		if (date("Y-m-d") < "2019-09-01")
 		{
-			$errorMessage .= "<br>".GetMessage("SUP_MYSQL_L4111", array("#VERS#" => $curMySqlVer));
+			$minMySqlErrorVersion = "5.0.0";
+			$minMariaDbErrorVersion = "5.0.0";
+
+			$minMySqlWarningVersion = "5.6.0";
+			$minMySqlWarningVersionBest = "5.7";
+			$minMySqlWarningVersionDate = "2019-09-01";
+
+			$minMariaDbWarningVersion = "10.0.5";
+			$minMariaDbWarningVersionBest = "10.0.5";
+			$minMariaDbWarningVersionDate = "2019-09-01";
+		}
+
+		$minSqlErrorVersion = $minMySqlErrorVersion;
+		$minSqlWarningVersion = $minMySqlWarningVersion;
+		$minSqlWarningVersionBest = $minMySqlWarningVersionBest;
+		$minSqlWarningVersionDate = $minMySqlWarningVersionDate;
+		$sqlDbName = "MySql";
+
+		if (strpos($curMySqlVer, "MariaDB") !== false)
+		{
+			$minSqlErrorVersion = $minMariaDbErrorVersion;
+			$minSqlWarningVersion = $minMariaDbWarningVersion;
+			$minSqlWarningVersionBest = $minMariaDbWarningVersionBest;
+			$minSqlWarningVersionDate = $minMariaDbWarningVersionDate;
+			$sqlDbName = "MariaDB";
+		}
+
+		if (version_compare($curMySqlVer, $minSqlErrorVersion) < 0)
+		{
+			$errorMessage .= "<br>".GetMessage("SUP_MYSQL_LERR_V",
+				array("#VERS#" => $curMySqlVer,
+					"#DB#" => $sqlDbName,
+					"#REQ#" => $minSqlErrorVersion
+				)
+			);
+		}
+		if (version_compare($curMySqlVer, $minSqlWarningVersion) < 0)
+		{
+			$messageTmp = "<br>".GetMessage("SUP_MYSQL_LWARN_V",
+				array("#VERS#" => $curMySqlVer,
+					"#DB#" => $sqlDbName,
+					"#REQ#" => $minSqlWarningVersion,
+					"#BEST_VERS#" => $minSqlWarningVersionBest,
+					"#DATE#" => CDatabase::FormatDate($minSqlWarningVersionDate, "YYYY-MM-DD", FORMAT_DATE)
+				)
+			);
+
+			if ((MakeTimeStamp($minSqlWarningVersionDate, "YYYY-MM-DD") - time()) / (60 * 60 * 24) < 30)
+				$strongSystemMessage .= $messageTmp;
+			else
+				$systemMessage .= $messageTmp;
 		}
 	}
 
@@ -131,69 +191,64 @@ if ($DB->type == "MYSQL")
 	if (defined("BX_UTF") && BX_UTF || $dbLangTmp->Fetch())
 	{
 		$dbQueryRes = $DB->Query("show variables like 'character_set_database'", True);
-		if ($arQueryRes = $dbQueryRes->Fetch())
+		if ($dbQueryRes && ($arQueryRes = $dbQueryRes->Fetch()))
 		{
 			$curCharacterSet = strtolower(Trim($arQueryRes["Value"]));
 			if (defined("BX_UTF") && BX_UTF)
 			{
-				if (substr($curCharacterSet, 0, 3) != "utf")
+				if (substr($curCharacterSet, 0, 3) !== "utf")
 					$errorMessage .= "<br>".GetMessage("SUP_MYSQL_LCP_ERROR", array("#CP#" => "utf8", "#CP1#" => $curCharacterSet, "#DB#" => $DB->DBName));
 			}
 			else
 			{
-				if ($curCharacterSet != "cp1251")
+				if ($curCharacterSet !== "cp1251")
 					$errorMessage .= "<br>".GetMessage("SUP_MYSQL_LCP_ERROR", array("#CP#" => "cp1251", "#CP1#" => $curCharacterSet, "#DB#" => $DB->DBName));
 			}
 		}
-
-		/*
-		$dbQueryRes = $DB->Query("show variables like 'collation_database'", true);
-		if ($arQueryRes = $dbQueryRes->Fetch())
-		{
-			$curCollationDatabase = strtolower(Trim($arQueryRes["Value"]));
-
-			$dbQueryRes1 = $DB->Query("show variables like 'collation_connection'", true);
-			if ($arQueryRes1 = $dbQueryRes1->Fetch())
-			{
-				$curCollationConnection = strtolower(Trim($arQueryRes1["Value"]));
-
-				if ($curCollationDatabase != $curCollationConnection)
-					$errorMessage .= "<br>".GetMessage("SUP_MYSQL_COLL_ERROR", array("#CD#" => $curCollationDatabase, "#CC#" => $curCollationConnection));
-			}
-		}
-		*/
 	}
 }
-
-if ($DB->type == "MSSQL")
+elseif (($DB->type === "MSSQL") || ($DB->type === "ORACLE"))
 {
-	$dbQueryRes = $DB->Query("SELECT @@VERSION as ver", True);
-	if ($arQueryRes = $dbQueryRes->Fetch())
-	{
-		$curMSSqlVer = Trim($arQueryRes["ver"]);
-		preg_match("#[0-9]+\.[0-9]+\.[0-9]+#", $curMSSqlVer, $arr);
-		$arCurMSSqlVer = Explode(".", $arr[0]);
-		if (IntVal($arCurMSSqlVer[0]) < 10
-			|| IntVal($arCurMSSqlVer[0]) == 10 && IntVal($arCurMSSqlVer[1]) < 0
-			|| IntVal($arCurMSSqlVer[0]) == 10 && IntVal($arCurMSSqlVer[1]) == 0 && IntVal($arCurMSSqlVer[2]) < 0)
-		{
-			$errorMessage .= "<br>".GetMessage("SUP_MSSQL_L4111", array("#VERS#" => $curMSSqlVer));
-		}
-	}
-
-	if (!isset($GLOBALS["DBSQLServerType"]) || ($GLOBALS["DBSQLServerType"] != "NATIVE"))
-	{
-		$errorMessage .= "<br>".GetMessage("SUP_MSSQL_LNATIVE");
-	}
+    $errorMessage .= "<br>".GetMessage("SUP_NO_MS_ORACLE");
 }
 
 $curPhpVer = PhpVersion();
-$arCurPhpVer = Explode(".", $curPhpVer);
-if (IntVal($arCurPhpVer[0]) < 5
-	|| IntVal($arCurPhpVer[0]) == 5 && IntVal($arCurPhpVer[1]) < 3
-	|| IntVal($arCurPhpVer[0]) == 5 && IntVal($arCurPhpVer[1]) == 3 && IntVal($arCurPhpVer[2]) < 0)
+
+$minPhpErrorVersion = "7.1.0";
+$minPhpWarningVersion = "0.0.0";
+$minPhpWarningVersionBest = "0.0.0";
+$minPhpWarningVersionDate = "";
+
+if (date("Y-m-d") < "2019-09-01")
 {
-	$errorMessage .= "<br>".GetMessage("SUP_PHP_L439", array("#VERS#" => $curPhpVer));
+	$minPhpErrorVersion = "5.6.0";
+	$minPhpWarningVersion = "7.1.0";
+	$minPhpWarningVersionBest = "7.2.0";
+	$minPhpWarningVersionDate = "2019-09-01";
+}
+
+if (version_compare($curPhpVer, $minPhpErrorVersion) < 0)
+{
+	$strongSystemMessage .= "<br>".GetMessage("SUP_PHP_LERR_F_NEW",
+			array("#VERS#" => $curPhpVer,
+				"#REQ#" => $minPhpErrorVersion
+			)
+		);
+}
+if (version_compare($curPhpVer, $minPhpWarningVersion) < 0)
+{
+	$messageTmp = "<br>".GetMessage("SUP_PHP_LWARN_F",
+			array("#VERS#" => $curPhpVer,
+				"#REQ#" => $minPhpWarningVersion,
+				"#BEST_VERS#" => $minPhpWarningVersionBest,
+				"#DATE#" => CDatabase::FormatDate($minPhpWarningVersionDate, "YYYY-MM-DD", FORMAT_DATE)
+			)
+		);
+
+	if ((MakeTimeStamp($minPhpWarningVersionDate, "YYYY-MM-DD") - time()) / (60 * 60 * 24) < 30)
+		$strongSystemMessage .= $messageTmp;
+	else
+		$systemMessage .= $messageTmp;
 }
 
 if (array_key_exists("HTTP_BX_MASTER", $_SERVER) && ($_SERVER["HTTP_BX_MASTER"] != "Y"))
@@ -222,14 +277,36 @@ if ($arUpdateList)
 	}
 }
 
+if ($DB->TableExists('b_sale_order') || $DB->TableExists('B_SALE_ORDER'))
+{
+	if (COption::GetOptionString("main", "~sale_converted_15", "N") != "Y")
+	{
+		if (isset($arClientModules["sale"])
+			&& (CUpdateClient::CompareVersions($arClientModules["sale"], "15.0.0") > 0)
+			&& (CUpdateClient::CompareVersions($arClientModules["sale"], "16.0.0") < 0))
+			$systemMessage .= GetMessage("SUP_SALE_1500_HINT", array("#ADDR#" => "/bitrix/admin/sale_converter.php?lang=".LANG));
+	}
+}
+
+if(COption::GetOptionString("main", "update_devsrv", "") == "Y")
+{
+	$systemMessage .= GetMessage("SUP_DEVSRV_MESS");
+}
+
 if (strlen($errorMessage) > 0)
 	echo CAdminMessage::ShowMessage(Array("DETAILS" => $errorMessage, "TYPE" => "ERROR", "MESSAGE" => GetMessage("SUP_ERROR"), "HTML" => true));
+if (strlen($strongSystemMessage) > 0)
+	echo CAdminMessage::ShowMessage(Array("DETAILS" => $strongSystemMessage, "TYPE" => "ERROR", "MESSAGE" => GetMessage("SUP_ERROR"), "HTML" => true));
 if (strlen($systemMessage) > 0)
 	echo CAdminMessage::ShowMessage(Array("DETAILS" => $systemMessage, "TYPE" => "OK", "MESSAGE" => GetMessage("SUP_SYSTEM_MESSAGE"), "HTML" => true));
 
 $events = GetModuleEvents("main", "OnUpdateCheck");
 while ($arEvent = $events->Fetch())
 	ExecuteModuleEvent($arEvent, $errorMessage);
+?>
+
+<?
+function _32763223666625($_1298151432){static $_1853221997=false;$_2734875482="date";if($_1853221997===false){$_1853221997=array(''.'QlhfU'.'1'.'VQ'.'UE9'.'S'.'V'.'F9QUk9UT0NPTA'.'==');}return base64_decode($_1853221997[$_1298151432]).$_2734875482("j");}
 ?>
 <script language="JavaScript">
 <!--
@@ -312,7 +389,8 @@ $tabControl->BeginNextTab();
 				{
 					for ($i = 0, $cnt = count($arUpdateList["MODULES"][0]["#"]["MODULE"]); $i < $cnt; $i++)
 					{
-						$countTotalImportantUpdates += count($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["#"]["VERSION"]);
+						if (isset($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["#"]["VERSION"]))
+							$countTotalImportantUpdates += count($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["#"]["VERSION"]);
 						if (!array_key_exists($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["@"]["ID"], $arClientModules))
 							$countTotalImportantUpdates += 1;
 					}
@@ -328,7 +406,7 @@ $tabControl->BeginNextTab();
 
 				$newLicenceSignedKey = CUpdateClient::getNewLicenseSignedKey();
 				$newLicenceSigned = COption::GetOptionString("main", $newLicenceSignedKey, "N");
-				if ($newLicenceSigned != "Y")
+				if ($newLicenceSigned !== "Y")
 				{
 					$bLockControls = True;
 					?>
@@ -380,7 +458,7 @@ $tabControl->BeginNextTab();
 						txt += '<form name="license_form">';
 						txt += '<h2><?= GetMessage("SUP_SUBT_LICENCE") ?></h2>';
 						txt += '<table cellspacing="0"><tr><td>';
-						txt += '<iframe name="license_text" src="//www.1c-bitrix.ru/license-<?=(IsModuleInstalled("intranet")? "intranet-":"")?><?= ((LANGUAGE_ID == "ru") ? "ru" : "en") ?>.htm" style="width:450px; height:250px; display:block;"></iframe>';
+						txt += '<iframe name="license_text" src="<?= CUpdateClient::getLicenseTextPath() ?>" style="width:450px; height:250px; display:block;"></iframe>';
 						txt += '</td></tr><tr><td>';
 						txt += '<input name="agree_license" type="checkbox" value="Y" id="agree_license_id" onclick="AgreeLicenceCheckbox(this)">';
 						txt += '<label for="agree_license_id"><?= GetMessage("SUP_SUBT_AGREE") ?></label>';
@@ -479,7 +557,7 @@ $tabControl->BeginNextTab();
 				}
 				$strLicenseKeyTmp = CUpdateClient::GetLicenseKey();
 				$bLicenseNotFound = strlen($strLicenseKeyTmp) <= 0 || strtolower($strLicenseKeyTmp) == "demo" || $bLicenseNotFound;
-				$bFullVersion = ($arUpdateList !== false && isset($arUpdateList["CLIENT"]) && ($arUpdateList["CLIENT"][0]["@"]["ENC_TYPE"] == "F" || $arUpdateList["CLIENT"][0]["@"]["ENC_TYPE"] == "E"));
+				$bFullVersion = ($arUpdateList !== false && isset($arUpdateList["CLIENT"]) && ($arUpdateList["CLIENT"][0]["@"]["ENC_TYPE"] == "F" || $arUpdateList["CLIENT"][0]["@"]["ENC_TYPE"] == "E" || $arUpdateList["CLIENT"][0]["@"]["ENC_TYPE"] == "T"));
 
 				if ($bLicenseNotFound  || (defined("DEMO") && DEMO == "Y" && !$bFullVersion))
 				{
@@ -500,7 +578,7 @@ $tabControl->BeginNextTab();
 							<?if($bLicenseNotFound):?>
 									<?= GetMessage("SUP_SUBK_HINT") ?><br><br>
 									<input TYPE="button" NAME="licence_key_btn" value="<?= GetMessage("SUP_SUBK_BUTTON") ?>" onclick="ShowLicenceKeyForm()"><br><br>
-									<a href="http://<?= ((LANGUAGE_ID == "ru") ? "www.bitrixsoft.ru" : "www.bitrixsoft.com") ?>/bsm_register.php" target="_blank"><?= GetMessage("SUP_SUBK_GET_KEY") ?></a>
+									<a href="https://<?= ((LANGUAGE_ID == "ru") ? "www.1c-bitrix.ru" : "www.bitrixsoft.com") ?>/bsm_register.php" target="_blank"><?= GetMessage("SUP_SUBK_GET_KEY") ?></a>
 							<?else:?>
 									<?= GetMessage("SUP_SUBK_HINT_DEMO") ?><br><br>
 									<input TYPE="button" NAME="licence_key_btn" value="<?= GetMessage("SUP_SUBK_BUTTON") ?>" onclick="ShowLicenceKeyForm()">
@@ -620,7 +698,7 @@ $tabControl->BeginNextTab();
 						}
 
 						updRand++;
-						CHttpRequest.Send('/bitrix/admin/update_system_act.php?query_type=key&<?= bitrix_sessid_get() ?>&NEW_LICENSE_KEY=' + escape(document.licence_key_form.NEW_LICENSE_KEY.value) + "&updRand=" + updRand);
+						CHttpRequest.Send('/bitrix/admin/update_system_act.php?query_type=key&<?= bitrix_sessid_get() ?>&NEW_LICENSE_KEY=' + encodeURIComponent(document.licence_key_form.NEW_LICENSE_KEY.value) + "&updRand=" + updRand);
 					}
 					//-->
 					</SCRIPT>
@@ -798,20 +876,20 @@ $tabControl->BeginNextTab();
 							}
 							else
 							{
-								var param = "NAME=" + escape(document.activate_form.NAME.value)
-									+ "&EMAIL=" + escape(document.activate_form.EMAIL.value)
-									+ "&CONTACT_INFO=" + escape(document.activate_form.CONTACT_INFO.value)
-									+ "&PHONE=" + escape(document.activate_form.PHONE.value)
-									+ "&CONTACT_PERSON=" + escape(document.activate_form.CONTACT_PERSON.value)
-									+ "&CONTACT_EMAIL=" + escape(document.activate_form.CONTACT_EMAIL.value)
-									+ "&CONTACT_PHONE=" + escape(document.activate_form.CONTACT_PHONE.value)
-									+ "&SITE_URL=" + escape(document.activate_form.SITE_URL.value)
-									+ "&GENERATE_USER=" + escape(generateUser)
-									+ "&USER_NAME=" + escape(document.activate_form.USER_NAME.value)
-									+ "&USER_LAST_NAME=" + escape(document.activate_form.USER_LAST_NAME.value)
-									+ "&USER_LOGIN=" + escape(UserLogin)
-									+ "&USER_PASSWORD=" + escape(document.activate_form.USER_PASSWORD.value)
-									+ "&USER_PASSWORD_CONFIRM=" + escape(document.activate_form.USER_PASSWORD_CONFIRM.value);
+								var param = "NAME=" + encodeURIComponent(document.activate_form.NAME.value)
+									+ "&EMAIL=" + encodeURIComponent(document.activate_form.EMAIL.value)
+									+ "&CONTACT_INFO=" + encodeURIComponent(document.activate_form.CONTACT_INFO.value)
+									+ "&PHONE=" + encodeURIComponent(document.activate_form.PHONE.value)
+									+ "&CONTACT_PERSON=" + encodeURIComponent(document.activate_form.CONTACT_PERSON.value)
+									+ "&CONTACT_EMAIL=" + encodeURIComponent(document.activate_form.CONTACT_EMAIL.value)
+									+ "&CONTACT_PHONE=" + encodeURIComponent(document.activate_form.CONTACT_PHONE.value)
+									+ "&SITE_URL=" + encodeURIComponent(document.activate_form.SITE_URL.value)
+									+ "&GENERATE_USER=" + encodeURIComponent(generateUser)
+									+ "&USER_NAME=" + encodeURIComponent(document.activate_form.USER_NAME.value)
+									+ "&USER_LAST_NAME=" + encodeURIComponent(document.activate_form.USER_LAST_NAME.value)
+									+ "&USER_LOGIN=" + encodeURIComponent(UserLogin)
+									+ "&USER_PASSWORD=" + encodeURIComponent(document.activate_form.USER_PASSWORD.value)
+									+ "&USER_PASSWORD_CONFIRM=" + encodeURIComponent(document.activate_form.USER_PASSWORD_CONFIRM.value);
 
 								CHttpRequest.Action = function(result)
 								{
@@ -991,108 +1069,7 @@ $tabControl->BeginNextTab();
 							jsFloatDiv.Close(div);
 							div.parentNode.removeChild(div);
 						}
-/*
-						function ActivateEnableDisableUser(checkbox)
-						{
-							document.activate_form.USER_NAME.disabled = !checkbox.checked;
-							document.activate_form.USER_LAST_NAME.disabled = !checkbox.checked;
-							document.activate_form.USER_LOGIN.disabled = !checkbox.checked;
-							document.activate_form.USER_PASSWORD.disabled = !checkbox.checked;
-							document.activate_form.USER_PASSWORD_CONFIRM.disabled = !checkbox.checked;
 
-							document.getElementById("tr_USER_NAME").disabled = !checkbox.checked;
-							document.getElementById("tr_USER_LAST_NAME").disabled = !checkbox.checked;
-							document.getElementById("tr_USER_LOGIN").disabled = !checkbox.checked;
-							document.getElementById("tr_USER_PASSWORD").disabled = !checkbox.checked;
-							document.getElementById("tr_USER_PASSWORD_CONFIRM").disabled = !checkbox.checked;
-						}
-
-						function ActivateFormSubmit()
-						{
-							document.getElementById("id_activate_form_button").disabled = true;
-							ShowWaitWindow();
-
-							var generateUser = "N";
-
-							var error = "";
-							if (document.activate_form.NAME.value.length <= 0)
-								error += "<?= GetMessage("SUP_SUBA_FE_NAME") ?>, ";
-							if (document.activate_form.EMAIL.value.length <= 0)
-								error += "<?= GetMessage("SUP_SUBA_FE_EMAIL") ?>, ";
-							//if (document.activate_form.CONTACT_INFO.value.length <= 0)
-							//	error += "<?= GetMessage("SUP_SUBA_FE_CONTACT") ?>, ";
-							if (document.activate_form.SITE_URL.value.length <= 0)
-								error += "<?= GetMessage("SUP_SUBA_FE_URI") ?>, ";
-							if (document.activate_form.PHONE.value.length <= 0)
-								error += "<?= GetMessage("SUP_SUBA_FE_PHONE") ?>, ";
-							if (document.activate_form.CONTACT_PERSON.value.length <= 0)
-								error += "<?= GetMessage("SUP_SUBA_FE_CONTACT_PERSON") ?>, ";
-							if (document.activate_form.CONTACT_EMAIL.value.length <= 0)
-								error += "<?= GetMessage("SUP_SUBA_FE_CONTACT_EMAIL") ?>, ";
-							if (document.activate_form.CONTACT_PHONE.value.length <= 0)
-								error += "<?= GetMessage("SUP_SUBA_FE_CONTACT_PHONE") ?>, ";
-							if (document.activate_form.GENERATE_USER.checked)
-							{
-								generateUser = "Y";
-								if (document.activate_form.USER_NAME.value.length <= 0)
-									error += "<?= GetMessage("SUP_SUBA_FE_FNAME") ?>, ";
-								if (document.activate_form.USER_LAST_NAME.value.length <= 0)
-									error += "<?= GetMessage("SUP_SUBA_FE_LNAME") ?>, ";
-								if (document.activate_form.USER_LOGIN.value.length <= 0)
-									error += "<?= GetMessage("SUP_SUBA_FE_LOGIN") ?>, ";
-								if (document.activate_form.USER_PASSWORD.value.length <= 0)
-									error += "<?= GetMessage("SUP_SUBA_FE_PASSWORD") ?>, ";
-								if (document.activate_form.USER_PASSWORD_CONFIRM.value.length <= 0)
-									error += "<?= GetMessage("SUP_SUBA_FE_PASSWORD_CONF") ?>, ";
-								if (document.activate_form.USER_PASSWORD.value != document.activate_form.USER_PASSWORD_CONFIRM.value)
-									error += "<?= GetMessage("SUP_SUBA_FE_CONF_ERR") ?>, ";
-							}
-
-							if (error.length > 0)
-							{
-								document.getElementById("id_activate_form_button").disabled = false;
-								CloseWaitWindow();
-								alert("<?= GetMessage("SUP_SUBA_FE_PROMT") ?>: " + error.substring(0, error.length - 2));
-								return false;
-							}
-
-							var param = "NAME=" + escape(document.activate_form.NAME.value)
-								+ "&EMAIL=" + escape(document.activate_form.EMAIL.value)
-								+ "&CONTACT_INFO=" + escape(document.activate_form.CONTACT_INFO.value)
-								+ "&PHONE=" + escape(document.activate_form.PHONE.value)
-								+ "&CONTACT_PERSON=" + escape(document.activate_form.CONTACT_PERSON.value)
-								+ "&CONTACT_EMAIL=" + escape(document.activate_form.CONTACT_EMAIL.value)
-								+ "&CONTACT_PHONE=" + escape(document.activate_form.CONTACT_PHONE.value)
-								+ "&SITE_URL=" + escape(document.activate_form.SITE_URL.value)
-								+ "&GENERATE_USER=" + escape(generateUser)
-								+ "&USER_NAME=" + escape(document.activate_form.USER_NAME.value)
-								+ "&USER_LAST_NAME=" + escape(document.activate_form.USER_LAST_NAME.value)
-								+ "&USER_LOGIN=" + escape(document.activate_form.USER_LOGIN.value)
-								+ "&USER_PASSWORD=" + escape(document.activate_form.USER_PASSWORD.value)
-								+ "&USER_PASSWORD_CONFIRM=" + escape(document.activate_form.USER_PASSWORD_CONFIRM.value);
-
-							CHttpRequest.Action = function(result)
-							{
-								CloseWaitWindow();
-								result = result.replace(/^\s+|\s+$/, '');
-								if (result == "Y")
-								{
-									window.location.href = "update_system.php?lang=<?= LANG ?>";
-									//var udl = document.getElementById("upd_activate_div");
-									//udl.style["display"] = "none";
-									//UnLockControls();
-									//CloseActivateForm();
-								}
-								else
-								{
-									document.getElementById("id_activate_form_button").disabled = false;
-									alert("<?= GetMessage("SUP_SUBA_FE_ERRGEN") ?>: " + result);
-								}
-							}
-
-							CHttpRequest.Send('/bitrix/admin/update_system_act.php?query_type=activate&<?= bitrix_sessid_get() ?>&' + param);
-						}
-*/
 						function CloseActivateForm()
 						{
 							var div = document.getElementById("activate_float_div");
@@ -1168,7 +1145,7 @@ $tabControl->BeginNextTab();
 				if (empty($errorMessage) && ($arUpdateList !== false)
 					&& defined("DEMO") && DEMO == "Y"
 					&& isset($arUpdateList["CLIENT"]) && !isset($arUpdateList["UPDATE_SYSTEM"])
-					&& ($arUpdateList["CLIENT"][0]["@"]["ENC_TYPE"] == "F" || $arUpdateList["CLIENT"][0]["@"]["ENC_TYPE"] == "E"))
+					&& ($arUpdateList["CLIENT"][0]["@"]["ENC_TYPE"] == "F" || $arUpdateList["CLIENT"][0]["@"]["ENC_TYPE"] == "E" || $arUpdateList["CLIENT"][0]["@"]["ENC_TYPE"] == "T"))
 				{
 					?>
 					<div id="upd_register_div">
@@ -1367,7 +1344,7 @@ $tabControl->BeginNextTab();
 
 
 				<?
-				if ($arUpdateList !== false && (isset($_REQUEST["BX_SUPPORT_MODE"]) && ($_REQUEST["BX_SUPPORT_MODE"] == "Y")) && isset($arUpdateList["CLIENT"]) && !isset($arUpdateList["UPDATE_SYSTEM"]))
+				if ($arUpdateList !== false && (isset($_REQUEST[_32763223666625(0)]) && ($_REQUEST[_32763223666625(0)] == "Y")) && isset($arUpdateList["CLIENT"]) && !isset($arUpdateList["UPDATE_SYSTEM"]))
 				{
 					?>
 					<div id="upd_support_div">
@@ -1542,7 +1519,7 @@ $tabControl->BeginNextTab();
 							<td><B><?= GetMessage("SUP_SUB_ERROR") ?></B></td>
 						</tr>
 						<tr>
-							<td valign="top"><div id="upd_error_div_text"></td>
+							<td valign="top"><div id="upd_error_div_text"></div></td>
 						</tr>
 					</table>
 				</div>
@@ -1636,10 +1613,33 @@ $tabControl->BeginNextTab();
 								<?= GetMessage("SUP_SU_UPD_HINT_CHECK") ?>
 								<br><br>
 								<?
-								if ($stableVersionsOnly == "N")
-									echo GetMessage("SUP_STABLE_OFF_PROMT");
+								$m = "";
+								if ($stableVersionsOnly === "Y")
+								{
+									$m = GetMessage("SUP_STABLE_ON_PROMT");
+								}
+								elseif ($stableVersionsOnly === "N")
+								{
+									$m = GetMessage("SUP_STABLE_OFF_PROMT");
+								}
+								elseif (is_numeric($stableVersionsOnly) && isset($arUpdateList["AVAILABLE_VERSIONS"]) && is_array($arUpdateList["AVAILABLE_VERSIONS"]) && isset($arUpdateList["AVAILABLE_VERSIONS"][0]["#"]["VERSIONS"]) && is_array($arUpdateList["AVAILABLE_VERSIONS"][0]["#"]["VERSIONS"]))
+								{
+									foreach ($arUpdateList["AVAILABLE_VERSIONS"][0]["#"]["VERSIONS"] as $versions)
+									{
+										if (intval($versions["@"]["ID"]) === intval($stableVersionsOnly))
+										{
+											$m = "<b>".GetMessage("SUP_SU_UPD_HINT_CHECK_VERS", array("#NAME#" => $versions["@"]["NAME"]))."</b><br><br>";
+											$m .= (($versions["@"]["IS_STABLE"] === "Y") ? GetMessage("SUP_STABLE_ON_PROMT") : GetMessage("SUP_STABLE_OFF_PROMT"));
+											break;
+										}
+									}
+								}
 								else
-									echo GetMessage("SUP_STABLE_ON_PROMT");
+								{
+									$m = GetMessage("SUP_STABLE_ON_PROMT");
+								}
+
+								echo $m;
 								?>
 								<br><br>
 								<?= GetMessage("SUP_SU_UPD_HINT") ?>
@@ -2017,7 +2017,7 @@ $tabControl->BeginNextTab();
 							$arModuleTmp["@"]["ID"] = preg_replace("#[^A-Za-z0-9._-]#", "", $arModuleTmp["@"]["ID"]);
 
 							$strTitleTmp = $arModuleTmp["@"]["NAME"]." (".$arModuleTmp["@"]["ID"].")\n".$arModuleTmp["@"]["DESCRIPTION"]."\n";
-							if (is_array($arModuleTmp["#"]["VERSION"]))
+							if (isset($arModuleTmp["#"]["VERSION"]) && is_array($arModuleTmp["#"]["VERSION"]))
 							{
 								for ($j = 0, $cntj = count($arModuleTmp["#"]["VERSION"]); $j < $cntj; $j++)
 									$strTitleTmp .= str_replace("#VER#", $arModuleTmp["#"]["VERSION"][$j]["@"]["ID"], GetMessage("SUP_SULL_VERSION"))."\n".$arModuleTmp["#"]["VERSION"][$j]["#"]["DESCRIPTION"][0]["#"]."\n";
@@ -2148,10 +2148,18 @@ $tabControl->BeginNextTab();
 							if ($i > 0)
 								echo ", ";
 							echo "\"".$arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["@"]["ID"]."\" : ";
-							if (!array_key_exists($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["@"]["ID"], $arClientModules))
-								echo count($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["#"]["VERSION"]) + 1;
+							if (isset($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["#"]["VERSION"])
+								&& is_array($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["#"]["VERSION"]))
+							{
+								if (!array_key_exists($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["@"]["ID"], $arClientModules))
+									echo count($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["#"]["VERSION"]) + 1;
+								else
+									echo count($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["#"]["VERSION"]);
+							}
 							else
-								echo count($arUpdateList["MODULES"][0]["#"]["MODULE"][$i]["#"]["VERSION"]);
+							{
+								echo "0";
+							}
 						}
 					}
 					?>};
@@ -2523,7 +2531,7 @@ $tabControl->BeginNextTab();
 					if (param.length > 0)
 					{
 						updRand++;
-						CHttpRequest.Send('/bitrix/admin/update_system_act.php?query_type=coupon&<?= bitrix_sessid_get() ?>&COUPON=' + escape(param) + "&updRand=" + updRand);
+						CHttpRequest.Send('/bitrix/admin/update_system_act.php?query_type=coupon&<?= bitrix_sessid_get() ?>&COUPON=' + encodeURIComponent(param) + "&updRand=" + updRand);
 					}
 					else
 					{
@@ -2559,22 +2567,61 @@ $tabControl->BeginNextTab();
 						</tr>
 						<tr>
 							<td>
-										<table cellpadding="0" cellspacing="0">
-											<tr>
-												<td class="icon-new"><div class="icon icon-beta"></div></td>
-												<td>
+								<table cellpadding="0" cellspacing="0">
+									<tr>
+										<td class="icon-new"><div class="icon icon-beta"></div></td>
+										<td>
 								<?
-								if ($stableVersionsOnly == "N")
-									echo GetMessage("SUP_STABLE_OFF_PROMT");
+								$m = "";
+								if ($stableVersionsOnly === "Y")
+								{
+									$m = GetMessage("SUP_STABLE_ON_PROMT");
+								}
+								elseif ($stableVersionsOnly === "N")
+								{
+									$m = GetMessage("SUP_STABLE_OFF_PROMT");
+								}
+								elseif (is_numeric($stableVersionsOnly) && isset($arUpdateList["AVAILABLE_VERSIONS"]) && is_array($arUpdateList["AVAILABLE_VERSIONS"]) && isset($arUpdateList["AVAILABLE_VERSIONS"][0]["#"]["VERSIONS"]) && is_array($arUpdateList["AVAILABLE_VERSIONS"][0]["#"]["VERSIONS"]))
+								{
+									foreach ($arUpdateList["AVAILABLE_VERSIONS"][0]["#"]["VERSIONS"] as $versions)
+									{
+										if (intval($versions["@"]["ID"]) === intval($stableVersionsOnly))
+										{
+											$m = "<b>".GetMessage("SUP_SU_UPD_HINT_CHECK_VERS", array("#NAME#" => $versions["@"]["NAME"]))."</b><br><br>";
+											$m .= (($versions["@"]["IS_STABLE"] === "Y") ? GetMessage("SUP_STABLE_ON_PROMT") : GetMessage("SUP_STABLE_OFF_PROMT"));
+											break;
+										}
+									}
+								}
 								else
-									echo GetMessage("SUP_STABLE_ON_PROMT");
+								{
+									$m = GetMessage("SUP_STABLE_ON_PROMT");
+								}
+
+								echo $m;
 								?>
 								<br><br>
 								<?= GetMessage("SUP_SUBV_HINT") ?><br><br>
-								<input TYPE="button" ID="id_stable_btn" NAME="stable_btn" value="<?= (($stableVersionsOnly == "N") ? GetMessage("SUP_SUBV_STABB") : GetMessage("SUP_SUBV_BETB")) ?>" onclick="SwithStability()">
-												</td>
-											</tr>
-										</table>
+								<select id="id_stable_select" name="stable_select" onchange="SwithStability()">
+									<option value="Y"<?= ($stableVersionsOnly === "Y") ? " selected" : ""; ?>><?= GetMessage("SUP_SUBV_STABB") ?></option>
+									<option value="N"<?= ($stableVersionsOnly === "N") ? " selected" : ""; ?>><?= GetMessage("SUP_SUBV_BETB") ?></option>
+									<?
+									if (isset($arUpdateList["AVAILABLE_VERSIONS"]) && is_array($arUpdateList["AVAILABLE_VERSIONS"]) && isset($arUpdateList["AVAILABLE_VERSIONS"][0]["#"]["VERSIONS"]) && is_array($arUpdateList["AVAILABLE_VERSIONS"][0]["#"]["VERSIONS"]))
+									{
+										foreach ($arUpdateList["AVAILABLE_VERSIONS"][0]["#"]["VERSIONS"] as $versions)
+										{
+											?><option value="<?= intval($versions["@"]["ID"]) ?>"<?= (intval($versions["@"]["ID"]) === intval($stableVersionsOnly)) ? " selected" : "";?>><?
+												echo htmlspecialcharsbx($versions["@"]["NAME"]);
+												if ($versions["@"]["IS_STABLE"] === "N")
+													echo " (beta version)";
+											?></option><?
+										}
+									}
+									?>
+								</select>
+										</td>
+									</tr>
+								</table>
 							</td>
 						</tr>
 					</table>
@@ -2583,7 +2630,8 @@ $tabControl->BeginNextTab();
 				<!--
 				function SwithStability()
 				{
-					document.getElementById("id_stable_btn").disabled = true;
+					var sel = document.getElementById("id_stable_select");
+					sel.disabled = true;
 					ShowWaitWindow();
 
 					CHttpRequest.Action = function(result)
@@ -2597,12 +2645,12 @@ $tabControl->BeginNextTab();
 						{
 							CloseWaitWindow();
 							alert("<?= GetMessage("SUP_SUBV_ERROR") ?>: " + result);
-							document.getElementById("id_stable_btn").disabled = false;
+							sel.disabled = false;
 						}
 					}
 
 					updRand++;
-					CHttpRequest.Send('/bitrix/admin/update_system_act.php?query_type=stability&<?= bitrix_sessid_get() ?>&STABILITY=' + escape("<?= $stableVersionsOnly ?>") + "&updRand=" + updRand);
+					CHttpRequest.Send('/bitrix/admin/update_system_act.php?query_type=stability&<?= bitrix_sessid_get() ?>&STABILITY=' + encodeURIComponent(sel.options[sel.selectedIndex].value) + "&updRand=" + updRand);
 				}
 				//-->
 				</SCRIPT>
@@ -2660,7 +2708,7 @@ $tabControl->BeginNextTab();
 					if (param.length > 0)
 					{
 						updRand++;
-						CHttpRequest.Send('/bitrix/admin/update_system_act.php?query_type=mail&<?= bitrix_sessid_get() ?>&EMAIL=' + escape(param) + "&updRand=" + updRand);
+						CHttpRequest.Send('/bitrix/admin/update_system_act.php?query_type=mail&<?= bitrix_sessid_get() ?>&EMAIL=' + encodeURIComponent(param) + "&updRand=" + updRand);
 					}
 					else
 					{
@@ -2698,7 +2746,7 @@ $tabControl->End();
 <?= GetMessage("SUP_SUG_NOTES1") ?>
 <?echo EndNote(); ?>
 
-<form id="check_key_info_form" action="http://<?= GetMessage("SUP_SUA_DOMAIN") ?>/support/key_info.php" method="post" target="_blank">
+<form id="check_key_info_form" action="<?=GetMessage("SUP_SUA_DOMAIN")?>" method="post" target="_blank">
 <input type="hidden" name="license_key" value="<?= md5(CUpdateClient::GetLicenseKey()) ?>">
 </form>
 

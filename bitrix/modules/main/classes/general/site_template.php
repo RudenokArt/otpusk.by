@@ -10,7 +10,7 @@ class CSiteTemplate
 {
 	var $LAST_ERROR;
 
-	function GetList($arOrder=array(), $arFilter=array(), $arSelect=false)
+	public static function GetList($arOrder=array(), $arFilter=array(), $arSelect=false)
 	{
 		/** @global CMain $APPLICATION */
 		global $APPLICATION;
@@ -49,13 +49,12 @@ class CSiteTemplate
 
 						$arTemplate = array("DESCRIPTION" => "");
 
-						if(file_exists(($fname = $path."/".$file."/lang/".LANGUAGE_ID."/description.php")))
-							__IncludeLang($fname, false, true);
-						elseif(file_exists(($fname = $path."/".$file."/lang/".LangSubst(LANGUAGE_ID)."/description.php")))
-							__IncludeLang($fname, false, true);
-
-						if(file_exists(($fname = $path."/".$file."/description.php")))
+						$fname = $path."/".$file."/description.php";
+						if(file_exists(($fname)))
+						{
+							\Bitrix\Main\Localization\Loc::loadLanguageFile($fname);
 							include($fname);
+						}
 
 						if(!isset($arTemplate["TYPE"])) $arTemplate["TYPE"] = '';
 						if(isset($arFilter["TYPE"]) && !in_array($arTemplate["TYPE"], $arFilter["TYPE"]))
@@ -132,7 +131,7 @@ class CSiteTemplate
 		return $db_res;
 	}
 
-	function __GetByStylesTitle($file)
+	public static function __GetByStylesTitle($file)
 	{
 		$io = CBXVirtualIo::GetInstance();
 		if ($io->FileExists($file))
@@ -140,12 +139,12 @@ class CSiteTemplate
 		return false;
 	}
 
-	function GetByID($ID)
+	public static function GetByID($ID)
 	{
 		return CSiteTemplate::GetList(array(), array("ID"=>$ID));
 	}
 
-	function CheckFields($arFields, $ID=false)
+	public function CheckFields($arFields, $ID=false)
 	{
 		/** @global CMain $APPLICATION */
 		global $APPLICATION;
@@ -187,7 +186,7 @@ class CSiteTemplate
 		return true;
 	}
 
-	function Add($arFields)
+	public function Add($arFields)
 	{
 		if(!$this->CheckFields($arFields))
 			return false;
@@ -227,7 +226,7 @@ class CSiteTemplate
 	}
 
 
-	function Update($ID, $arFields)
+	public function Update($ID, $arFields)
 	{
 		/** @global CMain $APPLICATION */
 		global $APPLICATION;
@@ -284,7 +283,7 @@ class CSiteTemplate
 		return true;
 	}
 
-	function Delete($ID)
+	public static function Delete($ID)
 	{
 		if($ID == ".default")
 		{
@@ -301,7 +300,7 @@ class CSiteTemplate
 		return true;
 	}
 
-	function GetContent($ID)
+	public static function GetContent($ID)
 	{
 		if(strlen($ID)<=0)
 			$arRes = array();
@@ -312,7 +311,7 @@ class CSiteTemplate
 		return $db_res;
 	}
 
-	function DirsRecursive($ID, $path="", $depth=0, $maxDepth=1)
+	public static function DirsRecursive($ID, $path="", $depth=0, $maxDepth=1)
 	{
 		$arRes = array();
 		$depth++;
@@ -401,8 +400,8 @@ class CSiteTemplate
 		global $APPLICATION;
 
 		$arDescription = array(
-			"NAME" => EscapePHPString($arFields['NAME']),
-			"DESCRIPTION" => EscapePHPString($arFields['DESCRIPTION']),
+			"NAME" => $arFields['NAME'],
+			"DESCRIPTION" => $arFields['DESCRIPTION'],
 			"SORT" => (intval($arFields['SORT']) > 0? intval($arFields['SORT']) : ''),
 			"TYPE" => $arFields['TYPE']
 		);

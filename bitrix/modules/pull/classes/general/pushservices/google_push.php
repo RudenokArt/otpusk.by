@@ -2,6 +2,7 @@
 
 class CGoogleMessage extends CPushMessage
 {
+	const DEFAULT_PAYLOAD_MAXIMUM_SIZE = 4096;
 	public function __construct($sDeviceToken = null)
 	{
 		if (isset($sDeviceToken))
@@ -16,19 +17,7 @@ class CGoogleMessage extends CPushMessage
 	 */
 	public function getBatch()
 	{
-
-		$data = array(
-			"data" => array(
-				'contentTitle' => $this->title,
-				"contentText" => $this->text,
-				"messageParams" => $this->customProperties,
-				"category" => $this->getCategory()
-			),
-			"time_to_live" => $this->expiryValue,
-			"registration_ids" => $this->deviceTokens
-		);
-
-		$data = CPushManager::_MakeJson($data, "", true);
+		$data = $this->getPayload();
 		$batch = "Content-type: application/json\r\n";
 		$batch .= "Content-length: " . CUtil::BinStrlen($data) . "\r\n";
 		$batch .= "\r\n";
@@ -36,6 +25,60 @@ class CGoogleMessage extends CPushMessage
 
 		return base64_encode($batch);
 	}
+
+	public function getPayload()
+	{
+		$data = [
+			"data" => [
+				'contentTitle' => $this->title,
+				"contentText" => $this->text,
+				"badge" => $this->badge,
+				"messageParams" => $this->customProperties,
+				"category" => $this->getCategory(),
+				"sound" => $this->getSound(),
+			],
+			"time_to_live" => $this->expiryValue,
+			"priority" => "high",
+			"registration_ids" => $this->deviceTokens
+		];
+		$jsonPayload = json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
+
+		$payloadLength = CUtil::BinStrlen($jsonPayload);
+		if ($payloadLength > self::DEFAULT_PAYLOAD_MAXIMUM_SIZE)
+		{
+			$text = $this->text;
+			$useSenderText = false;
+			if(array_key_exists("senderMessage", $this->customProperties))
+			{
+				$useSenderText = true;
+				$text = $this->customProperties["senderMessage"];
+			}
+			$maxTextLength = $nTextLen = CUtil::BinStrlen($text) - ($payloadLength - self::DEFAULT_PAYLOAD_MAXIMUM_SIZE);
+			if ($maxTextLength > 0)
+			{
+				while (CUtil::BinStrlen($text = substr($text, 0, --$nTextLen)) > $maxTextLength) ;
+				if($useSenderText)
+				{
+					$this->setCustomProperty("senderMessage", $text);
+				}
+				else
+				{
+					$this->setText($text);
+				}
+
+
+				return $this->getPayload();
+			}
+			else
+			{
+				return false;
+			}
+		}
+
+		return $jsonPayload;
+	}
+
+
 }
 
 class CGooglePush extends CPushService
@@ -80,6 +123,21 @@ class CGooglePush extends CPushService
 	{
 		return new CGoogleMessage($token);
 	}
+
+	public static function shouldBeSent($messageRowData)
+	{
+		return true;
+	}
+}
+
+class CGooglePushInteractive extends CGooglePush
+{
+	function __construct()
+	{
+		parent::__construct();
+		$this->allowEmptyMessage = true;
+	}
+
 }
 
 ?>

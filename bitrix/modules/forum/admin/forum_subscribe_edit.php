@@ -3,7 +3,7 @@
 //	Topic manage
 //************************************!****************************************************************************
 	require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_before.php");
-	require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/forum/include.php");
+	\Bitrix\Main\Loader::includeModule("forum");
 	$forumModulePermissions = $APPLICATION->GetGroupRight("forum");
 	if ($forumModulePermissions == "D")
 		$APPLICATION->AuthForm(GetMessage("ACCESS_DENIED"));
@@ -184,7 +184,7 @@ while ($arRes = $rsData->NavNext(true, "t_"))
 	<tr valign="center">
 		<td><b><?=GetMessage("FM_FLT_SEARCH")?>:</b></td>
 		<td nowrap>
-		<input type="text" size="25" name="Filter_S" value="<?=htmlspecialcharsEx($Filter_S)?>" title="<?=GetMessage("FM_FLT_SEARCH_TITLE")?>">
+		<input type="text" size="25" name="Filter_S" value="<?=htmlspecialcharsbx($Filter_S)?>" title="<?=GetMessage("FM_FLT_SEARCH_TITLE")?>">
 		<select name="FilterType_S">
 			<option value="forum"<?if($find_type=="forum") echo " selected"?>><?=GetMessage("FM_FLT_FORUM")?></option>
 			<option value="topic"<?if($find_type=="topic") echo " selected"?>><?=GetMessage("FM_FLT_TOPIC")?></option>

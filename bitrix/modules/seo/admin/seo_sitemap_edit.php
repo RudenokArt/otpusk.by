@@ -12,6 +12,7 @@ use Bitrix\Seo\SitemapEntityTable;
 use Bitrix\Seo\SitemapIblockTable;
 use Bitrix\Seo\SitemapForumTable;
 use Bitrix\Seo\SitemapRuntimeTable;
+use Bitrix\Main\Text\HtmlFilter;
 
 Loc::loadMessages(dirname(__FILE__).'/../../main/tools.php');
 Loc::loadMessages(dirname(__FILE__).'/seo_sitemap.php');
@@ -31,14 +32,14 @@ if(!Main\Loader::includeModule('seo'))
 $bIBlock = Main\Loader::includeModule('iblock');
 $bForum = Main\Loader::includeModule('forum');
 
-$ID = intval($_REQUEST['ID']);
-$SITE_ID = trim($_REQUEST['site_id']);
+$mapId = intval($_REQUEST['ID']);
+$siteId = htmlspecialcharsbx(trim($_REQUEST['site_id']));
 
 $bDefaultHttps = false;
 
-if($ID > 0)
+if($mapId > 0)
 {
-	$dbSitemap = SitemapTable::getById($ID);
+	$dbSitemap = SitemapTable::getById($mapId);
 	$arSitemap = $dbSitemap->fetch();
 
 	if(!is_array($arSitemap))
@@ -51,8 +52,8 @@ if($ID > 0)
 	{
 		if($_REQUEST['action'] == 'delete' && check_bitrix_sessid())
 		{
-			SitemapRuntimeTable::clearByPid($ID);
-			SitemapTable::delete($ID);
+			SitemapRuntimeTable::clearByPid($mapId);
+			SitemapTable::delete($mapId);
 			LocalRedirect(BX_ROOT."/admin/seo_sitemap.php?lang=".LANGUAGE_ID);
 		}
 
@@ -60,7 +61,7 @@ if($ID > 0)
 
 		$arSitemap['SETTINGS']['IBLOCK_AUTO'] = array();
 		$dbRes = SitemapIblockTable::getList(array(
-			"filter" => array("SITEMAP_ID" => $ID),
+			"filter" => array("SITEMAP_ID" => $mapId),
 			"select" => array("IBLOCK_ID"),
 		));
 
@@ -70,7 +71,7 @@ if($ID > 0)
 		}
 
 		$dbRes = SitemapEntityTable::getList(array(
-			"filter" => array("SITEMAP_ID" => $ID),
+			"filter" => array("SITEMAP_ID" => $mapId),
 		));
 		while($arRes = $dbRes->fetch())
 		{
@@ -81,23 +82,24 @@ if($ID > 0)
 		if (empty($arSitemap['SETTINGS']['FILENAME_FORUM']))
 			$arSitemap['SETTINGS']['FILENAME_FORUM'] = "sitemap_forum_#FORUM_ID#.xml";
 
-		$SITE_ID = $arSitemap['SITE_ID'];
+		$siteId = $arSitemap['SITE_ID'];
 	}
 }
 
-if(strlen($SITE_ID) > 0)
+if(strlen($siteId) > 0)
 {
-	$dbSite = Main\SiteTable::getByPrimary($SITE_ID);
+	$dbSite = Main\SiteTable::getByPrimary($siteId);
 	$arSite = $dbSite->fetch();
 	if(!is_array($arSite))
 	{
-		$SITE_ID = '';
+		$siteId = '';
 	}
 	else
 	{
+		$siteId = $arSite['LID'];
 		$arSite['DOMAINS'] = array();
 
-		$robotsFile = new RobotsFile($SITE_ID);
+		$robotsFile = new RobotsFile($siteId);
 		if($robotsFile->isExists())
 		{
 			$arHostsList = $robotsFile->getRules('Host');
@@ -118,7 +120,7 @@ if(strlen($SITE_ID) > 0)
 
 		$dbDomains = Bitrix\Main\SiteDomainTable::getList(
 			array(
-				'filter' => array('LID' => $SITE_ID),
+				'filter' => array('LID' => $siteId),
 				'select'=>array('DOMAIN')
 			)
 		);
@@ -131,7 +133,7 @@ if(strlen($SITE_ID) > 0)
 	}
 }
 
-if(strlen($SITE_ID) <= 0)
+if(strlen($siteId) <= 0)
 {
 	require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_after.php");
 	ShowError(Loc::getMessage("SEO_ERROR_SITEMAP_NO_SITE"));
@@ -206,25 +208,25 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && check_bitrix_sessid() && (strlen($_PO
 		$arSiteMapFields = array(
 			'NAME' => trim($_REQUEST['NAME']),
 			'ACTIVE' => $_REQUEST['ACTIVE'] == 'N' ? 'N' : 'Y',
-			'SITE_ID' => $SITE_ID,
+			'SITE_ID' => $siteId,
 			'SETTINGS' => serialize($arSitemapSettings),
 		);
 
-		if($ID > 0)
+		if($mapId > 0)
 		{
-			$result = SitemapTable::update($ID, $arSiteMapFields);
+			$result = SitemapTable::update($mapId, $arSiteMapFields);
 		}
 		else
 		{
 			$result = SitemapTable::add($arSiteMapFields);
-			$ID = $result->getId();
+			$mapId = $result->getId();
 		}
 
 		if($result->isSuccess())
 		{
 			$arSitemapIblock = array();
 
-			SitemapIblockTable::clearBySitemap($ID);
+			SitemapIblockTable::clearBySitemap($mapId);
 
 			if(is_array($_REQUEST['IBLOCK_AUTO']))
 			{
@@ -233,14 +235,14 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && check_bitrix_sessid() && (strlen($_PO
 					if($auto === 'Y')
 					{
 						$result = SitemapIblockTable::add(array(
-							'SITEMAP_ID' => $ID,
+							'SITEMAP_ID' => $mapId,
 							'IBLOCK_ID' => intval($iblockId),
 						));
 					}
 				}
 			}
 
-			SitemapForumTable::clearBySitemap($ID);
+			SitemapForumTable::clearBySitemap($mapId);
 
 			if(is_array($_REQUEST['FORUM_AUTO']))
 			{
@@ -248,7 +250,7 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && check_bitrix_sessid() && (strlen($_PO
 				{
 					if($auto === 'Y')
 					{
-						$result = SitemapForumTable::add($ID, $forumId);
+						$result = SitemapForumTable::add(array('SITEMAP_ID' => $mapId, 'ENTITY_ID' => $forumId));
 					}
 				}
 			}
@@ -259,11 +261,11 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && check_bitrix_sessid() && (strlen($_PO
 			}
 			elseif($_REQUEST["save_and_add"] <> '')
 			{
-				LocalRedirect(BX_ROOT."/admin/seo_sitemap.php?lang=".LANGUAGE_ID."&run=".$ID."&".bitrix_sessid_get());
+				LocalRedirect(BX_ROOT."/admin/seo_sitemap.php?lang=".LANGUAGE_ID."&run=".$mapId."&".bitrix_sessid_get());
 			}
 			else
 			{
-				LocalRedirect(BX_ROOT."/admin/seo_sitemap_edit.php?lang=".LANGUAGE_ID."&ID=".$ID."&".$tabControl->ActiveTabParam());
+				LocalRedirect(BX_ROOT."/admin/seo_sitemap_edit.php?lang=".LANGUAGE_ID."&ID=".$mapId."&".$tabControl->ActiveTabParam());
 			}
 		}
 		else
@@ -391,7 +393,7 @@ if(isset($_REQUEST['dir']) && check_bitrix_sessid())
 
 	$arChecked = array_merge($arSitemap['SETTINGS']['DIR'], $arSitemap['SETTINGS']['FILE']);
 
-	echo seo_getDir($bLogical, $SITE_ID, $dir, $depth, $checked, $arChecked);
+	echo seo_getDir($bLogical, $siteId, $dir, $depth, $checked, $arChecked);
 	die();
 }
 
@@ -416,7 +418,7 @@ if($bIBlock && isset($_REQUEST['iblock']) && check_bitrix_sessid())
 	die();
 }
 
-if($ID <= 0)
+if($mapId <= 0)
 {
 	$arSitemap = array(
 		"NAME" => Loc::getMessage('SITEMAP_NAME_DEFAULT', array("#DATE#" => ConvertTimeStamp())),
@@ -463,7 +465,7 @@ $bLogical = $arSitemap['SETTINGS']['logical'] != 'N';
 
 $APPLICATION->SetAdditionalCSS("/bitrix/panel/seo/sitemap.css");
 
-$APPLICATION->SetTitle($ID > 0 ? Loc::getMessage("SEO_SITEMAP_EDIT_TITLE") : Loc::getMessage("SEO_SITEMAP_ADD_TITLE"));
+$APPLICATION->SetTitle($mapId > 0 ? Loc::getMessage("SEO_SITEMAP_EDIT_TITLE") : Loc::getMessage("SEO_SITEMAP_ADD_TITLE"));
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_after.php");
 
 $aMenu = array();
@@ -474,11 +476,11 @@ $aMenu[] = array(
 	"ICON"	=> "btn_list",
 	"TITLE"	=> Loc::getMessage("SITEMAP_LIST_TITLE"),
 );
-if ($ID > 0)
+if ($mapId > 0)
 {
 	$aMenu[] = array(
 		"TEXT"	=> Loc::getMessage("SITEMAP_DELETE"),
-		"LINK"	=> "javascript:if(confirm('".Loc::getMessage("SITEMAP_DELETE_CONFIRM")."')) window.location='/bitrix/admin/seo_sitemap_edit.php?action=delete&ID=".$ID."&lang=".LANGUAGE_ID."&".bitrix_sessid_get()."';",
+		"LINK"	=> "javascript:if(confirm('".Loc::getMessage("SITEMAP_DELETE_CONFIRM")."')) window.location='/bitrix/admin/seo_sitemap_edit.php?action=delete&ID=".$mapId."&lang=".LANGUAGE_ID."&".bitrix_sessid_get()."';",
 		"ICON"	=> "btn_delete",
 		"TITLE"	=> Loc::getMessage("SITEMAP_DELETE_TITLE"),
 	);
@@ -494,8 +496,8 @@ if(!empty($errors))
 
 ?>
 <form method="POST" action="<?=POST_FORM_ACTION_URI?>" name="sitemap_form">
-	<input type="hidden" name="ID" value="<?=$ID?>">
-	<input type="hidden" name="site_id" value="<?=$SITE_ID?>">
+	<input type="hidden" name="ID" value="<?=$mapId?>">
+	<input type="hidden" name="site_id" value="<?=$siteId?>">
 <?
 $tabControl->Begin();
 $tabControl->BeginNextTab();
@@ -522,6 +524,13 @@ endforeach;
 </select> <b><?=Converter::getHtmlConverter()->encode($arSite['DIR']);?></b> <input type="text" name="FILENAME_INDEX" value="<?=Converter::getHtmlConverter()->encode($arSitemap['SETTINGS']["FILENAME_INDEX"])?>" /></td>
 </tr>
 <tr>
+	<td></td>
+	<style>
+		.adm-info-message{margin-top:0 !important;}
+	</style>
+	<td><?echo BeginNote(),Loc::getMessage("SITEMAP_FILENAME_ADDRESS_ATTENTION"),EndNote();?></td>
+</tr>
+<tr>
 	<td width="40%"><label for="SITEMAP_ROBOTS_Y"><?echo Loc::getMessage("SITEMAP_ROBOTS")?>:</label></td>
 	<td width="60%"><input type="hidden"  name="ROBOTS" value="N"><input type="checkbox" id="SITEMAP_ROBOTS_Y" name="ROBOTS" value="Y"<?=$arSitemap['SETTINGS']['ROBOTS'] == 'Y' ? ' checked="checked"' : ''?>> <label for="SITEMAP_ROBOTS_Y"><?=Loc::getMessage('MAIN_YES')?></label></td>
 </tr>
@@ -532,7 +541,7 @@ endforeach;
 <?
 $tabControl->BeginNextTab();
 
-$startDir = $arSite['DIR'];
+$startDir = HtmlFilter::encode($arSite['DIR']);
 $bChecked = isset($arSitemap['SETTINGS']['DIR'])
 	? $arSitemap['SETTINGS']['DIR'][$startDir] == 'Y'
 	: true;
@@ -653,7 +662,7 @@ else
 
 $arChecked = array_merge($arSitemap['SETTINGS']['DIR'], $arSitemap['SETTINGS']['FILE']);
 
-echo seo_getDir($bLogical, $SITE_ID, $startDir, 1, $bChecked, $arChecked);
+echo seo_getDir($bLogical, $siteId, $startDir, 1, $bChecked, $arChecked);
 ?>
 	</td>
 </tr>
@@ -681,8 +690,8 @@ if($bIBlock)
 	<td colspan="2" align="center">
 <?
 	$dbRes = CIBlock::GetList(array("ID" => "ASC"), array(
-		'SITE_ID' => $SITE_ID
-	), true);
+		'SITE_ID' => $siteId
+	));
 	$bFound = false;
 	while ($arRes = $dbRes->Fetch())
 	{
@@ -851,7 +860,7 @@ if($bForum)
 <tr>
 	<td colspan="2" align="center">
 <?
-	$dbRes = CForumNew::GetListEx(array("ID" => "ASC"), array('PERMS' => array(2, 'A'), 'ACTIVE' => 'Y', 'SITE_ID' => $SITE_ID));
+	$dbRes = CForumNew::GetListEx(array("ID" => "ASC"), array('PERMS' => array(2, 'A'), 'ACTIVE' => 'Y', 'SITE_ID' => $siteId));
 	$bFound = false;
 	while (!!$dbRes && ($arRes = $dbRes->Fetch()))
 	{

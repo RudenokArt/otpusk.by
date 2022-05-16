@@ -14,7 +14,6 @@ var
 		use_google: false, // Yandex.Translator is really using here but we won't rename a setting name now
 		replace_dict: 'TRANS',
 		replace_way: 'LE', // LE - LANG->ENGLISH, EL - ENGLISH->LANG
-		replace_dict: 'TRANS',
 		skip_r_test: false
 	},
 	r = {
@@ -179,14 +178,14 @@ BX.correctText = function(str, params)
 		'delete_repeat_replace': false,
 		'replace_space_and_other': false
 	});
-}
+};
 
 /* external translator interface class */
 BX.IExternalTranslator = function(str, params)
 {
 	this.str = str;
 	this.params = params;
-}
+};
 
 BX.IExternalTranslator.prototype.run = function()
 {
@@ -384,4 +383,4 @@ function __getChar(chr, change_case, replace_way, replace_dict, replace_separato
 	return null;
 };
 
-})(window)
+})(window);

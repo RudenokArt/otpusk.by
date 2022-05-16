@@ -292,7 +292,6 @@ class CFileInput
 	private static function GetFile($fileId = "")
 	{
 		$arFile = CFile::GetFileArray($fileId);
-
 		$io = CBXVirtualIo::GetInstance();
 		//Check if not ID but file path was given
 		if(!is_array($arFile) && $fileId != "")
@@ -336,6 +335,12 @@ class CFileInput
 		{
 			$arFile["FORMATED_SIZE"] = CFile::FormatSize($arFile["FILE_SIZE"]);
 			$arFile["IS_IMAGE"] = $arFile["WIDTH"] > 0 && $arFile["HEIGHT"] > 0 && self::$showInfo['IMAGE'] != 'N';
+
+			//Mantis:#65168
+			if ($arFile["CONTENT_TYPE"] && $arFile["IS_IMAGE"] && strpos($arFile["CONTENT_TYPE"], 'application') !== false)
+			{
+				$arFile["IS_IMAGE"] = false;
+			}
 
 			unset($arFile["MODULE_ID"], $arFile["CONTENT_TYPE"], $arFile["SUBDIR"], $arFile["~src"]);
 			return $arFile;
@@ -411,7 +416,7 @@ class CFileInput
 				foreach(self::$curFiles as $ind => $arFile)
 					self::DisplayFile($arFile, $ind);
 		?>
-		<script type="text/javascript">new top.BX.file_input(<?= CUtil::PHPToJSObject($arConfig)?>);</script>
+		<script type="text/javascript">(top.BX.file_input) ? new top.BX.file_input(<?= CUtil::PHPToJSObject($arConfig)?>) : new BX.file_input(<?= CUtil::PHPToJSObject($arConfig)?>)</script>
 		</div>
 		<?/* Used to refresh form content - workaround for IE bug (mantis:37969) */?>
 	<div id="<?= self::$jsId.'_ie_bogus_container'?>"><input type="hidden" value="" /></div>
@@ -467,7 +472,7 @@ class CFileInput
 			if ($arFile['IS_IMAGE'])
 				$hint .= '<span class="adm-input-file-hint-row">'.GetMessage('ADM_FILE_INFO_DIM').':&nbsp;&nbsp;'.$arFile['WIDTH'].'x'.$arFile['HEIGHT'].'</span>';
 			if ($sImagePath != '')
-				$hint .= '<span class="adm-input-file-hint-row">'.GetMessage('ADM_FILE_INFO_LINK').':&nbsp;&nbsp;<a href="'.CHTTP::urnEncode($sImagePath, "UTF-8").'">'.$sImagePath.'</a></span>';
+				$hint .= '<span class="adm-input-file-hint-row">'.GetMessage('ADM_FILE_INFO_LINK').':&nbsp;&nbsp;<a href="'.CHTTP::urnEncode($sImagePath, "UTF-8").'">'.htmlspecialcharsbx($sImagePath).'</a></span>';
 
 			if (!self::$bShowDescInput && $arFile['DESCRIPTION'] != "")
 				$hint .= '<span class="adm-input-file-hint-row">'.GetMessage('ADM_FILE_DESCRIPTION').':&nbsp;&nbsp;'.htmlspecialcharsbx($arFile['DESCRIPTION']).'</span>';
@@ -488,10 +493,13 @@ class CFileInput
 			$file = CFile::ResizeImageGet($arFile['ID'], array('width' => self::$maxPreviewWidth, 'height' => self::$maxPreviewHeight), BX_RESIZE_IMAGE_PROPORTIONAL, true);
 			?>
 			<span id="<?= $hintId?>" class="adm-input-file-preview" style="<?if(self::$minPreviewWidth > 0){echo 'min-width: '.self::$minPreviewWidth.'px;';}?> <?if(self::$minPreviewHeight > 0){echo 'min-height:'.self::$minPreviewHeight.'px;';}?>">
-				<?= CFile::Show2Images($file['src'], $arFile['SRC'], self::$maxPreviewWidth, self::$maxPreviewHeight);?>
-				<div id="<?= self::$jsId.'_file_del_lbl_'.$ind?>" class="adm-input-file-del-lbl"><?= GetMessage
-			('ADM_FILE_DELETED_TITLE')?></div>
-			</span>
+				<?= CFile::Show2Images($file['src'], $arFile['SRC'], self::$maxPreviewWidth, self::$maxPreviewHeight);?><?
+				if (!self::IsViewMode() || self::$bShowDelInput)
+				{
+					?><div id="<?= self::$jsId.'_file_del_lbl_'.$ind?>" class="adm-input-file-del-lbl"><?= GetMessage
+			('ADM_FILE_DELETED_TITLE')?></div><?
+				}
+			?></span>
 			<?
 		}
 		else
@@ -554,4 +562,3 @@ class CFileInput
 		return !self::$bUseUpload && !self::$bUseMedialib && !self::$bUseFileDialog && !self::$bUseCloud;
 	}
 }
-?>

@@ -23,7 +23,7 @@ create table if not exists b_seo_search_engine
 	UNIQUE INDEX ux_b_seo_search_engine_code (CODE)
 );
 
-INSERT INTO b_seo_search_engine (CODE, ACTIVE, SORT, NAME, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI) VALUES ('google', 'Y', 200, 'Google', '950140266760.apps.googleusercontent.com', 'IBktWJ_dS3rMKh43PSHO-zo5', 'urn:ietf:wg:oauth:2.0:oob');
+INSERT INTO b_seo_search_engine (CODE, ACTIVE, SORT, NAME, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI) VALUES ('google', 'Y', 200, 'Google', '868942902147-qrrd6ce1ajfkpse8ieq4gkpdeanvtnno.apps.googleusercontent.com', 'EItMlJpZLC2WRPKB6QsA5bV9', 'urn:ietf:wg:oauth:2.0:oob');
 INSERT INTO b_seo_search_engine (CODE, ACTIVE, SORT, NAME, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI) VALUES ('yandex', 'Y', 300, 'Yandex', 'f848c7bfc1d34a94ba6d05439f81bbd7', 'da0e73b2d9cc4e809f3170e49cb9df01', 'https://oauth.yandex.ru/verification_code');
 INSERT INTO b_seo_search_engine (CODE, ACTIVE, SORT, NAME, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI) VALUES ('yandex_direct', 'Y', 400, 'Yandex.Direct', '', '', 'https://oauth.yandex.ru/verification_code');
 
@@ -84,7 +84,7 @@ CREATE TABLE if not exists b_seo_adv_campaign
 	XML_ID varchar(255) NOT NULL,
 	NAME varchar(255) NOT NULL,
 	LAST_UPDATE timestamp NULL,
-	SETTINGS text NULL,
+	SETTINGS mediumtext NULL,
 	PRIMARY KEY (ID),
 	UNIQUE INDEX ux_b_seo_adv_campaign(ENGINE_ID, XML_ID)
 );
@@ -116,7 +116,7 @@ CREATE TABLE if not exists b_seo_adv_banner
 	XML_ID varchar(255) NOT NULL,
 	LAST_UPDATE timestamp NULL,
 	NAME varchar(255) NOT NULL,
-	SETTINGS text NULL,
+	SETTINGS mediumtext NULL,
 	CAMPAIGN_ID int(11) NOT NULL,
 	GROUP_ID int(11) NULL,
 	AUTO_QUANTITY_OFF char(1) NULL DEFAULT 'N',
@@ -218,4 +218,52 @@ CREATE TABLE if not exists b_seo_yandex_direct_stat
 	PRIMARY KEY (ID),
 	UNIQUE INDEX ux_seo_yandex_direct_stat (BANNER_ID,DATE_DAY),
 	INDEX ix_seo_yandex_direct_stat1 (CAMPAIGN_ID)
+);
+
+CREATE TABLE if not exists b_seo_service_rtg_queue (
+	ID int(11) NOT NULL AUTO_INCREMENT,
+	DATE_INSERT datetime DEFAULT NULL,
+	TYPE varchar(20) NOT NULL,
+	CLIENT_ID varchar(50) DEFAULT NULL,
+	ACCOUNT_ID varchar(50) DEFAULT NULL,
+	AUDIENCE_ID varchar(50) NOT NULL,
+	PARENT_ID varchar(100) DEFAULT NULL,
+	CONTACT_TYPE varchar(15) NOT NULL,
+	VALUE varchar(255) NOT NULL,
+	ACTION char(3) NOT NULL,
+	DATE_AUTO_REMOVE datetime DEFAULT NULL,
+	PRIMARY KEY (ID),
+	INDEX IX_B_SEO_SRV_RTG_QUEUE_1 (ACTION, DATE_AUTO_REMOVE),
+	INDEX IX_B_SEO_SRV_RTG_QUEUE_2 (TYPE, ACTION)
+);
+
+CREATE TABLE if not exists b_seo_service_log (
+	ID int(11) NOT NULL AUTO_INCREMENT,
+	DATE_INSERT datetime NOT NULL,
+	TYPE varchar(20) NOT NULL,
+	CODE varchar(20) DEFAULT NULL,
+	MESSAGE varchar(1000) NOT NULL,
+	GROUP_ID varchar(20) NOT NULL,
+	PRIMARY KEY (ID)
+);
+
+CREATE TABLE IF NOT EXISTS b_seo_service_webhook(
+	ID INT(11) NOT NULL AUTO_INCREMENT,
+	DATE_INSERT DATETIME NULL,
+	TYPE VARCHAR(20) NOT NULL,
+	EXTERNAL_ID VARCHAR(50) NOT NULL,
+	SECURITY_CODE VARCHAR(32) NOT NULL,
+	PRIMARY KEY (ID),
+	INDEX IX_B_SEO_SERVICE_WEBHOOK_1 (TYPE, EXTERNAL_ID)
+);
+
+CREATE TABLE IF NOT EXISTS b_seo_service_subscription(
+	ID INT(11) NOT NULL AUTO_INCREMENT,
+	DATE_INSERT DATETIME NULL,
+	TYPE VARCHAR(20) NOT NULL,
+	GROUP_ID VARCHAR(50) NOT NULL,
+	CALLBACK_SERVER_ID VARCHAR(50) NULL,
+	HAS_AUTH CHAR(1) NOT NULL DEFAULT 'N',
+	PRIMARY KEY (ID),
+	INDEX IX_B_SEO_SERVICE_SUB_1 (TYPE, GROUP_ID)
 );

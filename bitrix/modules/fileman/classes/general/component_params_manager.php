@@ -31,7 +31,15 @@ class CComponentParamsManager
 		?>
 		<script type="text/javascript">
 			BX.message(<?=CUtil::PhpToJSObject($mess_lang, false);?>);
-			top.oBXComponentParamsManager = window.oBXComponentParamsManager = new BXComponentParamsManager(<?=CUtil::PhpToJSObject($config)?>);
+			if (window.BXComponentParamsManager)
+			{
+				window.oBXComponentParamsManager = new BXComponentParamsManager(<?=CUtil::PhpToJSObject($config)?>);
+			}
+			else
+			{
+				window.oBXComponentParamsManager = new top.BXComponentParamsManager(<?=CUtil::PhpToJSObject($config)?>);
+			}
+			top.oBXComponentParamsManager = window.oBXComponentParamsManager;
 		</script>
 		<?
 
@@ -55,6 +63,26 @@ class CComponentParamsManager
 				$_REQUEST['site_template'],
 				$_REQUEST['current_values']
 			);
+
+			$templateMatch = false;
+			for ($i = 0, $l = count($result['templates']); $i < $l; $i++)
+			{
+				if ($result['templates'][$i]['NAME'] == $_REQUEST['component_template'] || ($_REQUEST['component_template'] == '' && $result['templates'][$i]['NAME'] == '.default'))
+				{
+					$templateMatch = true;
+					break;
+				}
+			}
+			if (!$templateMatch && $l > 0)
+			{
+				$result = self::GetComponentProperties(
+					$_REQUEST['component_name'],
+					$result['templates'][0]['NAME'],
+					$_REQUEST['site_template'],
+					$_REQUEST['current_values']
+				);
+			}
+
 			$result['description'] = CComponentUtil::GetComponentDescr($_REQUEST['component_name']);
 			?>
 			<script>

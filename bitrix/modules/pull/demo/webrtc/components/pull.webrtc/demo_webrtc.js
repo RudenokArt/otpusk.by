@@ -15,6 +15,7 @@
 	/* Initialize */
 	YourCompanyPrefix.webrtc = function(params)
 	{
+		this.parent.constructor.apply(this, arguments);
 		params = params || {};
 
 		this.debug = true;
@@ -113,10 +114,6 @@
 	{
 		this.callWindowBeforeUnload = window.onbeforeunload;
 		window.onbeforeunload = function(){
-			if (typeof(BX.PULL) != 'undefined' && typeof(BX.PULL.tryConnectDelay) == 'function') // TODO change to right code in near future (e.shelenkov)
-			{
-				BX.PULL.tryConnectDelay();
-			}
 			return BX.message('DW_WINDOW_RELOAD')
 		};
 

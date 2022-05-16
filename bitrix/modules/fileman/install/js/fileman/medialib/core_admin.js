@@ -152,7 +152,7 @@ BXMedialibAdmin.prototype =
 				menuIc = titleDiv.appendChild(BX.create("IMG", {props:{src: '/bitrix/images/1.gif', className: 'ml-col-menu', id: 'mlccm_' + oCol.id}})),
 				span = titleDiv.appendChild(BX.create("SPAN", {props: {title: bxspcharsback(oCol.desc || oCol.name)}, text: oCol.name})),
 				childDiv = BX.create("DIV"),
-				childTbl = childDiv.appendChild(BX.create("TABLE"));
+				childTbl = childDiv.appendChild(BX.create("TABLE")),
 				itemsTd = childTbl.insertRow(-1).insertCell(-1),
 				colsTd = childTbl.insertRow(-1).insertCell(-1),
 				cellX = childTbl.insertRow(-1).insertCell(-1);
@@ -560,9 +560,9 @@ BXMedialibAdmin.prototype =
 			_this = this,
 			postData =
 			{
-				name: D.pName.value,
-				desc: D.pDesc.value,
-				keywords: D.pKeys.value,
+				name: encodeURIComponent(D.pName.value),
+				desc: encodeURIComponent(D.pDesc.value),
+				keywords: encodeURIComponent(D.pKeys.value),
 				parent: D.pParent.value,
 				type: D.typeId
 			};
@@ -589,10 +589,10 @@ BXMedialibAdmin.prototype =
 					var oCol =
 					{
 						id: window.bx_req_res.id,
-						name: postData.name,
-						desc: postData.desc,
+						name: D.pName.value,
+						desc: D.pDesc.value,
 						date: '',
-						keywords: postData.keywords,
+						keywords: D.pKeys.value,
 						parent: postData.parent,
 						access: window.bx_req_res.access,
 						type: D.typeId
@@ -792,7 +792,8 @@ BXMedialibAdmin.prototype =
 		};
 
 		D.pWnd.style.width = D.width + 'px';
-		D.pWnd.style.height = D.height + 'px';
+		D.pWnd.style.height = 'auto';
+		D.pWnd.style.minHeight = '10px';
 		this.EditCollDialog = D;
 	},
 
@@ -1088,6 +1089,8 @@ BXMedialibAdmin.prototype =
 		this.ViewItDialog.bOpened = false;
 		this.ViewItDialog.pWnd.style.display = 'none';
 		this.ViewItDialog.pCopyInput.style.display = 'none';
+		if ((typeof videojs !== 'undefined') && (player = BX.findChild(BX('mlsd_item_cont'), {"class" : "video-js"}, false)))
+			videojs(player.id).pause();
         if (player = BX.findChild(BX('mlsd_item_cont'), {"tag" : "div"}, false) && typeof jwplayer !== 'undefined')
             jwplayer(player.id).stop();
         jsFloatDiv.Close(this.ViewItDialog.pWnd);
@@ -1109,10 +1112,30 @@ BXMedialibAdmin.prototype =
 
 		// Link
 		//D.pLink.href = oItem.path;
-		D.pLink.onclick = function () { jsUtils.Redirect([], 'fileman_file_download.php?path='+BX.util.urlencode(oItem.path)); };
 
-        D.pCopyLink.onclick = function() {
-            D.pCopyInput.value = oItem.path.substr(0,1) !== '/' ? oItem.path : window.location.protocol + '//' + window.location.host + oItem.path;
+		D.pLink.onclick = function () {
+
+			if(oItem.path_external && (oItem.path.substr(0,1) !== '/' || oItem.path !== oItem.path_external))
+			{
+				var link = oItem.path_external
+			}
+			else
+			{
+				link = 'fileman_file_download.php?path=' + BX.util.urlencode(oItem.path);
+			}
+			jsUtils.Redirect([], link);
+		};
+
+		D.pCopyLink.onclick = function() {
+			if(oItem.path_external && (oItem.path.substr(0,1) !== '/' || oItem.path !== oItem.path_external))
+			{
+				D.pCopyInput.value = oItem.path_external;
+			}
+			else
+			{
+				D.pCopyInput.value = window.location.protocol + '//' + window.location.host + oItem.path;
+			}
+
             D.pCopyInput.style.display = 'block';
             D.pCopyInput.select();
         };
@@ -2792,7 +2815,7 @@ BXMLSearch.prototype = {
 		this.Query = Query;
 		this.pResultContPar.style.display = 'block';
 		this.OpenResultCont();
-		this.pResultTitle.innerHTML = ML_MESS.SearchResultEx.replace('#SEARCH_QUERY#', Query);
+		this.pResultTitle.innerHTML = ML_MESS.SearchResultEx.replace('#SEARCH_QUERY#', BX.util.htmlspecialchars(Query));
 
 		// Clean
 		while(this.pResultCont.firstChild)

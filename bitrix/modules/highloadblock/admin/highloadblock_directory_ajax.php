@@ -1,13 +1,14 @@
 <?
+/** @global CUser $USER */
+/** @global CMain $APPLICATION */
 define('STOP_STATISTICS', true);
-define('NO_AGENT_CHECK', true);
 define('DisableEventsCheck', true);
 define('BX_SECURITY_SHOW_MESSAGE', true);
 define("PUBLIC_AJAX_MODE", true);
 define("NOT_CHECK_PERMISSIONS", true);
 
-use Bitrix\Main\Loader;
-use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\Loader,
+	Bitrix\Main\Localization\Loc;
 
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_before.php");
 Loc::loadMessages(__FILE__);
@@ -30,21 +31,24 @@ if ($USER->IsAuthorized() && check_bitrix_sessid() && isset($_REQUEST['IBLOCK_ID
 {
 	if (!Loader::includeModule('highloadblock') || !Loader::includeModule('iblock'))
 	{
-		echo CUtil::PhpToJsObject(array('ERROR' => 'SS_MODULE_NOT_INSTALLED'));
+		echo Bitrix\Main\Web\Json::encode(array('ERROR' => 'SS_MODULE_NOT_INSTALLED'));
+		require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/include/epilog_admin_after.php');
 		die();
 	}
 
 	$iblockID = (int)$_REQUEST['IBLOCK_ID'];
 	if ($iblockID < 0)
 	{
-		echo CUtil::PhpToJsObject(array('ERROR' => 'SS_IBLOCK_ID_ABSENT'));
+		echo Bitrix\Main\Web\Json::encode(array('ERROR' => 'SS_IBLOCK_ID_ABSENT'));
+		require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/include/epilog_admin_after.php');
 		die();
 	}
 	elseif ($iblockID === 0)
 	{
 		if (!$USER->IsAdmin())
 		{
-			echo CUtil::PhpToJsObject(array('ERROR' => 'SS_NO_ADMIN'));
+			echo Bitrix\Main\Web\Json::encode(array('ERROR' => 'SS_NO_ADMIN'));
+			require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/include/epilog_admin_after.php');
 			die();
 		}
 	}
@@ -62,21 +66,29 @@ if ($USER->IsAuthorized() && check_bitrix_sessid() && isset($_REQUEST['IBLOCK_ID
 		{
 			if (!CIBlockRights::UserHasRightTo($iblockID, $iblockID, "iblock_edit"))
 			{
-				echo CUtil::PhpToJsObject(array('ERROR' => 'SS_ACCESS_DENIED'));
+				echo Bitrix\Main\Web\Json::encode(array('ERROR' => 'SS_ACCESS_DENIED'));
+				require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/include/epilog_admin_after.php');
 				die();
 			}
 		}
 		else
 		{
-			echo CUtil::PhpToJsObject(array('ERROR' => 'SS_IBLOCK_ABSENT'));
+			echo Bitrix\Main\Web\Json::encode(array('ERROR' => 'SS_IBLOCK_ABSENT'));
+			require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/include/epilog_admin_after.php');
 			die();
 		}
 	}
 
 	CUtil::JSPostUnescape();
+
+	$multiple = 'N';
+	if (isset($_REQUEST['multiple']) && $_REQUEST['multiple'] === 'Y')
+		$multiple = 'Y';
+	$defaultValues['MULTIPLE'] = $multiple;
+
 	function addTableXmlIDCell($intPropID, $arPropInfo)
 	{
-		return '<input type="text" onblur="getDirectoryTableHead(this);" name="PROPERTY_DIRECTORY_VALUES['.$intPropID.'][UF_XML_ID]" id="PROPERTY_VALUES_XML_'.$intPropID.'" value="'.htmlspecialcharsbx($arPropInfo['UF_XML_ID']).'" size="15" maxlength="200" style="width:90%">';
+		return '<input type="text" onchange="getDirectoryTableHead(this);" name="PROPERTY_DIRECTORY_VALUES['.$intPropID.'][UF_XML_ID]" id="PROPERTY_VALUES_XML_'.$intPropID.'" value="'.htmlspecialcharsbx($arPropInfo['UF_XML_ID']).'" size="20" style="width:90%">';
 	}
 
 	function addTableIdCell($intPropID, $arPropInfo)
@@ -86,7 +98,7 @@ if ($USER->IsAuthorized() && check_bitrix_sessid() && isset($_REQUEST['IBLOCK_ID
 
 	function addTableNameCell($intPropID, $arPropInfo)
 	{
-		return '<input type="text" name="PROPERTY_DIRECTORY_VALUES['.$intPropID.'][UF_NAME]" id="PROPERTY_VALUES_NAME_'.$intPropID.'" value="'.htmlspecialcharsbx($arPropInfo['UF_NAME']).'" size="35" maxlength="255" style="width:90%">';
+		return '<input type="text" name="PROPERTY_DIRECTORY_VALUES['.$intPropID.'][UF_NAME]" id="PROPERTY_VALUES_NAME_'.$intPropID.'" value="'.htmlspecialcharsbx($arPropInfo['UF_NAME']).'" size="20" style="width:90%">';
 	}
 
 	function addTableLinkCell($intPropID, $arPropInfo)
@@ -145,17 +157,17 @@ if ($USER->IsAuthorized() && check_bitrix_sessid() && isset($_REQUEST['IBLOCK_ID
 
 	function addTableDefCell($intPropID, $arPropInfo)
 	{
-		return '<input type="'.('Y' == $arPropInfo['MULTIPLE'] ? 'checkbox' : 'radio').'" name="PROPERTY_VALUES_DEF'.('Y' == $arPropInfo['MULTIPLE'] ? '[]' : '').'" id="PROPERTY_VALUES_DEF_'.$intPropID.'" value="'.$arPropInfo['ID'].'" '.('1' == $arPropInfo['UF_DEF'] ? 'checked="checked"' : '').'>';
+		return '<input type="'.('Y' == $arPropInfo['MULTIPLE'] ? 'checkbox' : 'radio').'" name="PROPERTY_VALUES_DEF'.('Y' == $arPropInfo['MULTIPLE'] ? '[]' : '').'" id="PROPERTY_VALUES_DEF_'.$intPropID.'" value="'.$intPropID.'" '.('1' == $arPropInfo['UF_DEF'] ? 'checked="checked"' : '').'>';
 	}
 
 	function addTableDescriptionCell($intPropID, $arPropInfo)
 	{
-		return '<input type="text" name="PROPERTY_DIRECTORY_VALUES['.$intPropID.'][UF_DESCRIPTION]" id="PROPERTY_VALUES_DESCRIPTION_'.$intPropID.'" value="'.htmlspecialcharsbx($arPropInfo['UF_DESCRIPTION']).'" style="width:90%">';
+		return '<input type="text" name="PROPERTY_DIRECTORY_VALUES['.$intPropID.'][UF_DESCRIPTION]" id="PROPERTY_VALUES_DESCRIPTION_'.$intPropID.'" value="'.(is_string($arPropInfo['UF_DESCRIPTION']) ? htmlspecialcharsbx($arPropInfo['UF_DESCRIPTION']) : '').'" style="width:90%">';
 	}
 
 	function addTableFullDescriptionCell($intPropID, $arPropInfo)
 	{
-		return '<input type="text" name="PROPERTY_DIRECTORY_VALUES['.$intPropID.'][UF_FULL_DESCRIPTION]" id="PROPERTY_VALUES_FULL_DESCRIPTION_'.$intPropID.'" value="'.htmlspecialcharsbx($arPropInfo['UF_FULL_DESCRIPTION']).'" style="width:90%">';
+		return '<input type="text" name="PROPERTY_DIRECTORY_VALUES['.$intPropID.'][UF_FULL_DESCRIPTION]" id="PROPERTY_VALUES_FULL_DESCRIPTION_'.$intPropID.'" value="'.(is_string($arPropInfo['UF_FULL_DESCRIPTION']) ? htmlspecialcharsbx($arPropInfo['UF_FULL_DESCRIPTION']) : '').'" style="width:90%">';
 	}
 
 	function addTableDelField($intPropID)
@@ -340,6 +352,45 @@ if ($USER->IsAuthorized() && check_bitrix_sessid() && isset($_REQUEST['IBLOCK_ID
 		return $result;
 	}
 
+	function addEmptyDefaultRow($property, $fields)
+	{
+		if (empty($fields) || !isset($fields['UF_DEF']))
+			return '';
+
+		if ($property['MULTIPLE'] != 'N')
+			return '';
+
+		$result = '<tr id="hlbl_property_tr_empty">';
+
+		$leftSide = [
+			'UF_NAME' => true,
+			'UF_SORT' => true,
+			'UF_XML_ID' => true,
+			'UF_FILE' => true,
+			'UF_LINK' => true
+		];
+
+		$rightSide = [
+			'UF_DESCRIPTION' => true,
+			'UF_FULL_DESCRIPTION' => true
+		];
+
+		$countLeft = count(array_intersect_key($fields, $leftSide)) + 1;
+		$result .= '<td colspan="'.$countLeft.'" style="text-align: center;">'.Loc::getMessage('HIBLOCK_PROP_DIRECTORY_EMPTY_DEFAULT_VALUE').'</td>';
+
+		$result .= '<td style="text-align:center;">'.
+		'<input type="radio" name="PROPERTY_VALUES_DEF" id="PROPERTY_VALUES_DEF_EMPTY" value="-1" '.($property['UF_DEF'] == '1' ? 'checked="checked"' : '').'>'.
+		'</td>';
+
+		$countRight = count(array_intersect_key($fields, $rightSide));
+		if ($countRight > 0)
+			$result .= '<td colspan="'.$countRight.'">&nbsp;</td>';
+
+		$result .= '</tr>';
+
+		return $result;
+	}
+
 	$rowNumber = (int)(isset($_REQUEST['rowNumber']) ? $_REQUEST['rowNumber'] : 0);
 	$currentRowNumber = 0;
 	$colCount = 1;
@@ -348,18 +399,23 @@ if ($USER->IsAuthorized() && check_bitrix_sessid() && isset($_REQUEST['IBLOCK_ID
 	$entityDataClass = null;
 
 	$hlblockFields = $defaultValues;
+	$orderFields = array();
 	if ($hlBlockID !== '' && $hlBlockID !== '-1')
 	{
-		$hlblock = Bitrix\Highloadblock\HighloadBlockTable::getList(array("filter" => array("TABLE_NAME" => $hlBlockID)))->fetch();
+		$hlblock = Bitrix\Highloadblock\HighloadBlockTable::getList(array("filter" => array("=TABLE_NAME" => $hlBlockID)))->fetch();
 		$entity = Bitrix\Highloadblock\HighloadBlockTable::compileEntity($hlblock);
 		$entityDataClass = $entity->getDataClass();
 		$hlblockFields = $entityDataClass::getEntity()->getFields();
+		if (isset($hlblockFields['UF_SORT']))
+			$orderFields['UF_SORT'] = 'ASC';
+		if (isset($hlblockFields['UF_NAME']))
+			$orderFields['UF_NAME'] = 'ASC';
 	}
 
 	if (isset($_REQUEST['addEmptyRow']) && $_REQUEST['addEmptyRow'] === 'Y')
 	{
 		$APPLICATION->RestartBuffer();
-		echo CUtil::PhpToJSObject(addTableRow($rowNumber, $defaultValues, $hlblockFields, true));
+		echo Bitrix\Main\Web\Json::encode(addTableRow('n'.$rowNumber, $defaultValues, $hlblockFields, true));
 	}
 	else
 	{
@@ -369,20 +425,37 @@ if ($USER->IsAuthorized() && check_bitrix_sessid() && isset($_REQUEST['IBLOCK_ID
 			{
 				$result .= addHeadRow($hlblockFields, $colCount);
 			}
-			$exist = false;
-			$rsData = $entityDataClass::getList(array());
+
+			$existDefault = false;
+			$rowsList = '';
+			$rsData = $entityDataClass::getList(array(
+				'order' => $orderFields
+			));
 			while ($arData = $rsData->fetch())
 			{
-				$result .= addTableRow($rowNumber, $arData, $hlblockFields, false);
-				$currentRowNumber = $rowNumber;
-				$rowNumber++;
-				$exist = true;
+				if (isset($hlblockFields['UF_DEF']) && $arData['UF_DEF'] == '1')
+					$existDefault = true;
+
+				$arData['MULTIPLE'] = $multiple;
+				$rowsList .= addTableRow($arData['ID'], $arData, $hlblockFields, false);
 			}
-			if (!$exist)
-				$result .= addTableRow($rowNumber, $defaultValues, $hlblockFields, false);
+			unset($arData, $rsData);
+
+			$result .= addEmptyDefaultRow(
+				['MULTIPLE' => $multiple, 'UF_DEF' => ($existDefault ? '0' : '1')],
+				$hlblockFields
+			);
+
+			$result .= $rowsList;
+
+			if ($rowsList == '')
+				$result .= addTableRow('n'.$rowNumber, $defaultValues, $hlblockFields, false);
+
+			unset($rowsList);
 		}
 
-		$result .= '<tr style="display: none;"><td colspan="'.$colCount.'"><input type="hidden" id="IB_MAX_ROWS_COUNT" value="'.$currentRowNumber.'"></td></tr>';
+		$result .= '<tr style="display: none;"><td colspan="'.$colCount.'"><input type="hidden" id="IB_MAX_ROWS_COUNT" value="'.$rowNumber.'"></td></tr>';
 		echo $result;
 	}
 }
+require($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/include/epilog_admin_after.php');

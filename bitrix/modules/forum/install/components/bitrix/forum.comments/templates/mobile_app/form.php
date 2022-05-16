@@ -121,12 +121,12 @@ $APPLICATION->IncludeComponent("bitrix:main.post.form",
 				"ALLOW_UPLOAD_EXT" => $arParams["ALLOW_UPLOAD_EXT"]
 			)),
 
-			$arResult["USER_FIELDS"]["UF_FORUM_MESSAGE_DOC"],
-
+			array_merge((is_array($arResult["USER_FIELDS"]["UF_FORUM_MESSAGE_DOC"]) ? $arResult["USER_FIELDS"]["UF_FORUM_MESSAGE_DOC"] : array()), (is_array($arParams["USER_FIELDS_SETTINGS"]["UF_FORUM_MESSAGE_DOC"]) ? $arParams["USER_FIELDS_SETTINGS"]["UF_FORUM_MESSAGE_DOC"] : array())),
 		),
 		"SMILES" => array("VALUE" => $arSmiles),
 		"HTML_BEFORE_TEXTAREA" => $APPLICATION->GetViewContent(implode('_', array($tplID, 'EDIT', 'BEFORE'))).$html_before_textarea,
-		"HTML_AFTER_TEXTAREA" => $APPLICATION->GetViewContent(implode('_', array($tplID, 'EDIT', 'AFTER'))).$html_after_textarea
+		"HTML_AFTER_TEXTAREA" => $APPLICATION->GetViewContent(implode('_', array($tplID, 'EDIT', 'AFTER'))).$html_after_textarea,
+		"FORUM_CONTEXT" => (!empty($arParams["POST_CONTENT_TYPE_ID"]) ? $arParams["POST_CONTENT_TYPE_ID"] : '')
 	),
 	false,
 	array("HIDE_ICONS" => "Y")

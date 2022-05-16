@@ -35,8 +35,20 @@ create table b_sonet_group
   DATE_ACTIVITY datetime not null,
   CLOSED char(1) not null default 'N',
   SPAM_PERMS char(1) not null default 'K',
+	PROJECT char(1) not null default 'N',
+	PROJECT_DATE_START datetime null,
+	PROJECT_DATE_FINISH datetime null,
+	SEARCH_INDEX mediumtext null,
+	LANDING char(1) null,
   primary key (ID),
   index IX_SONET_GROUP_1(OWNER_ID)
+);
+
+create table b_sonet_group_tag (
+	GROUP_ID int(11) NOT NULL,
+	NAME varchar(255) NOT NULL,
+	PRIMARY KEY (GROUP_ID,NAME),
+	index IX_SONET_GROUP_TAG_2(`NAME`)
 );
 
 create table b_sonet_group_site
@@ -52,6 +64,7 @@ create table b_sonet_user2group
   USER_ID int not null,
   GROUP_ID int not null,
   ROLE char(1) not null default 'U',
+  AUTO_MEMBER char(1) not null default 'N',
   DATE_CREATE datetime not null,
   DATE_UPDATE datetime not null,
   INITIATED_BY_TYPE char(1) not null default 'U',
@@ -152,7 +165,6 @@ create table b_sonet_user_perms
   OPERATION_ID varchar(50) not null,
   RELATION_TYPE char(1) not null,
   primary key (ID),
-  index IX_SONET_USER_PERMS_1(USER_ID),
   unique IX_SONET_USER_PERMS_2(USER_ID, OPERATION_ID)
 );
 
@@ -164,7 +176,6 @@ create table b_sonet_user_events
   ACTIVE char(1) not null default 'Y',
   SITE_ID char(2) not null,
   primary key (ID),
-  index IX_SONET_USER_PERMS_1(USER_ID),
   unique IX_SONET_USER_PERMS_2(USER_ID, EVENT_ID)
 );
 
@@ -194,13 +205,18 @@ create table b_sonet_log
   RATING_TYPE_ID varchar(50) default NULL,
   RATING_ENTITY_ID int(11) default NULL,
   SOURCE_TYPE varchar(50) default NULL,
+  TRANSFORM char(1) default NULL,
+  INACTIVE char(1) default NULL,
   primary key (ID),
   index IX_SONET_LOG_1(ENTITY_TYPE, ENTITY_ID, EVENT_ID),
   index IX_SONET_LOG_2(USER_ID, LOG_DATE, EVENT_ID),
   index IX_SONET_LOG_3(SOURCE_ID),
   index IX_SONET_LOG_4(LOG_UPDATE),
   index IX_SONET_LOG_5(USER_ID, ENTITY_TYPE, LOG_UPDATE),
-  index IX_SONET_LOG_6(MODULE_ID)
+  index IX_SONET_LOG_6(MODULE_ID),
+  index IX_SONET_LOG_7(ENTITY_ID, EVENT_ID),
+  index IX_SONET_LOG_8(RATING_ENTITY_ID, RATING_TYPE_ID),
+  index IX_SONET_LOG_9(EXTERNAL_ID)
 );
 
 create table b_sonet_log_site
@@ -225,6 +241,7 @@ create table b_sonet_log_comment (
   URL varchar(500) default NULL,
   RATING_TYPE_ID varchar(50) default NULL,
   RATING_ENTITY_ID int(11) default NULL,
+  SHARE_DEST varchar(255) default NULL,
   primary key (ID),
   index IX_SONET_LOG_COMMENT_1(ENTITY_TYPE, ENTITY_ID, EVENT_ID),
   index IX_SONET_LOG_COMMENT_2(USER_ID, LOG_DATE, EVENT_ID),
@@ -247,7 +264,6 @@ create table b_sonet_log_events
   TRANSPORT char(1) NOT NULL default 'N',
   VISIBLE char(1) NOT NULL default 'Y',
   primary key (ID),
-  index IX_SONET_LOG_EVENTS_1(USER_ID),
   index IX_SONET_LOG_EVENTS_2(ENTITY_TYPE, ENTITY_ID, EVENT_ID),
   unique IX_SONET_LOG_EVENTS_3(USER_ID, ENTITY_TYPE, ENTITY_ID, ENTITY_CB, ENTITY_MY, EVENT_ID, SITE_ID),
   index IX_SONET_LOG_EVENTS_4(USER_ID, ENTITY_CB, ENTITY_ID),
@@ -272,9 +288,11 @@ create table if not exists b_sonet_log_right
 	ID int(11) not null auto_increment,
 	LOG_ID int(11) not null,
 	GROUP_CODE varchar(50) not null,
+	LOG_UPDATE datetime null,
 	primary key (ID),
 	unique ix_b_sonet_log_right_group_code(LOG_ID, GROUP_CODE),
-	index ix_b_sonet_log_right_group_log(GROUP_CODE, LOG_ID)
+	index ix_b_sonet_log_right_group_log(GROUP_CODE, LOG_ID),
+	index ix_b_sonet_log_right_logupdate (LOG_UPDATE)
 );
 
 create table b_sonet_log_counter
@@ -317,6 +335,15 @@ create table b_sonet_log_follow
 	index IX_SONET_FOLLOW_3(`CODE`, `TYPE`, `USER_ID`)
 );
 
+create table b_sonet_log_subscribe
+(
+	USER_ID int(11) not null,
+	LOG_ID int(11) not null,
+	TYPE char(3) not null,
+	END_DATE datetime,
+	primary key (USER_ID, LOG_ID, TYPE)
+);
+
 create table b_sonet_log_smartfilter
 (
 	USER_ID int(11) not null,
@@ -331,6 +358,14 @@ create table b_sonet_log_favorites
 	primary key (USER_ID, LOG_ID)
 );
 
+create table b_sonet_log_view
+(
+  USER_ID int(11) not null,
+  EVENT_ID varchar(50) not null,
+  TYPE char(1) not null default 'Y',
+  primary key (USER_ID, EVENT_ID)
+);
+
 create table b_sonet_subscription
 (
 	ID int(11) not null auto_increment,
@@ -338,4 +373,83 @@ create table b_sonet_subscription
 	CODE varchar(50) not null,
 	primary key (ID),
 	unique IX_SONET_SUBSCRIPTION_1(USER_ID, CODE)
-)
+);
+
+create table b_sonet_group_view
+(
+	USER_ID int(11) not null,
+	GROUP_ID int(11) not null,
+	DATE_VIEW datetime DEFAULT NULL,
+	primary key (USER_ID, GROUP_ID)
+);
+
+create table b_sonet_group_favorites
+(
+	USER_ID int(11) not null,
+	GROUP_ID int(11) not null,
+	DATE_ADD datetime DEFAULT NULL,
+	primary key (USER_ID, GROUP_ID)
+);
+
+create table b_sonet_log_index
+(
+	LOG_ID int(11) not null,
+	ITEM_TYPE varchar(10) not null default 'L',
+	ITEM_ID int(11) not null,
+	CONTENT text null,
+	LOG_UPDATE datetime null,
+	DATE_CREATE datetime null,
+	primary key (ITEM_TYPE, ITEM_ID),
+	index IX_SONET_LOG_INDEX_1(LOG_ID),
+	index IX_SONET_LOG_INDEX_2(LOG_UPDATE),
+	index IX_SONET_LOG_INDEX_3(DATE_CREATE)
+);
+
+create table b_sonet_user_content_view
+(
+	USER_ID int(11) not null,
+	RATING_TYPE_ID varchar(50) not null,
+	RATING_ENTITY_ID int(11) not null,
+	CONTENT_ID varchar(50) not null,
+	DATE_VIEW datetime DEFAULT NULL,
+	primary key (USER_ID, RATING_TYPE_ID, RATING_ENTITY_ID),
+	index IX_SONET_USER_CONTENT_VIEW_1(CONTENT_ID),
+	index IX_SONET_USER_CONTENT_VIEW_2(RATING_TYPE_ID, RATING_ENTITY_ID)
+);
+
+create table b_sonet_log_tag (
+	LOG_ID int(11) NOT NULL,
+	ITEM_TYPE varchar(10) not null default 'L',
+	ITEM_ID int(11) not null,
+	NAME varchar(255) NOT NULL,
+	PRIMARY KEY (ITEM_TYPE,ITEM_ID,NAME),
+	index IX_SONET_LOG_TAG_1(`LOG_ID`),
+	index IX_SONET_LOG_TAG_2(`NAME`)
+);
+
+create table b_sonet_user_tag (
+	USER_ID int(11) NOT NULL,
+	NAME varchar(255) NOT NULL,
+	PRIMARY KEY (`USER_ID`,`NAME`),
+	index IX_SONET_USER_TAG_1(`NAME`)
+);
+
+create table b_sonet_user_welltory (
+	ID int(11) not null auto_increment,
+	USER_ID int(11) NOT NULL,
+	STRESS tinyint NOT NULL,
+	STRESS_TYPE varchar(100) DEFAULT NULL,
+	STRESS_COMMENT varchar(255) DEFAULT NULL,
+	DATE_MEASURE datetime not null,
+	HASH varchar(100) DEFAULT NULL,
+	PRIMARY KEY (`ID`),
+	index IX_SONET_USER_STRESSLEVEL_1(`USER_ID`,`DATE_MEASURE`)
+);
+
+create table b_sonet_user_welltory_disclaimer (
+	ID int(11) not null auto_increment,
+	USER_ID int(11) NOT NULL,
+	DATE_SIGNED datetime not null,
+	PRIMARY KEY (`ID`),
+	index IX_SONET_USER_STRESSLEVEL_DISCLAIMER_1(`USER_ID`)
+);

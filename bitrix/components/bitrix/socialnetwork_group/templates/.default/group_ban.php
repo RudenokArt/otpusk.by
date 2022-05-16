@@ -13,6 +13,7 @@ $APPLICATION->IncludeComponent(
 		"PATH_TO_USER" => $arParams["PATH_TO_USER"],
 		"PATH_TO_GROUP" => $arResult["PATH_TO_GROUP"],
 		"PATH_TO_GROUP_EDIT" => $arResult["PATH_TO_GROUP_EDIT"],
+		"PATH_TO_GROUP_INVITE" => $arResult["PATH_TO_GROUP_INVITE"],
 		"PATH_TO_MESSAGES_CHAT" => $arParams["PATH_TO_MESSAGES_CHAT"],
 		"PATH_TO_VIDEO_CALL" => $arParams["PATH_TO_VIDEO_CALL"],
 		"PATH_TO_CONPANY_DEPARTMENT" => $arParams["PATH_TO_CONPANY_DEPARTMENT"],
@@ -31,6 +32,7 @@ $APPLICATION->IncludeComponent(
 		"CACHE_TYPE" => $arParams["CACHE_TYPE"],
 		"CACHE_TIME" => $arParams["CACHE_TIME"],
 		"GROUP_USE_BAN" => $arParams["GROUP_USE_BAN"],
+		"USE_AUTO_MEMBERS" => "Y"
 	),
 	$component 
 );

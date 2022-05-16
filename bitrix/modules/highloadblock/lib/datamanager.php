@@ -92,8 +92,22 @@ abstract class DataManager extends Entity\DataManager
 		$event = new Entity\Event($entity, self::EVENT_ON_ADD, array("fields"=>$data), true);
 		$event->send();
 
+		// insert base row
+		$connection = Main\Application::getConnection();
+
+		$tableName = $entity->getDBTableName();
+		$identity = $entity->getAutoIncrement();
+
+		$id = $connection->add($tableName, [$identity => new Main\DB\SqlExpression('DEFAULT')], $identity);
+
 		// format data before save
 		$fields = $USER_FIELD_MANAGER->getUserFields('HLBLOCK_'.$hlblock['ID']);
+
+		foreach ($fields as $k => $field)
+		{
+			$fields[$k]['VALUE_ID'] = $id;
+		}
+
 		list($data, $multiValues) = static::convertValuesBeforeSave($data, $fields);
 
 		// use save modifiers
@@ -104,15 +118,11 @@ abstract class DataManager extends Entity\DataManager
 		}
 
 		// save data
-		$connection = Main\Application::getConnection();
+		$helper = $connection->getSqlHelper();
+		$update = $helper->prepareUpdate($tableName, $data);
 
-		$tableName = $entity->getDBTableName();
-		$identity = $entity->getAutoIncrement();
-
-		$id = $connection->add($tableName, $data, $identity);
-
-		$result->setId($id);
-		$result->setData($data);
+		$sql = "UPDATE ".$helper->quote($tableName)." SET ".$update[0]." WHERE ".$helper->quote($identity)." = ".((int) $id);
+		$connection->queryExecute($sql, $update[1]);
 
 		// save multi values
 		if (!empty($multiValues))
@@ -128,18 +138,22 @@ abstract class DataManager extends Entity\DataManager
 			}
 		}
 
-		// build stamdard primary
+		// build standard primary
 		$primary = null;
 
 		if (!empty($id))
 		{
-			$primary = $id;
+			$primary = array($entity->getAutoIncrement() => $id);
 			static::normalizePrimary($primary);
 		}
 		else
 		{
 			static::normalizePrimary($primary, $data);
 		}
+
+		// fill result
+		$result->setPrimary($primary);
+		$result->setData($data);
 
 		//event after adding
 		$event = new Entity\Event($entity, self::EVENT_ON_AFTER_ADD, array("id"=>$id, "fields"=>$data));
@@ -242,7 +256,7 @@ abstract class DataManager extends Entity\DataManager
 		}
 		$where = implode(' AND ', $id);
 
-		$sql = "UPDATE ".$tableName." SET ".$update[0]." WHERE ".$where;
+		$sql = "UPDATE ".$helper->quote($tableName)." SET ".$update[0]." WHERE ".$where;
 		$connection->queryExecute($sql, $update[1]);
 
 		$result->setAffectedRowsCount($connection);
@@ -344,7 +358,7 @@ abstract class DataManager extends Entity\DataManager
 		}
 		$where = implode(' AND ', $id);
 
-		$sql = "DELETE FROM ".$tableName." WHERE ".$where;
+		$sql = "DELETE FROM ".$helper->quote($tableName)." WHERE ".$where;
 		$connection->queryExecute($sql);
 
 		$fields = $USER_FIELD_MANAGER->getUserFields('HLBLOCK_'.$hlblock['ID']);
@@ -394,7 +408,7 @@ abstract class DataManager extends Entity\DataManager
 		return $result;
 	}
 
-	protected function convertValuesBeforeSave($data, $userfields)
+	protected static function convertValuesBeforeSave($data, $userfields)
 	{
 		$multiValues = array();
 
@@ -431,7 +445,7 @@ abstract class DataManager extends Entity\DataManager
 			else
 			{
 				// remove empty (false) values
-				$tmpValue = array_filter($tmpValue, 'strlen');
+				$tmpValue = array_filter($tmpValue, array('static', 'isNotNull'));
 
 				$data[$k] = $tmpValue;
 				$multiValues[$k] = $tmpValue;
@@ -441,20 +455,51 @@ abstract class DataManager extends Entity\DataManager
 		return array($data, $multiValues);
 	}
 
-	protected function convertSingleValueBeforeSave($value, $userfield)
+	/**
+	 * Modify value before save.
+	 * @param mixed $value Value for converting.
+	 * @param array $userfield Field array.
+	 * @return boolean|null
+	 */
+	protected static function convertSingleValueBeforeSave($value, $userfield)
 	{
-		if(is_callable(array($userfield["USER_TYPE"]["CLASS_NAME"], "onbeforesave")))
+		if (!isset($userfield['USER_TYPE']) || !is_array($userfield['USER_TYPE']))
+		{
+			$userfield['USER_TYPE'] = array();
+		}
+
+		if (
+			isset($userfield['USER_TYPE']['CLASS_NAME']) &&
+			is_callable(array($userfield['USER_TYPE']['CLASS_NAME'], 'onbeforesave'))
+		)
 		{
 			$value = call_user_func_array(
-				array($userfield["USER_TYPE"]["CLASS_NAME"], "onbeforesave"), array($userfield, $value)
+				array($userfield['USER_TYPE']['CLASS_NAME'], 'onbeforesave'), array($userfield, $value)
 			);
 		}
 
-		if(strlen($value)<=0)
+		if (static::isNotNull($value))
 		{
-			$value = false;
+			return $value;
 		}
+		elseif (
+				isset($userfield['USER_TYPE']['BASE_TYPE']) &&
+				(
+					$userfield['USER_TYPE']['BASE_TYPE'] == 'int' ||
+					$userfield['USER_TYPE']['BASE_TYPE'] == 'double'
+				)
+		)
+		{
+			return null;
+		}
+		else
+		{
+			return false;
+		}
+	}
 
-		return $value;
+	protected static function isNotNull($value)
+	{
+		return !($value === null || $value === false || $value === '');
 	}
 }

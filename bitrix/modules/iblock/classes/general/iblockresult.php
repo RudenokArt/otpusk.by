@@ -1,10 +1,15 @@
 <?
 class CIBlockResult extends CDBResult
 {
+	/** @var bool|array */
 	var $arIBlockMultProps=false;
+	/** @var bool|array */
 	var $arIBlockConvProps=false;
+	/** @var bool|array */
 	var $arIBlockAllProps =false;
+	/** @var bool|array */
 	var $arIBlockNumProps =false;
+	/** @var bool|array */
 	var $arIBlockLongProps = false;
 
 	var $nInitialSize;
@@ -19,9 +24,19 @@ class CIBlockResult extends CDBResult
 	var $_LAST_IBLOCK_ID = "";
 	var $_FILTER_IBLOCK_ID = array();
 
+	public function __construct($res = null)
+	{
+		parent::__construct($res);
+	}
+
+	/**
+	 * @deprected
+	 *
+	 * @param $res
+	 */
 	function CIBlockResult($res)
 	{
-		parent::CDBResult($res);
+		self::__construct($res);
 	}
 
 	function SetUrlTemplates($DetailUrl = "", $SectionUrl = "", $ListUrl = "")
@@ -69,19 +84,17 @@ class CIBlockResult extends CDBResult
 
 	function Fetch()
 	{
-		/** @global CCacheManager $CACHE_MANAGER */
-		global $CACHE_MANAGER;
 		/** @global CDatabase $DB */
 		global $DB;
 		$res = parent::Fetch();
 
-		if(!is_object($this))
+		if(!isset($this) || !is_object($this))
 			return $res;
 
 		$arUpdate = array();
 		if($res)
 		{
-			if(is_array($this->arIBlockLongProps))
+			if(!empty($this->arIBlockLongProps) && is_array($this->arIBlockLongProps))
 			{
 				foreach($res as $k=>$v)
 				{
@@ -95,15 +108,15 @@ class CIBlockResult extends CDBResult
 
 			if(
 				isset($res["IBLOCK_ID"])
-				&& defined("BX_COMP_MANAGED_CACHE")
 				&& $res["IBLOCK_ID"] != $this->_LAST_IBLOCK_ID
+				&& defined("BX_COMP_MANAGED_CACHE")
 			)
 			{
 				CIBlock::registerWithTagCache($res["IBLOCK_ID"]);
 				$this->_LAST_IBLOCK_ID = $res["IBLOCK_ID"];
 			}
 
-			if(isset($res["ID"]) && $res["ID"] != "" && is_array($this->arIBlockMultProps))
+			if(isset($res["ID"]) && $res["ID"] != "" && !empty($this->arIBlockMultProps) && is_array($this->arIBlockMultProps))
 			{
 				foreach($this->arIBlockMultProps as $field_name => $db_prop)
 				{
@@ -186,13 +199,12 @@ class CIBlockResult extends CDBResult
 					}
 				}
 			}
-			if(is_array($this->arIBlockConvProps))
+			if(!empty($this->arIBlockConvProps) && is_array($this->arIBlockConvProps))
 			{
 				foreach($this->arIBlockConvProps as $strFieldName=>$arCallback)
 				{
 					if(is_array($res[$strFieldName]))
 					{
-
 						foreach($res[$strFieldName] as $key=>$value)
 						{
 							$arValue = call_user_func_array($arCallback["ConvertFromDB"], array($arCallback["PROPERTY"], array("VALUE"=>$value,"DESCRIPTION"=>"")));
@@ -206,7 +218,7 @@ class CIBlockResult extends CDBResult
 					}
 				}
 			}
-			if(is_array($this->arIBlockNumProps))
+			if(!empty($this->arIBlockNumProps) && is_array($this->arIBlockNumProps))
 			{
 				foreach($this->arIBlockNumProps as $field_name => $db_prop)
 				{
@@ -323,7 +335,7 @@ class CIBlockResult extends CDBResult
 							{
 								$rs = CIBlockSection::GetNavChain($this->arSectionContext["IBLOCK_ID"], $this->arSectionContext["ID"], array("ID", "IBLOCK_SECTION_ID", "CODE"));
 								while ($a = $rs->Fetch())
-									$arSectionPathCache[$this->arSectionContext["ID"]] .= urlencode($a["CODE"])."/";
+									$arSectionPathCache[$this->arSectionContext["ID"]] .= rawurlencode($a["CODE"])."/";
 
 							}
 							if(isset($arSectionPathCache[$this->arSectionContext["ID"]]))
@@ -398,8 +410,8 @@ class CIBlockResult extends CDBResult
 
 		$res = new _CIBElement;
 		$res->fields = $r;
-		if(count($this->arIBlockAllProps)>0)
-			$res->props  = $this->arIBlockAllProps;
+		if(!empty($this->arIBlockAllProps) && is_array($this->arIBlockAllProps))
+			$res->props = $this->arIBlockAllProps;
 		return $res;
 	}
 
@@ -414,8 +426,9 @@ class CIBlockResult extends CDBResult
 		{
 			if ($_REQUEST["mode"] == "excel")
 				return;
-
-			$nSize = CAdminResult::GetNavSize($this->table_id, $nPageSize);
+			$navResult = new CAdminResult(null, '');
+			$nSize = $navResult->GetNavSize($this->table_id, $nPageSize);
+			unset($navResult);
 			if(is_array($nPageSize))
 			{
 				$this->nInitialSize = $nPageSize["nPageSize"];
@@ -437,4 +450,3 @@ class CIBlockResult extends CDBResult
 		return parent::GetNavPrint($title, $show_allways, $StyleText, $template_path, $arDeleteParam);
 	}
 }
-?>

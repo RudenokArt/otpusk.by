@@ -33,6 +33,8 @@ class CAllIBlockRSS
 	{
 		global $APPLICATION;
 
+		$text = "";
+
 		$cacheKey = md5($SITE.$PORT.$PATH.$QUERY_STR);
 
 		$bValid = False;
@@ -52,56 +54,34 @@ class CAllIBlockRSS
 
 		if (!$bValid)
 		{
-			$FP = fsockopen($SITE, $PORT, $errno, $errstr, 120);
+			$http = new \Bitrix\Main\Web\HttpClient(array(
+				"socketTimeout" => 120,
+			));
+			$http->setHeader("User-Agent", "BitrixSMRSS");
+			$text = $http->get($SITE.":".$PORT.$PATH.(strlen($QUERY_STR) > 0? "?".$QUERY_STR: ""));
 
-			if ($FP)
+			if ($text)
 			{
-				$strVars = $QUERY_STR;
-				$strRequest = "GET ".$PATH.(strlen($strVars) > 0? "?".$strVars: "")." HTTP/1.0\r\n";
-				$strRequest.= "User-Agent: BitrixSMRSS\r\n";
-				$strRequest.= "Accept: */*\r\n";
-				$strRequest.= "Host: $SITE\r\n";
-				$strRequest.= "Accept-Language: en\r\n";
-				$strRequest.= "\r\n";
-				fputs($FP, $strRequest);
-
-				$headers = "";
-				while(!feof($FP))
-				{
-					$line = fgets($FP, 4096);
-					if($line == "\r\n")
-						break;
-					$headers .= $line;
-				}
-
-				$text = "";
-				while(!feof($FP))
-					$text .= fread($FP, 4096);
-
 				$rss_charset = "windows-1251";
 				if (preg_match("/<"."\?XML[^>]{1,}encoding=[\"']([^>\"']{1,})[\"'][^>]{0,}\?".">/i", $text, $matches))
 				{
 					$rss_charset = Trim($matches[1]);
 				}
-				elseif($headers)
+				else
 				{
-					if(preg_match("#^Content-Type:.*?charset=([a-zA-Z0-9-]+)#m", $headers, $match))
+					$headers = $http->getHeaders();
+					$ct = $headers->get("Content-Type");
+					if (preg_match("#charset=([a-zA-Z0-9-]+)#m", $ct, $match))
 						$rss_charset = $match[1];
 				}
 
 				$text = preg_replace("/<!DOCTYPE.*?>/i", "", $text);
 				$text = preg_replace("/<"."\\?XML.*?\\?".">/i", "", $text);
 				$text = $APPLICATION->ConvertCharset($text, $rss_charset, SITE_CHARSET);
-
-				fclose($FP);
-			}
-			else
-			{
-				$text = "";
 			}
 		}
 
-		if (strlen($text) > 0)
+		if ($text != "")
 		{
 			require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/classes/general/xml.php");
 			$objXML = new CDataXML();
@@ -205,46 +185,49 @@ class CAllIBlockRSS
 				}
 			}
 
-			foreach($arRes["item"] as $i => $arItem)
+			if (!empty($arRes["item"]) && is_array($arRes["item"]))
 			{
-				if(!is_array($arItem) || !is_array($arItem["#"]))
-					continue;
-
-				if(is_array($arItem["#"]["title"][0]["#"]))
-					$arItem["#"]["title"][0]["#"] = $arItem["#"]["title"][0]["#"]["cdata-section"][0]["#"];
-
-				if(is_array($arItem["#"]["description"][0]["#"]))
-					$arItem["#"]["description"][0]["#"] = $arItem["#"]["description"][0]["#"]["cdata-section"][0]["#"];
-				elseif(is_array($arItem["#"]["encoded"][0]["#"]))
-					$arItem["#"]["description"][0]["#"] = $arItem["#"]["encoded"][0]["#"]["cdata-section"][0]["#"];
-				$arResult["item"][$i]["description"] = $arItem["#"]["description"][0]["#"];
-
-				if(is_array($arItem["#"]["title"][0]["#"]))
-					$arItem["#"]["title"][0]["#"] = $arItem["#"]["title"][0]["#"]["cdata-section"][0]["#"];
-				$arResult["item"][$i]["title"] = $arItem["#"]["title"][0]["#"];
-
-				if(is_array($arItem["#"]["link"][0]["#"]))
-					$arItem["#"]["link"][0]["#"] = $arItem["#"]["link"][0]["#"]["cdata-section"][0]["#"];
-				$arResult["item"][$i]["link"] = $arItem["#"]["link"][0]["#"];
-
-				if ($arItem["#"]["enclosure"])
+				foreach ($arRes["item"] as $i => $arItem)
 				{
-					$arResult["item"][$i]["enclosure"]["url"] = $arItem["#"]["enclosure"][0]["@"]["url"];
-					$arResult["item"][$i]["enclosure"]["length"] = $arItem["#"]["enclosure"][0]["@"]["length"];
-					$arResult["item"][$i]["enclosure"]["type"] = $arItem["#"]["enclosure"][0]["@"]["type"];
-					if ($arItem["#"]["enclosure"][0]["@"]["width"])
-					{
-						$arResult["item"][$i]["enclosure"]["width"] = $arItem["#"]["enclosure"][0]["@"]["width"];
-					}
-					if ($arItem["#"]["enclosure"][0]["@"]["height"])
-					{
-						$arResult["item"][$i]["enclosure"]["height"] = $arItem["#"]["enclosure"][0]["@"]["height"];
-					}
-				}
-				$arResult["item"][$i]["category"] = $arItem["#"]["category"][0]["#"];
-				$arResult["item"][$i]["pubDate"] = $arItem["#"]["pubDate"][0]["#"];
+					if (!is_array($arItem) || !is_array($arItem["#"]))
+						continue;
 
-				$arRes["item"][$i] = $arItem;
+					if (is_array($arItem["#"]["title"][0]["#"]))
+						$arItem["#"]["title"][0]["#"] = $arItem["#"]["title"][0]["#"]["cdata-section"][0]["#"];
+
+					if (is_array($arItem["#"]["description"][0]["#"]))
+						$arItem["#"]["description"][0]["#"] = $arItem["#"]["description"][0]["#"]["cdata-section"][0]["#"];
+					elseif (is_array($arItem["#"]["encoded"][0]["#"]))
+						$arItem["#"]["description"][0]["#"] = $arItem["#"]["encoded"][0]["#"]["cdata-section"][0]["#"];
+					$arResult["item"][$i]["description"] = $arItem["#"]["description"][0]["#"];
+
+					if (is_array($arItem["#"]["title"][0]["#"]))
+						$arItem["#"]["title"][0]["#"] = $arItem["#"]["title"][0]["#"]["cdata-section"][0]["#"];
+					$arResult["item"][$i]["title"] = $arItem["#"]["title"][0]["#"];
+
+					if (is_array($arItem["#"]["link"][0]["#"]))
+						$arItem["#"]["link"][0]["#"] = $arItem["#"]["link"][0]["#"]["cdata-section"][0]["#"];
+					$arResult["item"][$i]["link"] = $arItem["#"]["link"][0]["#"];
+
+					if ($arItem["#"]["enclosure"])
+					{
+						$arResult["item"][$i]["enclosure"]["url"] = $arItem["#"]["enclosure"][0]["@"]["url"];
+						$arResult["item"][$i]["enclosure"]["length"] = $arItem["#"]["enclosure"][0]["@"]["length"];
+						$arResult["item"][$i]["enclosure"]["type"] = $arItem["#"]["enclosure"][0]["@"]["type"];
+						if ($arItem["#"]["enclosure"][0]["@"]["width"])
+						{
+							$arResult["item"][$i]["enclosure"]["width"] = $arItem["#"]["enclosure"][0]["@"]["width"];
+						}
+						if ($arItem["#"]["enclosure"][0]["@"]["height"])
+						{
+							$arResult["item"][$i]["enclosure"]["height"] = $arItem["#"]["enclosure"][0]["@"]["height"];
+						}
+					}
+					$arResult["item"][$i]["category"] = $arItem["#"]["category"][0]["#"];
+					$arResult["item"][$i]["pubDate"] = $arItem["#"]["pubDate"][0]["#"];
+
+					$arRes["item"][$i] = $arItem;
+				}
 			}
 		}
 		else
@@ -266,40 +249,43 @@ class CAllIBlockRSS
 				$arResult["image"]["height"] = $arRes["image"][0]["#"]["height"][0]["#"];
 			}
 
-			foreach($arRes["item"] as $i => $arItem)
+			if (!empty($arRes["item"]) && is_array($arRes["item"]))
 			{
-				if(!is_array($arItem) || !is_array($arItem["#"]))
-					continue;
-
-				if(is_array($arItem["#"]["title"][0]["#"]))
-					$arItem["#"]["title"][0]["#"] = $arItem["#"]["title"][0]["#"]["cdata-section"][0]["#"];
-
-				if(is_array($arItem["#"]["description"][0]["#"]))
-					$arItem["#"]["description"][0]["#"] = $arItem["#"]["description"][0]["#"]["cdata-section"][0]["#"];
-				elseif(is_array($arItem["#"]["encoded"][0]["#"]))
-					$arItem["#"]["description"][0]["#"] = $arItem["#"]["encoded"][0]["#"]["cdata-section"][0]["#"];
-				$arResult["item"][$i]["description"] = $arItem["#"]["description"][0]["#"];
-
-				$arResult["item"][$i]["title"] = $arItem["#"]["title"][0]["#"];
-				$arResult["item"][$i]["link"] = $arItem["#"]["link"][0]["#"];
-				if ($arItem["#"]["enclosure"])
+				foreach ($arRes["item"] as $i => $arItem)
 				{
-					$arResult["item"][$i]["enclosure"]["url"] = $arItem["#"]["enclosure"][0]["@"]["url"];
-					$arResult["item"][$i]["enclosure"]["length"] = $arItem["#"]["enclosure"][0]["@"]["length"];
-					$arResult["item"][$i]["enclosure"]["type"] = $arItem["#"]["enclosure"][0]["@"]["type"];
-					if ($arItem["#"]["enclosure"][0]["@"]["width"])
-					{
-						$arResult["item"][$i]["enclosure"]["width"] = $arItem["#"]["enclosure"][0]["@"]["width"];
-					}
-					if ($arItem["#"]["enclosure"][0]["@"]["height"])
-					{
-						$arResult["item"][$i]["enclosure"]["height"] = $arItem["#"]["enclosure"][0]["@"]["height"];
-					}
-				}
-				$arResult["item"][$i]["category"] = $arItem["#"]["category"][0]["#"];
-				$arResult["item"][$i]["pubDate"] = $arItem["#"]["pubDate"][0]["#"];
+					if (!is_array($arItem) || !is_array($arItem["#"]))
+						continue;
 
-				$arRes["item"][$i] = $arItem;
+					if (is_array($arItem["#"]["title"][0]["#"]))
+						$arItem["#"]["title"][0]["#"] = $arItem["#"]["title"][0]["#"]["cdata-section"][0]["#"];
+
+					if (is_array($arItem["#"]["description"][0]["#"]))
+						$arItem["#"]["description"][0]["#"] = $arItem["#"]["description"][0]["#"]["cdata-section"][0]["#"];
+					elseif (is_array($arItem["#"]["encoded"][0]["#"]))
+						$arItem["#"]["description"][0]["#"] = $arItem["#"]["encoded"][0]["#"]["cdata-section"][0]["#"];
+					$arResult["item"][$i]["description"] = $arItem["#"]["description"][0]["#"];
+
+					$arResult["item"][$i]["title"] = $arItem["#"]["title"][0]["#"];
+					$arResult["item"][$i]["link"] = $arItem["#"]["link"][0]["#"];
+					if ($arItem["#"]["enclosure"])
+					{
+						$arResult["item"][$i]["enclosure"]["url"] = $arItem["#"]["enclosure"][0]["@"]["url"];
+						$arResult["item"][$i]["enclosure"]["length"] = $arItem["#"]["enclosure"][0]["@"]["length"];
+						$arResult["item"][$i]["enclosure"]["type"] = $arItem["#"]["enclosure"][0]["@"]["type"];
+						if ($arItem["#"]["enclosure"][0]["@"]["width"])
+						{
+							$arResult["item"][$i]["enclosure"]["width"] = $arItem["#"]["enclosure"][0]["@"]["width"];
+						}
+						if ($arItem["#"]["enclosure"][0]["@"]["height"])
+						{
+							$arResult["item"][$i]["enclosure"]["height"] = $arItem["#"]["enclosure"][0]["@"]["height"];
+						}
+					}
+					$arResult["item"][$i]["category"] = $arItem["#"]["category"][0]["#"];
+					$arResult["item"][$i]["pubDate"] = $arItem["#"]["pubDate"][0]["#"];
+
+					$arRes["item"][$i] = $arItem;
+				}
 			}
 		}
 		return $arResult;
@@ -320,10 +306,10 @@ class CAllIBlockRSS
 	function ExtractProperties($str, &$arProps, &$arItem)
 	{
 		reset($arProps);
-		while (list($key, $val) = each($arProps))
+		foreach ($arProps as $key => $val)
 			$str = str_replace("#".$key."#", $val["VALUE"], $str);
 		reset($arItem);
-		while (list($key, $val) = each($arItem))
+		foreach ($arItem as $key => $val)
 			$str = str_replace("#".$key."#", $val, $str);
 		return $str;
 	}
@@ -356,4 +342,3 @@ class CAllIBlockRSS
 		echo "</rss>\n";
 	}
 }
-?>

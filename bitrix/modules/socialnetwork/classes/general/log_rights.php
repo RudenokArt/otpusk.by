@@ -1,9 +1,13 @@
 <?
+use Bitrix\Socialnetwork\LogTable;
+
 class CSocNetLogRights
 {
-	function Add($LOG_ID, $GROUP_CODE, $bShare = false, $followSet = true)
+	public static function Add($LOG_ID, $GROUP_CODE, $bShare = false, $followSet = true)
 	{
-		global $DB;
+		global $DB, $CACHE_MANAGER;
+
+		static $logDataCache = array();
 
 		if (is_array($GROUP_CODE))
 		{
@@ -24,12 +28,37 @@ class CSocNetLogRights
 				}
 			}
 
-			$NEW_RIGHT_ID = $DB->Add(
+			if (!isset($logDataCache[$LOG_ID]))
+			{
+				$res = LogTable::getList(array(
+					'filter' => array(
+						'ID' => $LOG_ID
+					),
+					'select' => array('LOG_UPDATE')
+				));
+				if ($logEntry = $res->fetch())
+				{
+					$logDataCache[$LOG_ID] = $logEntry;
+				}
+			}
+
+			$fields = array(
+				"LOG_ID" => $LOG_ID,
+				"GROUP_CODE" => $GROUP_CODE,
+			);
+
+			if (
+				!empty($logDataCache[$LOG_ID])
+				&& !empty($logDataCache[$LOG_ID]['LOG_UPDATE'])
+				&& ($logDataCache[$LOG_ID]['LOG_UPDATE'] instanceof \Bitrix\Main\Type\DateTime)
+			)
+			{
+				$fields['LOG_UPDATE'] = $logDataCache[$LOG_ID]['LOG_UPDATE']->toString();
+			}
+
+			$NEW_RIGHT_ID = $DB->add(
 				"b_sonet_log_right",
-				array(
-					"LOG_ID" => $LOG_ID,
-					"GROUP_CODE" => $GROUP_CODE,
-				),
+				$fields,
 				array(),
 				"",
 				true // ignore errors
@@ -41,7 +70,14 @@ class CSocNetLogRights
 				{
 					if($followSet)
 					{
-						CSocNetLogFollow::Set($matches[1], "L".$LOG_ID, "Y", ConvertTimeStamp(time() + CTimeZone::GetOffset(), "FULL", SITE_ID));
+						\Bitrix\Socialnetwork\ComponentHelper::userLogSubscribe(array(
+							'logId' => $LOG_ID,
+							'userId' => $matches[1],
+							'typeList' => array(
+								'FOLLOW',
+							),
+							'followDate' => 'CURRENT'
+						));
 					}
 				}
 				elseif (
@@ -133,7 +169,11 @@ class CSocNetLogRights
 
 			if(defined("BX_COMP_MANAGED_CACHE"))
 			{
-				$GLOBALS["CACHE_MANAGER"]->ClearByTag("SONET_LOG_".intval($LOG_ID));
+				$CACHE_MANAGER->ClearByTag("SONET_LOG_".intval($LOG_ID));
+			}
+			if (\Bitrix\Main\Loader::includeModule('landing'))
+			{
+				\Bitrix\Socialnetwork\Integration\Landing\Livefeed::onSocNetLogRightsAddHandler($GROUP_CODE);
 			}
 
 			return $NEW_RIGHT_ID;
@@ -180,7 +220,7 @@ class CSocNetLogRights
 		$DB->Query("DELETE FROM b_sonet_log_right WHERE ID = ".$RIGHT_ID);
 	}
 
-	function DeleteByLogID($LOG_ID)
+	public static function DeleteByLogID($LOG_ID)
 	{
 		global $DB;
 
@@ -194,7 +234,7 @@ class CSocNetLogRights
 		}
 	}
 
-	function GetList($aSort=array(), $aFilter=array())
+	public static function GetList($aSort=array(), $aFilter=array())
 	{
 		global $DB;
 
@@ -258,7 +298,7 @@ class CSocNetLogRights
 		return $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 	}
 
-	function SetForSonet($logID, $entity_type, $entity_id, $feature, $operation, $bNew = false)
+	public static function SetForSonet($logID, $entity_type, $entity_id, $feature, $operation, $bNew = false)
 	{
 		$bFlag = true;
 		if (!$bNew)
@@ -276,6 +316,7 @@ class CSocNetLogRights
 			$perm = CSocNetFeaturesPerms::GetOperationPerm($entity_type, $entity_id, $feature, $operation);
 			if ($perm)
 			{
+				$extranet_site_id = false;
 				if (CModule::IncludeModule("extranet") && $extranet_site_id = CExtranet::GetExtranetSiteID())
 				{
 					$arLogSites = array();
@@ -291,7 +332,7 @@ class CSocNetLogRights
 					}
 				}
 
-				if ($bExtranet)
+				if ($bExtranet && $extranet_site_id)
 				{
 					if ($entity_type == SONET_ENTITY_GROUP && $perm == SONET_ROLES_OWNER)
 						CSocNetLogRights::Add($logID, array("SA", "S".SONET_ENTITY_GROUP.$entity_id, "S".SONET_ENTITY_GROUP.$entity_id."_".SONET_ROLES_OWNER));
@@ -366,27 +407,48 @@ class CSocNetLogRights
 		}
 	}
 
-	function CheckForUser($logID, $userID, $siteID = SITE_ID)
+	public static function CheckForUser($logID, $userID)
 	{
-		$strSql = "SELECT SLR.ID FROM b_sonet_log_right SLR
-			INNER JOIN b_user_access UA ON 0=1 ".
-//			(CSocNetUser::IsUserModuleAdmin($userID, $siteID) ? " OR SLR.GROUP_CODE = 'SA'" : "").
-			(intval($userID) > 0 ? " OR (SLR.GROUP_CODE = 'AU')" : "").
-			" OR (SLR.GROUP_CODE = 'G2')".
-			(intval($userID) > 0 ? " OR (UA.ACCESS_CODE = SLR.GROUP_CODE AND UA.USER_ID = ".intval($userID).")" : "")."
-			WHERE SLR.LOG_ID = ".intval($logID);
+		global $DB;
 
-		$result = $GLOBALS["DB"]->Query($strSql, false, "FILE: ".__FILE__."<br> LINE: ".__LINE__);
-		if ($ar = $result->Fetch())
+		$userID = intval($userID);
+
+		$strSql = "SELECT SLR.ID FROM b_sonet_log_right SLR
+			WHERE 
+				SLR.LOG_ID = ".intval($logID)."
+				AND 
+					SLR.GROUP_CODE IN ('G2'".($userID > 0 ? ", 'AU'" : "").")
+				
+			";
+		$result = $DB->Query($strSql, false, "FILE: ".__FILE__."<br> LINE: ".__LINE__);
+		if ($ar = $result->fetch())
 		{
 			return true;
 		}
 
+		if ($userID > 0)
+		{
+			$strSql = "SELECT SLR.ID FROM b_sonet_log_right SLR
+				INNER JOIN b_user_access UA ON UA.ACCESS_CODE = SLR.GROUP_CODE 
+				WHERE 
+					SLR.LOG_ID = ".intval($logID)."
+					AND UA.USER_ID = ".$userID."
+			";
+
+			$result = $DB->Query($strSql, false, "FILE: ".__FILE__."<br> LINE: ".__LINE__);
+			if ($ar = $result->fetch())
+			{
+				return true;
+			}
+		}
+
 		return false;
 	}
-	
-	function CheckForUserAll($logID)
+
+	public static function CheckForUserAll($logID)
 	{
+		global $DB;
+
 		$strSql = "SELECT SLR.ID FROM b_sonet_log_right SLR
 			WHERE 
 			SLR.LOG_ID = ".intval($logID)." 
@@ -395,7 +457,7 @@ class CSocNetLogRights
 				OR (SLR.GROUP_CODE = 'G2')
 			)";
 
-		$result = $GLOBALS["DB"]->Query($strSql, false, "FILE: ".__FILE__."<br> LINE: ".__LINE__);
+		$result = $DB->Query($strSql, false, "FILE: ".__FILE__."<br> LINE: ".__LINE__);
 		if($ar = $result->Fetch())
 		{
 			return true;
@@ -404,8 +466,10 @@ class CSocNetLogRights
 		return false;
 	}
 	
-	function CheckForUserOnly($logID, $userID)
+	public static function CheckForUserOnly($logID, $userID)
 	{
+		global $DB;
+
 		if (
 			intval($logID) <= 0
 			|| intval($userID) <= 0
@@ -416,14 +480,14 @@ class CSocNetLogRights
 			INNER JOIN b_user_access UA ON 0=1 OR (UA.ACCESS_CODE = SLR.GROUP_CODE AND UA.USER_ID = ".intval($userID).") 
 			WHERE SLR.LOG_ID = ".intval($logID);
 
-		$result = $GLOBALS["DB"]->Query($strSql, false, "FILE: ".__FILE__."<br> LINE: ".__LINE__);
+		$result = $DB->Query($strSql, false, "FILE: ".__FILE__."<br> LINE: ".__LINE__);
 		if($ar = $result->Fetch())
 		{
 			return true;
 		}
 
 		return false;
-	}	
+	}
 
 }
 ?>

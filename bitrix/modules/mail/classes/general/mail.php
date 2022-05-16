@@ -1,4 +1,7 @@
 <?
+
+use Bitrix\Mail\Helper\MailContact;
+
 IncludeModuleLangFile(__FILE__);
 
 global $BX_MAIL_ERRORs, $B_MAIL_MAX_ALLOWED;
@@ -25,10 +28,13 @@ class CMail
 	const ERR_API_LONG_NAME          = 113;
 	const ERR_API_LONG_PASSWORD      = 114;
 	const ERR_API_OP_DENIED          = 115;
+	const ERR_API_OLD_TOKEN          = 116;
 
 	const ERR_API_DOMAIN_OCCUPIED    = 201;
 	const ERR_API_BAD_DOMAIN         = 202;
 	const ERR_API_PROHIBITED_DOMAIN  = 203;
+
+	const ERR_ENTRY_NOT_FOUND        = 301;
 
 	const F_DOMAIN_LOGO = 1;
 	const F_DOMAIN_REG  = 2;
@@ -67,12 +73,16 @@ class CMail
 				return GetMessage('MAIL_ERR_API_LONG_PASSWORD');
 			case self::ERR_API_OP_DENIED:
 				return GetMessage('MAIL_ERR_API_OP_DENIED');
+			case self::ERR_API_OLD_TOKEN:
+				return getMessage('MAIL_ERR_API_OLD_TOKEN');
 			case self::ERR_API_DOMAIN_OCCUPIED:
 				return GetMessage('MAIL_ERR_API_DOMAIN_OCCUPIED');
 			case self::ERR_API_BAD_DOMAIN:
 				return GetMessage('MAIL_ERR_API_BAD_DOMAIN');
 			case self::ERR_API_PROHIBITED_DOMAIN:
 				return GetMessage('MAIL_ERR_API_PROHIBITED_DOMAIN');
+			case self::ERR_ENTRY_NOT_FOUND:
+				return GetMessage('MAIL_ERR_ENTRY_NOT_FOUND');
 			default:
 				return GetMessage('MAIL_ERR_DEFAULT');
 		}
@@ -93,6 +103,27 @@ class CMail
 		$selectResult = CMailbox::getList(array(), array('USER_ID' => intval($id)));
 		while ($mailbox = $selectResult->fetch())
 			CMailbox::delete($mailbox['ID']);
+	}
+
+	public static function option($name, $value = null)
+	{
+		static $options;
+
+		if (!is_scalar($name))
+			throw new \Bitrix\Main\ArgumentTypeException('name');
+
+		if (is_null($options))
+			$options = array();
+
+		if (is_null($value))
+		{
+			return array_key_exists($name, $options) ? $options[$name] : null;
+		}
+		else
+		{
+			$options[$name] = $value;
+			return $value;
+		}
 	}
 
 }
@@ -149,7 +180,7 @@ class CMailError
 }
 
 
-class _CMailBoxDBRes  extends CDBResult
+class _CMailBoxDBRes extends CDBResult
 {
 	function _CMailBoxDBRes($res)
 	{
@@ -160,7 +191,20 @@ class _CMailBoxDBRes  extends CDBResult
 	{
 		if($res = parent::Fetch())
 		{
-			$res["PASSWORD"] = CMailUtil::Decrypt($res["PASSWORD"]);
+			$entity = \Bitrix\Mail\MailboxTable::getEntity();
+
+			foreach ($res as $alias => $value)
+			{
+				if (!$entity->hasField($alias))
+				{
+					continue;
+				}
+
+				foreach ($entity->getField($alias)->getFetchDataModifiers() as $modifier)
+				{
+					$res[$alias] = call_user_func_array($modifier, array($res[$alias], $this, $res, $alias));
+				}
+			}
 		}
 		return $res;
 	}
@@ -181,8 +225,7 @@ class CAllMailBox
 	public $new_mess_count = 0;
 	public $deleted_mess_count = 0;
 
-
-	function GetList($arOrder=Array(), $arFilter=Array())
+	public static function GetList($arOrder=Array(), $arFilter=Array())
 	{
 		global $DB;
 		$strSql =
@@ -401,13 +444,7 @@ class CAllMailBox
 			$arMsg[] = array('id' => 'PASSWORD', 'text' => GetMessage('MAIL_CL_ERR_NAME').' "'.GetMessage('MAIL_CL_PASSWORD').'"');
 		}
 
-		if (strtolower($arFields['SERVER_TYPE']) == 'imap' && is_set($arFields, 'LINK') && strlen($arFields['LINK']) < 1)
-		{
-			CMailError::SetError('B_MAIL_ERR_LINK', GetMessage('MAIL_CL_ERR_NAME').' "'.GetMessage('MAIL_CL_LINK').'"');
-			$arMsg[] = array('id' => 'LINK', 'text' => GetMessage('MAIL_CL_ERR_NAME').' "'.GetMessage('MAIL_CL_LINK').'"');
-		}
-
-		if (in_array(strtolower($arFields['SERVER_TYPE']), array('imap', 'controller', 'domain', 'crdomain')) && is_set($arFields, 'USER_ID') && strlen($arFields['USER_ID']) < 1)
+		if (in_array(strtolower($arFields['SERVER_TYPE']), array('controller', 'domain', 'crdomain')) && is_set($arFields, 'USER_ID') && $arFields['USER_ID'] < 1)
 		{
 			CMailError::SetError('B_MAIL_ERR_USER_ID', GetMessage('MAIL_CL_ERR_NAME').' "'.GetMessage('MAIL_CL_USER_ID').'"');
 			$arMsg[] = array('id' => 'USER_ID', 'text' => GetMessage('MAIL_CL_ERR_NAME').' "'.GetMessage('MAIL_CL_USER_ID').'"');
@@ -447,7 +484,7 @@ class CAllMailBox
 			$arMsg[] = array('id' => 'LID', 'text' => GetMessage('MAIL_CL_ERR_BAD_LANG_NX'));
 		}
 
-		if ($arFields['USER_ID'])
+		if (in_array(strtolower($arFields['SERVER_TYPE']), array('imap', 'controller', 'domain', 'crdomain')))
 		{
 			if (is_set($arFields, 'SERVICE_ID'))
 			{
@@ -491,39 +528,41 @@ class CAllMailBox
 		global $DB;
 		CMailError::ResetErrors();
 
-		if($arFields["ACTIVE"]!="Y")
-			$arFields["ACTIVE"]="N";
+		$arFields = array_filter($arFields, 'is_set');
 
-		if($arFields["DELETE_MESSAGES"]!="Y")
-			$arFields["DELETE_MESSAGES"]="N";
+		if($arFields["ACTIVE"] != "Y")
+			$arFields["ACTIVE"] = "N";
 
-		if($arFields["USE_MD5"]!="Y")
-			$arFields["USE_MD5"]="N";
+		if($arFields["DELETE_MESSAGES"] != "Y")
+			$arFields["DELETE_MESSAGES"] = "N";
+
+		if($arFields["USE_MD5"] != "Y")
+			$arFields["USE_MD5"] = "N";
 
 		if ($arFields['USE_TLS'] != 'Y' && $arFields['USE_TLS'] != 'S')
-			$arFields["USE_TLS"]="N";
+			$arFields["USE_TLS"] = "N";
 
 		if (!in_array($arFields["SERVER_TYPE"], array("pop3", "smtp", "imap", "controller", "domain", "crdomain")))
 			$arFields["SERVER_TYPE"] = "pop3";
 
-		if(!CMailBox::CheckFields($arFields))
+		if (!CMailBox::CheckFields($arFields))
 			return false;
 
-		if(is_set($arFields, "PASSWORD"))
-			$arFields["PASSWORD"]=CMailUtil::Crypt($arFields["PASSWORD"]);
-
+		$ID = \Bitrix\Mail\MailboxTable::add($arFields)->getId();
 		if ($arFields['ACTIVE'] == 'Y' && $arFields['USER_ID'] != 0)
 		{
 			CUserCounter::Clear($arFields['USER_ID'], 'mail_unseen', $arFields['LID']);
-
-			CUserOptions::SetOption('global', 'last_mail_check_'.$arFields['LID'], 0, false, $arFields['USER_ID']);
-			CUserOptions::DeleteOption('global', 'last_mail_check_success_'.$arFields['LID'], false, $arFields['USER_ID']);
+			$mailboxSyncManager = new \Bitrix\Mail\Helper\Mailbox\MailboxSyncManager($arFields['USER_ID']);
+			$mailboxSyncManager->setDefaultSyncData($ID);
+		}
+		if (in_array($arFields['SERVER_TYPE'], array('imap', 'controller', 'domain', 'crdomain')))
+		{
+			\CAgent::addAgent(sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $ID), 'mail', 'N', (int) $arFields['PERIOD_CHECK'] * 60);
+			\CAgent::addAgent(sprintf('Bitrix\Mail\Helper::cleanupMailboxAgent(%u);', $ID), 'mail', 'N', 3600 * 24);
 		}
 
-		$ID = $DB->Add("b_mail_mailbox", $arFields);
-
-		if(intval($arFields["PERIOD_CHECK"])>0 && $arFields["SERVER_TYPE"]=="pop3")
-			CAgent::AddAgent("CMailbox::CheckMailAgent(".$ID.");", "mail", "N", intval($arFields["PERIOD_CHECK"])*60);
+		if ($arFields['SERVER_TYPE'] == 'pop3' && (int) $arFields['PERIOD_CHECK'] > 0)
+			CAgent::addAgent(sprintf('CMailbox::CheckMailAgent(%u);', $ID), 'mail', 'N', (int) $arFields['PERIOD_CHECK']*60);
 
 		CMailbox::SMTPReload();
 		return $ID;
@@ -531,11 +570,11 @@ class CAllMailBox
 
 	function Update($ID, $arFields)
 	{
-		global $DB;
-
 		$ID = IntVal($ID);
 
 		CMailError::ResetErrors();
+
+		$arFields = array_filter($arFields, 'is_set');
 
 		if(is_set($arFields, "ACTIVE") && $arFields["ACTIVE"]!="Y")
 			$arFields["ACTIVE"]="N";
@@ -555,19 +594,26 @@ class CAllMailBox
 		if(!CMailBox::CheckFields($arFields, $ID))
 			return false;
 
-		if(is_set($arFields, "PASSWORD"))
-			$arFields["PASSWORD"]=CMailUtil::Crypt($arFields["PASSWORD"]);
+		$mbox = \Bitrix\Mail\MailboxTable::getRowById($ID);
 
-		$db_mbox = CMailbox::GetList(array('ID' => $ID));
-		if (($mbox = $db_mbox->fetch()) !== false)
+		$serverType  = is_set($arFields, 'SERVER_TYPE') ? $arFields['SERVER_TYPE'] : $mbox['SERVER_TYPE'];
+		$periodCheck = is_set($arFields, 'PERIOD_CHECK') ? $arFields['PERIOD_CHECK'] : $mbox['PERIOD_CHECK'];
+
+		if (!empty($mbox))
 		{
 			$userChanged = isset($arFields['USER_ID']) && $mbox['USER_ID'] != $arFields['USER_ID'];
 			$siteChanged = isset($arFields['LID']) && $mbox['LID'] != $arFields['LID'];
 
 			if ($userChanged || $siteChanged)
 			{
-				if ($mbox['ACTIVE'] == 'Y' && $mbox['USER_ID'] != 0)
-					CUserOptions::DeleteOption('global', 'last_mail_check_'.$mbox['LID'], false, $mbox['USER_ID']);
+				if ($mbox['ACTIVE'] == 'Y')
+				{
+					if ($mbox['USER_ID'] > 0)
+					{
+						$mailboxSyncManager = new \Bitrix\Mail\Helper\Mailbox\MailboxSyncManager($mbox['USER_ID']);
+						$mailboxSyncManager->deleteSyncData($mbox['ID']);
+					}
+				}
 
 				$newActive = isset($arFields['ACTIVE']) ? $arFields['ACTIVE'] : $mbox['ACTIVE'];
 				if ($newActive == 'Y')
@@ -575,11 +621,12 @@ class CAllMailBox
 					$newUserId = isset($arFields['USER_ID']) ? $arFields['USER_ID'] : $mbox['USER_ID'];
 					$newSiteId = isset($arFields['LID']) ? $arFields['LID'] : $mbox['LID'];
 
-					CUserOptions::SetOption('global', 'last_mail_check_'.$newSiteId, 0, false, $newUserId);
-					CUserOptions::DeleteOption('global', 'last_mail_check_success_'.$newSiteId, false, $newUserId);
+					if ($newUserId > 0)
+					{
+						$mailboxSyncManager = new \Bitrix\Mail\Helper\Mailbox\MailboxSyncManager($newUserId);
+						$mailboxSyncManager->setDefaultSyncData($mbox['ID']);
+					}
 				}
-
-				CUserOptions::DeleteOption('global', 'last_mail_check_success_'.$mbox['LID'], false, $mbox['USER_ID']);
 			}
 
 			if ($mbox['USER_ID'] != 0 || isset($arFields['USER_ID']) && $arFields['USER_ID'] != 0)
@@ -597,18 +644,20 @@ class CAllMailBox
 			}
 		}
 
-		CAgent::RemoveAgent("CMailbox::CheckMailAgent(".$ID.");", "mail");
-		if(intval($arFields["PERIOD_CHECK"])>0 && $arFields["SERVER_TYPE"]=="pop3")
-			CAgent::AddAgent("CMailbox::CheckMailAgent(".$ID.");", "mail", "N", intval($arFields["PERIOD_CHECK"])*60);
+		\CAgent::removeAgent(sprintf('CMailbox::CheckMailAgent(%u);', $ID), 'mail');
+		\CAgent::removeAgent(sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $ID), 'mail');
+		\CAgent::removeAgent(sprintf('Bitrix\Mail\Helper::cleanupMailboxAgent(%u);', $ID), 'mail');
 
-		$strUpdate = $DB->PrepareUpdate("b_mail_mailbox", $arFields);
+		\Bitrix\Mail\MailboxTable::update($ID, $arFields);
 
-		$strSql =
-			"UPDATE b_mail_mailbox SET ".
-				$strUpdate." ".
-			"WHERE ID=".$ID;
+		if (in_array($serverType, array('imap', 'controller', 'domain', 'crdomain')))
+		{
+			\CAgent::addAgent(sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $ID), 'mail', 'N', (int) $periodCheck*60);
+			\CAgent::addAgent(sprintf('Bitrix\Mail\Helper::cleanupMailboxAgent(%u);', $ID), 'mail', 'N', 3600 * 24);
+		}
 
-		$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
+		if ($serverType == 'pop3' && (int) $periodCheck > 0)
+			CAgent::addAgent(sprintf('CMailbox::CheckMailAgent(%u);', $ID), 'mail', 'N', (int) $periodCheck*60);
 
 		CMailbox::SMTPReload();
 		return true;
@@ -618,7 +667,12 @@ class CAllMailBox
 	{
 		global $DB;
 		$ID = IntVal($ID);
-		$db_msg = CMailMessage::GetList(Array(), Array("MAILBOX_ID"=>$ID));
+
+		Bitrix\Main\Loader::includeModule('mail');
+		$db_msg = Bitrix\Mail\MailMessageTable::getList(array(
+			'select' => array('ID'),
+			'filter' => array('MAILBOX_ID' => $ID)
+		));
 		while($msg = $db_msg->Fetch())
 		{
 			if(!CMailMessage::Delete($msg["ID"]))
@@ -632,27 +686,34 @@ class CAllMailBox
 				return false;
 		}
 
-		$db_log = CMailLog::GetList(Array(), Array("MAILBOX_ID"=>$ID));
-		while($log = $db_log->Fetch())
-		{
-			if(!CMailLog::Delete($log["ID"]))
-				return false;
-		}
-
-		$db_mbox = CMailbox::GetList(array('ID' => $ID, 'ACTIVE' => 'Y', '!USER_ID' => 0));
+		$db_mbox = \CMailbox::getList(array('ID' => $ID, 'ACTIVE' => 'Y'));
 		if ($mbox = $db_mbox->fetch())
 		{
-			CUserCounter::Clear($mbox['USER_ID'], 'mail_unseen', $mbox['LID']);
-
-			CUserOptions::DeleteOption('global', 'last_mail_check_'.$mbox['LID'], false, $mbox['USER_ID']);
-			CUserOptions::DeleteOption('global', 'last_mail_check_success_'.$mbox['LID'], false, $mbox['USER_ID']);
+			if ($mbox['USER_ID'] > 0)
+			{
+				\CUserCounter::clear($mbox['USER_ID'], 'mail_unseen', $mbox['LID']);
+				$mailboxSyncManager = new \Bitrix\Mail\Helper\Mailbox\MailboxSyncManager($mbox['USER_ID']);
+				$mailboxSyncManager->deleteSyncData($ID);
+			}
 		}
 
-		CAgent::RemoveAgent("CMailbox::CheckMailAgent(".$ID.");", "mail");
+		\CAgent::removeAgent(sprintf('CMailbox::CheckMailAgent(%u);', $ID), 'mail');
+		\CAgent::removeAgent(sprintf('Bitrix\Mail\Helper::syncMailboxAgent(%u);', $ID), 'mail');
+		\CAgent::removeAgent(sprintf('Bitrix\Mail\Helper::cleanupMailboxAgent(%u);', $ID), 'mail');
+
+		$strSql = "DELETE FROM b_mail_log WHERE MAILBOX_ID=".$ID;
+		if(!$DB->Query($strSql, true))
+			return false;
 
 		$strSql = "DELETE FROM b_mail_message_uid WHERE MAILBOX_ID=".$ID;
 		if(!$DB->Query($strSql, true))
 			return false;
+
+		$strSql = "DELETE FROM b_mail_blacklist WHERE MAILBOX_ID=".$ID;
+		if(!$DB->Query($strSql, true))
+			return false;
+
+		$DB->query(sprintf('DELETE FROM b_mail_mailbox_access WHERE MAILBOX_ID = %u', $ID));
 
 		CMailbox::SMTPReload();
 		$strSql = "DELETE FROM b_mail_mailbox WHERE ID=".$ID;
@@ -746,8 +807,8 @@ class CAllMailBox
 
 	function Check($server, $port, $use_tls, $login, $passw)
 	{
-		if (($use_tls == 'Y' || $use_tls == 'S') && strpos($server, 'tls://') === false)
-			$server = 'tls://' . $server;
+		if (($use_tls == 'Y' || $use_tls == 'S') && !preg_match('#^(tls|ssl)://#', $server))
+			$server = 'ssl://' . $server;
 
 		$skip_cert = $use_tls != 'Y' || PHP_VERSION_ID < 50600;
 
@@ -819,8 +880,8 @@ class CAllMailBox
 			$arMAILBOX_PARAMS["LOGIN"] = 'recent:' . $arMAILBOX_PARAMS["LOGIN"];
 
 		$server = $arMAILBOX_PARAMS["SERVER"];
-		if (($arMAILBOX_PARAMS['USE_TLS'] == 'Y' || $arMAILBOX_PARAMS['USE_TLS'] == 'S') && strpos($server, 'tls://') === false)
-			$server = 'tls://' . $server;
+		if (($arMAILBOX_PARAMS['USE_TLS'] == 'Y' || $arMAILBOX_PARAMS['USE_TLS'] == 'S') && !preg_match('#^(tls|ssl)://#', $server))
+			$server = 'ssl://' . $server;
 
 		$skip_cert = $arMAILBOX_PARAMS['USE_TLS'] != 'Y' || PHP_VERSION_ID < 50600;
 
@@ -1037,7 +1098,7 @@ class CMailHeader
 			$str = preg_replace('/(=\?[^?]+\?(Q|B)\?[^?]*\?=)(\s)+=\?/i', '\1=?', $str);
 		if(!preg_match("'=\?(.*)\?(B|Q)\?(.*)\?='i", $str))
 		{
-			if(strlen($charset_document)>0 && $charset_document!=$charset_to)
+			if ($charset_document != '')
 				$str = CMailUtil::ConvertCharset($str, $charset_document, $charset_to);
 		}
 		else
@@ -1054,10 +1115,9 @@ class CMailHeader
 
 	function Parse($message_header, $charset)
 	{
-		if(preg_match("'content-type:.*?charset=([^\r\n;]+)'is", $message_header, $res))
+		$this->charset = defined('BX_MAIL_DEFAULT_CHARSET') && BX_MAIL_DEFAULT_CHARSET != '' ? BX_MAIL_DEFAULT_CHARSET : $charset;
+		if(preg_match("'content-type:.*?charset\s*=\s*([^\r\n;]+)'is", $message_header, $res))
 			$this->charset = strtolower(trim($res[1], ' "'));
-		elseif($this->charset=='' && defined("BX_MAIL_DEFAULT_CHARSET"))
-			$this->charset = BX_MAIL_DEFAULT_CHARSET;
 
 		$ar_message_header_tmp = explode("\r\n", $message_header);
 
@@ -1108,8 +1168,8 @@ class CMailHeader
 		if(strpos(strtolower($this->content_type), "multipart/") === 0)
 		{
 			$this->bMultipart = true;
-			if (!preg_match("'boundary\s*=(.+);'i", $full_content_type, $res))
-				preg_match("'boundary\s*=(.+)'i", $full_content_type, $res);
+			if (!preg_match("'boundary\s*=\s*(.+?);'i", $full_content_type, $res))
+				preg_match("'boundary\s*=\s*(.+)'i", $full_content_type, $res);
 
 			$this->boundary = trim($res[1], '"');
 			if($p = strpos($this->content_type, "/"))
@@ -1134,6 +1194,29 @@ class CMailHeader
 			{
 				list($fncharset, $fnstr) = preg_split("/'[^']*'/", trim($res[1], '"'));
 				$this->filename = CMailUtil::ConvertCharset(rawurldecode($fnstr), $fncharset, $charset);
+			}
+			else if (preg_match("'filename\*0=([^;]+)'i", $cd, $res))
+			{
+				$this->filename = trim($res[1], '"');
+
+				$i = 0;
+				while (preg_match("'filename\*".(++$i)."=([^;]+)'i", $cd, $res))
+					$this->filename .= trim($res[1], '"');
+			}
+			else if (preg_match("'filename\*0\*=([^;]+)'i", $cd, $res))
+			{
+				$fnstr = trim($res[1], '"');
+
+				$i = 0;
+				while (preg_match("'filename\*".(++$i)."\*?=([^;]+)'i", $cd, $res))
+					$fnstr .= trim($res[1], '"');
+
+				list($fncharset, $fnstr) = preg_split("/'[^']*'/", $fnstr);
+				if (!empty($fnstr))
+				{
+					$fnstr = rawurldecode($fnstr);
+					$this->filename = $fncharset ? CMailUtil::convertCharset($fnstr, $fncharset, $charset) : $fnstr;
+				}
 			}
 		}
 
@@ -1166,6 +1249,22 @@ class CMailHeader
 	}
 }
 
+
+class CMailMessageDBResult extends CDBResult
+{
+
+	function fetch()
+	{
+		if ($item = parent::fetch())
+		{
+			$item['OPTIONS'] = (array) @unserialize($item['OPTIONS']);
+			$item['FOR_SPAM_TEST'] = sprintf('%s %s', $item['HEADER'], $item['BODY_HTML'] ?: $item['BODY']);
+		}
+
+		return $item;
+	}
+
+}
 
 ///////////////////////////////////////////////////////////////////////////////////
 // class CMailMessage
@@ -1315,7 +1414,10 @@ class CAllMailMessage
 			elseif ($by == "mailbox_id")	$arSqlOrder[] = " MS.MAILBOX_ID ".$order." ";
 			elseif ($by == "new_message")	$arSqlOrder[] = " MS.NEW_MESSAGE ".$order." ";
 			elseif ($by == "mailbox_name" && !$bCnt)	$arSqlOrder[] = " MB.NAME ".$order." ";
-			elseif ($by == "spam_rating")	{$arSqlOrder[] = " MS.SPAM_RATING ".$order." "; CMailFilter::RecalcSpamRating();}
+			elseif ($by == "spam_rating")
+			{
+				$arSqlOrder[] = " MS.SPAM_RATING ".$order." "; CMailFilter::RecalcSpamRating();
+			}
 			else $arSqlOrder[] = " MS.ID ".$order." ";
 		}
 
@@ -1336,6 +1438,7 @@ class CAllMailMessage
 		$strSql .= " WHERE 1=1 ".$strSqlSearch.$strSqlOrder;
 
 		$dbr = $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
+		$dbr = new \CMailMessageDBResult($dbr);
 		$dbr->is_filtered = $is_filtered;
 		return $dbr;
 	}
@@ -1349,12 +1452,17 @@ class CAllMailMessage
 	{
 		global $DB;
 		if(!is_array($arRow))
-			$res = $DB->Query("SELECT SPAM_RATING, SPAM_LAST_RESULT, FOR_SPAM_TEST FROM b_mail_message WHERE ID=".Intval($msgid));
+			$res = $DB->Query("SELECT SPAM_RATING, SPAM_LAST_RESULT, HEADER, BODY_HTML, BODY FROM b_mail_message WHERE ID=".Intval($msgid));
 		else
 			$ar = $arRow;
 
 		if(is_array($arRow) || $ar = $res->Fetch())
 		{
+			if (empty($ar['FOR_SPAM_TEST']))
+			{
+				$ar['FOR_SPAM_TEST'] = sprintf('%s %s', $ar['HEADER'], $ar['BODY_HTML'] ?: $ar['BODY'] );
+			}
+
 			if($ar["SPAM_LAST_RESULT"]=="Y")
 				return $ar["SPAM_RATING"];
 			$arSpam = CMailFilter::GetSpamRating($ar["FOR_SPAM_TEST"]);
@@ -1365,14 +1473,14 @@ class CAllMailMessage
 	}
 
 
-	function ParseHeader($message_header, $charset)
+	public static function parseHeader($header, $charset)
 	{
 		$h = new CMailHeader();
-		$h->Parse($message_header, $charset);
+		$h->parse($header, $charset);
 		return $h;
 	}
 
-	private static function decodeMessageBody($header, $body, $charset)
+	public static function decodeMessageBody($header, $body, $charset)
 	{
 		$encoding = strtolower($header->GetHeader('CONTENT-TRANSFER-ENCODING'));
 
@@ -1384,20 +1492,11 @@ class CAllMailMessage
 			$body = CMailUtil::uue_decode($body);
 
 		$content_type = strtolower($header->content_type);
-		if (
-			(
-				strpos($content_type, 'plain') !== false
-				|| strpos($content_type, 'html') !== false
-				|| strpos($content_type, 'text') !== false
-			)
-			&& strpos($content_type, 'x-vcard') === false
-			&& strpos($content_type, 'csv') === false
-		)
+		if (empty($header->filename) && !empty($header->charset))
 		{
-			$body = CMailUtil::ConvertCharset($body, $header->charset, $charset);
-			if ($body === false)
+			if (preg_match('/plain|html|text/', $content_type) && !preg_match('/x-vcard|csv/', $content_type))
 			{
-				AddMessage2Log("Failed to convert attachment body. content_type = ".$content_type);
+				$body = CMailUtil::convertCharset($body, $header->charset, $charset);
 			}
 		}
 
@@ -1409,36 +1508,57 @@ class CAllMailMessage
 		);
 	}
 
-	private static function parseMessage($message, $charset)
+	public static function parseMessage($message, $charset)
 	{
-		$headerP = strpos($message, "\r\n\r\n");
+		$headerP = \CUtil::binStrpos($message, "\r\n\r\n");
 
-		$rawHeader = substr($message, 0, $headerP);
-		$body      = substr($message, $headerP+4);
+		if (false === $headerP)
+		{
+			$rawHeader = '';
+			$body      = $message;
+		}
+		else
+		{
+			$rawHeader = \CUtil::binSubstr($message, 0, $headerP);
+			$body      = \CUtil::binSubstr($message, $headerP+4);
+		}
 
-		$header = CMailMessage::ParseHeader($rawHeader, $charset);
+		$header = \CMailMessage::parseHeader($rawHeader, $charset);
 
 		$htmlBody = '';
 		$textBody = '';
 
 		$parts = array();
 
-		if ($header->IsMultipart())
+		if ($header->isMultipart())
 		{
-			$startB = "\r\n--" . $header->GetBoundary() . "\r\n";
-			$endB   = "\r\n--" . $header->GetBoundary() . "--\r\n";
+			$startP = 0;
+			$startRegex = sprintf('/(^|\r\n)--%s\r\n/', preg_quote($header->getBoundary(), '/'));
+			if (preg_match($startRegex, $body, $matches, PREG_OFFSET_CAPTURE))
+			{
+				$startP = $matches[0][1] + \CUtil::binStrlen($matches[0][0]);
+			}
 
-			$startP = strpos($message, $startB)+strlen($startB);
-			$endP   = strpos($message, $endB);
+			$endP = \CUtil::binStrlen($body);
+			$endRegex = sprintf('/\r\n--%s--(\r\n|$)/', preg_quote($header->getBoundary(), '/'));
+			if (preg_match($endRegex, $body, $matches, PREG_OFFSET_CAPTURE))
+			{
+				$endP = $matches[0][1];
+			}
 
-			$data = substr($message, $startP, $endP-$startP);
+			if (!($startP < $endP))
+			{
+				$startP = 0;
+			}
+
+			$data = \CUtil::binSubstr($body, $startP, $endP-$startP);
 
 			$isHtml = false;
-			$rawParts = preg_split("/\r\n--".preg_quote($header->GetBoundary(), '/')."\r\n/s", $data);
+			$rawParts = preg_split(sprintf('/\r\n--%s\r\n/', preg_quote($header->getBoundary(), '/')), $data);
 			$tmpParts = array();
 			foreach ($rawParts as $part)
 			{
-				if (substr($part, 0, 2) == "\r\n")
+				if (CUtil::binSubstr($part, 0, 2) == "\r\n")
 					$part = "\r\n" . $part;
 
 				list(, $subHtml, $subText, $subParts) = CMailMessage::parseMessage($part, $charset);
@@ -1454,25 +1574,27 @@ class CAllMailMessage
 
 			if (strtolower($header->MultipartType()) == 'alternative')
 			{
+				$candidate = '';
+
 				foreach ($tmpParts as $part)
 				{
 					if ($part[0])
 					{
-						if (!$textBody || $htmlBody && (strlen($htmlBody) < strlen($part[0])))
+						if (!$htmlBody || (strlen($htmlBody) < strlen($part[0])))
 						{
-							$htmlBody = $part[0];
-							$textBody = $part[1];
+							$htmlBody  = $part[0];
+							$candidate = $part[1];
 						}
 					}
 					else
 					{
 						if (!$textBody || strlen($textBody) < strlen($part[1]))
-						{
-							$htmlBody = '';
 							$textBody = $part[1];
-						}
 					}
 				}
+
+				if (!trim($textBody))
+					$textBody = $candidate;
 			}
 			else
 			{
@@ -1501,7 +1623,7 @@ class CAllMailMessage
 				if (strtolower($bodyPart['CONTENT-TYPE']) == 'text/html')
 				{
 					$htmlBody = $bodyPart['BODY'];
-					$textBody = htmlToTxt($bodyPart['BODY']);
+					$textBody = html_entity_decode(htmlToTxt($bodyPart['BODY']), ENT_QUOTES | ENT_HTML401, $charset);
 				}
 				else
 				{
@@ -1517,11 +1639,22 @@ class CAllMailMessage
 		return array($header, $htmlBody, $textBody, $parts);
 	}
 
-	function AddMessage($mailbox_id, $message, $charset)
+	public static function addMessage($mailboxId, $message, $charset, $params = array())
+	{
+		list($header, $html, $text, $attachments) = CMailMessage::parseMessage($message, $charset);
+
+		return static::saveMessage($mailboxId, $message, $header, $html, $text, $attachments, $params);
+	}
+
+	public static function saveMessage($mailboxId, &$message, &$header, &$bodyHtml, &$bodyText, &$attachments, $params = array())
 	{
 		global $DB;
 
-		list($obHeader, $message_body_html, $message_body, $arMessageParts) = CMailMessage::parseMessage($message, $charset);
+		$mailbox_id = $mailboxId;
+		$obHeader = &$header;
+		$message_body_html = &$bodyHtml;
+		$message_body = &$bodyText;
+		$arMessageParts = &$attachments;
 
 		$arFields = array(
 			"MAILBOX_ID" => $mailbox_id,
@@ -1536,74 +1669,250 @@ class CAllMailMessage
 			"MSG_ID" => trim($obHeader->GetHeader("MESSAGE-ID"), " <>"),
 			"IN_REPLY_TO" => trim($obHeader->GetHeader("IN-REPLY-TO"), " <>"),
 			"FIELD_PRIORITY" => IntVal($obHeader->GetHeader("X-PRIORITY")),
-			"MESSAGE_SIZE" => strlen($message),
+			"MESSAGE_SIZE" => $params['size'] ?: strlen($message),
 			"SUBJECT" => $obHeader->GetHeader("SUBJECT"),
-			"BODY" => rtrim($message_body)
+			"BODY" => rtrim($message_body),
+			'OPTIONS' => array(
+				'attachments' => count($arMessageParts),
+			),
 		);
 
-		if(COption::GetOptionString("mail", "save_src", B_MAIL_SAVE_SRC)=="Y")
-			$arFields["FULL_TEXT"] = $message;
+		$datetime = preg_replace('/(?<=[\s\d])UT$/i', '+0000', $arFields['FIELD_DATE_ORIGINAL']);
+		if (!($params['replaces'] > 0) || strtotime($datetime) || $params['timestamp'])
+		{
+			$timestamp = strtotime($datetime) ?: $params['timestamp'] ?: time();
+			$arFields['FIELD_DATE'] = convertTimeStamp($timestamp + \CTimeZone::getOffset(), 'FULL');
+		}
 
-		if($message_body_html!==false)
-			$arFields["FOR_SPAM_TEST"] = $obHeader->strHeader." ".$message_body_html;
-		else
-			$arFields["FOR_SPAM_TEST"] = $obHeader->strHeader." ".$message_body;
+		if (!empty($message) && \Bitrix\Main\Config\Option::get('mail', 'save_src', B_MAIL_SAVE_SRC) == 'Y')
+		{
+			$arFields['FULL_TEXT'] = $message;
+		}
+
+		$forSpamTest = sprintf('%s %s', $arFields['HEADER'], $message_body_html ?: $message_body);
 
 		$arFields["SPAM"] = "?";
 		if(COption::GetOptionString("mail", "spam_check", B_MAIL_CHECK_SPAM)=="Y")
 		{
-			$arSpam = CMailFilter::GetSpamRating($arFields["FOR_SPAM_TEST"]);
+			$arSpam = \CMailFilter::getSpamRating($forSpamTest);
 			$arFields["SPAM_RATING"] = $arSpam["RATING"];
 			$arFields["SPAM_WORDS"] = $arSpam["WORDS"];
 			$arFields["SPAM_LAST_RESULT"] = "Y";
 		}
 
-		$MESSAGE_ID = CMailMessage::Add($arFields);
-		CMailLog::AddMessage(
-			Array(
-				"MAILBOX_ID"=>$mailbox_id,
-				"MESSAGE_ID"=>$MESSAGE_ID,
-				"STATUS_GOOD"=>"Y",
-				"LOG_TYPE"=>"NEW_MESSAGE",
-				"MESSAGE"=>$arFields["SUBJECT"]." (".$arFields["MESSAGE_SIZE"].") ".
-					(COption::GetOptionString("mail", "spam_check", B_MAIL_CHECK_SPAM)=="Y"?
-						"[".Round($arFields["SPAM_RATING"], 3)."]"
-					:
-						""
-					)
-				)
-			);
+		// @TODO: MAX_ALLOWED_PACKET
+		$arFields['SEARCH_CONTENT'] = \Bitrix\Mail\Helper\Message::prepareSearchContent($arFields);
+		$arFields['INDEX_VERSION'] = \Bitrix\Mail\Helper\MessageIndexStepper::INDEX_VERSION;
 
-		$atchCnt = 0;
-		if(COption::GetOptionString("mail", "save_attachments", B_MAIL_SAVE_ATTACHMENTS)=="Y")
+		if ($params['replaces'] > 0)
 		{
-			foreach($arMessageParts as $part)
+			\CMailMessage::update($message_id = $params['replaces'], $arFields);
+		}
+		else
+		{
+			if (isset($params['trackable']) && $params['trackable'])
 			{
-				$arField = Array(
-						"MESSAGE_ID" => $MESSAGE_ID,
-						"FILE_NAME" => $part["FILENAME"],
-						"CONTENT_TYPE" => $part["CONTENT-TYPE"],
-						"FILE_DATA" => $part["BODY"],
-						"CONTENT_ID" => $part["CONTENT-ID"]
-					);
-				if (CMailMessage::AddAttachment($arField))
-					$atchCnt++;
-			} // foreach($arMessageParts as $part)
+				$arFields['OPTIONS']['trackable'] = true;
+			}
+
+			$message_id = \CMailMessage::add($arFields);
 		}
 
-		$arFields['ID'] = $MESSAGE_ID;
-		$arFields['ATTACHMENTS'] = $atchCnt;
-		if (is_set($arFields, 'FIELD_DATE_ORIGINAL') && !is_set($arFields, 'FIELD_DATE'))
+		if ($message_id > 0)
 		{
-			$arFields['FIELD_DATE'] = $DB->formatDate(
-				date('d.m.Y H:i:s', strtotime($arFields['FIELD_DATE_ORIGINAL']) + CTimeZone::getOffset()),
-				'DD.MM.YYYY HH:MI:SS', CLang::GetDateFormat('FULL')
-			);
+			$arFields['ID'] = $message_id;
+			$arFields['FOR_SPAM_TEST'] = $forSpamTest;
+
+			\CMailLog::addMessage(array(
+				'MAILBOX_ID'  => $mailbox_id,
+				'MESSAGE_ID'  => $message_id,
+				'STATUS_GOOD' => 'Y',
+				'LOG_TYPE'    => $params['replaces'] > 0 ? 'RENEW_MESSAGE' : 'NEW_MESSAGE',
+				'MESSAGE'     => sprintf(
+					'%s (%s)%s', $arFields['SUBJECT'], $arFields['MESSAGE_SIZE'],
+					\Bitrix\Main\Config\Option::get('mail', 'spam_check', B_MAIL_CHECK_SPAM) == 'Y'
+						? sprintf(' [%.3f]', $arFields['SPAM_RATING']) : ''
+				),
+			));
+
+			if (!($params['replaces'] > 0))
+			{
+				$DB->query(sprintf(
+					'INSERT INTO b_mail_message_closure (MESSAGE_ID, PARENT_ID) VALUES (%1$u, %1$u)',
+					$message_id
+				));
+
+				if ($arFields['IN_REPLY_TO'])
+				{
+					$DB->query(sprintf(
+						"INSERT IGNORE INTO b_mail_message_closure (MESSAGE_ID, PARENT_ID)
+						(
+							SELECT DISTINCT %u, C.PARENT_ID
+							FROM b_mail_message M INNER JOIN b_mail_message_closure C ON M.ID = C.MESSAGE_ID
+							WHERE M.MAILBOX_ID = %u AND M.MSG_ID = '%s'
+						)",
+						$message_id,
+						$mailbox_id,
+						$DB->forSql($arFields['IN_REPLY_TO'])
+					));
+				}
+
+				if ($arFields['MSG_ID'])
+				{
+					$DB->query(sprintf(
+						"INSERT IGNORE INTO b_mail_message_closure (MESSAGE_ID, PARENT_ID)
+						(
+							SELECT DISTINCT C.MESSAGE_ID, P.PARENT_ID
+							FROM b_mail_message M
+								INNER JOIN b_mail_message_closure C ON M.ID = C.PARENT_ID
+								INNER JOIN b_mail_message_closure P ON P.MESSAGE_ID = %u
+							WHERE M.MAILBOX_ID = %u AND M.IN_REPLY_TO = '%s'
+						)",
+						$message_id,
+						$mailbox_id,
+						$DB->forSql($arFields['MSG_ID'])
+					));
+				}
+
+				$mailbox = Bitrix\Mail\MailboxTable::getList(array(
+					'select' => array('ID', 'USER_ID', 'OPTIONS'),
+					'filter' => array('=ID' => $mailbox_id, '=ACTIVE' => 'Y'),
+				))->fetch();
+
+				if ($mailbox['USER_ID'] > 0)
+				{
+					\Bitrix\Mail\Internals\MailContactTable::addContactsBatch(array_merge(
+						MailContact::getContactsData($arFields['FIELD_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_TO),
+						MailContact::getContactsData($arFields['FIELD_FROM'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_FROM),
+						MailContact::getContactsData($arFields['FIELD_CC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_CC),
+						MailContact::getContactsData($arFields['FIELD_REPLY_TO'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_REPLY_TO),
+						MailContact::getContactsData($arFields['FIELD_BCC'], $mailbox['USER_ID'], \Bitrix\Mail\Internals\MailContactTable::ADDED_TYPE_BCC)
+					));
+				}
+			}
+
+			$atchCnt = 0;
+			if (empty($params['lazy_attachments']) && \Bitrix\Main\Config\Option::get('mail', 'save_attachments', B_MAIL_SAVE_ATTACHMENTS) == 'Y')
+			{
+				foreach ($arMessageParts as $i => $part)
+				{
+					$attachFields = array(
+						'MESSAGE_ID'   => $message_id,
+						'FILE_NAME'    => $part['FILENAME'],
+						'CONTENT_TYPE' => $part['CONTENT-TYPE'],
+						'FILE_DATA'    => $part['BODY'],
+						'CONTENT_ID'   => $part['CONTENT-ID'],
+					);
+
+					$arMessageParts[$i]['ATTACHMENT-ID'] = \CMailMessage::addAttachment($attachFields);
+					if (!$arMessageParts[$i]['ATTACHMENT-ID'])
+					{
+						\CMailMessage::delete($message_id);
+						return false;
+					}
+
+					$atchCnt++;
+				}
+			}
+
+			$arFields['ATTACHMENTS'] = $atchCnt;
+
+			if ($message_body_html)
+			{
+				$msg = array(
+					'html'        => $message_body_html,
+					'attachments' => array(),
+				);
+				foreach ($arMessageParts as $part)
+				{
+					if (!(is_array($part) && $part['ATTACHMENT-ID'] > 0))
+					{
+						continue;
+					}
+
+					$msg['attachments'][] = array(
+						'contentId' => $part['CONTENT-ID'],
+						'uniqueId'  => sprintf('attachment_%u', $part['ATTACHMENT-ID']),
+					);
+				}
+
+				$arFields['BODY_BB'] = \Bitrix\Mail\Message::parseMessage($msg);
+
+				$msg = preg_replace('/<!--.*?-->/is', '', $message_body_html);
+				$msg = preg_replace('/<script[^>]*>.*?<\/script>/is', '', $msg);
+				$msg = preg_replace('/<title[^>]*>.*?<\/title>/is', '', $msg);
+
+				$sanitizer = new \CBXSanitizer();
+				$sanitizer->setLevel(\CBXSanitizer::SECURE_LEVEL_LOW);
+				$sanitizer->applyDoubleEncode(false);
+				$sanitizer->addTags(array(
+					'style' => array(),
+					'colgroup' => array(),
+					'col' => array('width'),
+				));
+				$arFields['BODY_HTML'] = $sanitizer->sanitizeHtml($msg);
+
+				foreach ($arMessageParts as $part)
+				{
+					if (!(is_array($part) && $part['ATTACHMENT-ID'] > 0))
+					{
+						continue;
+					}
+
+					$arFields['BODY_HTML'] = preg_replace(
+						sprintf('/<img([^>]+)src\s*=\s*(\'|\")?\s*(http:\/\/cid:%s)\s*\2([^>]*)>/is', preg_quote($part['CONTENT-ID'], '/')),
+						sprintf('<img\1src="aid:%u"\4>', $part['ATTACHMENT-ID']),
+						$arFields['BODY_HTML']
+					);
+				}
+
+				\CMailMessage::update($message_id, array('BODY_HTML' => $arFields['BODY_HTML']));
+			}
+
+			if (!($params['replaces'] > 0))
+			{
+				$arFields['IS_OUTCOME'] = !empty($params['outcome']);
+				$arFields['IS_DRAFT'] = !empty($params['draft']);
+				$arFields['IS_TRASH'] = !empty($params['trash']);
+				$arFields['IS_SPAM'] = !empty($params['spam']);
+				$arFields['IS_SEEN'] = !empty($params['seen']);
+				$arFields['MSG_HASH'] = $params['hash'];
+
+				if (!empty($params['excerpt']) && is_array($params['excerpt']))
+				{
+					$arFields = $arFields + $params['excerpt'];
+				}
+
+				$messageBindings = array();
+
+				$eventKey = \Bitrix\Main\EventManager::getInstance()->addEventHandler(
+					'mail',
+					'onBeforeUserFieldSave',
+					function (\Bitrix\Main\Event $event) use (&$messageBindings)
+					{
+						$params = $event->getParameters();
+						$messageBindings[] = $params['entity_type'];
+					}
+				);
+
+				\CMailFilter::filter($arFields, 'R');
+
+				\Bitrix\Main\EventManager::getInstance()->removeEventHandler('mail', 'onBeforeUserFieldSave', $eventKey);
+
+				addEventToStatFile(
+					'mail',
+					sprintf(
+						'add_%s_%s',
+						(empty($arFields['IN_REPLY_TO']) ? 'message' : 'reply'),
+						(empty($params['outcome']) ? 'incoming' : 'outgoing')
+					),
+					join(',', array_unique(array_filter($messageBindings))),
+					$arFields['MSG_ID']
+				);
+			}
 		}
 
-		CMailFilter::Filter($arFields, "R");
-
-		return $MESSAGE_ID;
+		return $message_id;
 	}
 
 	function Add($arFields)
@@ -1620,11 +1929,20 @@ class CAllMailMessage
 			$arFields["~DATE_INSERT"] = $DB->GetNowFunction();
 
 		if(is_set($arFields, "FIELD_DATE_ORIGINAL") && !is_set($arFields, "FIELD_DATE"))
-			$arFields["FIELD_DATE"] = $DB->FormatDate(date("d.m.Y H:i:s", strtotime($arFields["FIELD_DATE_ORIGINAL"])+CTimeZone::GetOffset()), "DD.MM.YYYY HH:MI:SS", CLang::GetDateFormat("FULL"));
+		{
+			$datetime = preg_replace('/(?<=[\s\d])UT$/i', '+0000', $arFields['FIELD_DATE_ORIGINAL']);
+			$timestamp = strtotime($datetime) ?: time();
+			$arFields['FIELD_DATE'] = convertTimeStamp($timestamp + \CTimeZone::getOffset(), 'FULL');
+		}
 
 		if (array_key_exists('SUBJECT', $arFields))
 		{
 			$arFields['SUBJECT'] = strval(substr($arFields['SUBJECT'], 0, 255));
+		}
+
+		if (array_key_exists('OPTIONS', $arFields))
+		{
+			$arFields['OPTIONS'] = serialize($arFields['OPTIONS']);
 		}
 
 		$ID = $DB->Add("b_mail_message", $arFields, Array("FULL_TEXT", "HEADER", "BODY", "FOR_SPAM_TEST"));
@@ -1638,11 +1956,20 @@ class CAllMailMessage
 		$ID = Intval($ID);
 
 		if(is_set($arFields, "FIELD_DATE_ORIGINAL") && !is_set($arFields, "FIELD_DATE"))
-			$arFields["FIELD_DATE"] = $DB->FormatDate(date("d.m.Y H:i:s", strtotime($arFields["FIELD_DATE_ORIGINAL"])+CTimeZone::GetOffset()), "DD.MM.YYYY HH:MI:SS", CLang::GetDateFormat("FULL"));
+		{
+			$datetime = preg_replace('/(?<=[\s\d])UT$/i', '+0000', $arFields['FIELD_DATE_ORIGINAL']);
+			$timestamp = strtotime($datetime) ?: time();
+			$arFields['FIELD_DATE'] = convertTimeStamp($timestamp + \CTimeZone::getOffset(), 'FULL');
+		}
 
 		if (array_key_exists('SUBJECT', $arFields))
 		{
 			$arFields['SUBJECT'] = strval(substr($arFields['SUBJECT'], 0, 255));
+		}
+
+		if (array_key_exists('OPTIONS', $arFields))
+		{
+			$arFields['OPTIONS'] = serialize($arFields['OPTIONS']);
 		}
 
 		$strUpdate = $DB->PrepareUpdate("b_mail_message", $arFields);
@@ -1661,11 +1988,18 @@ class CAllMailMessage
 		while ($file = $res->fetch())
 		{
 			if ($file['FILE_ID'])
+			{
 				CFile::delete($file['FILE_ID']);
+				\Bitrix\Mail\Helper\Attachment\Storage::unregisterAttachment($file['FILE_ID']);
+			}
 		}
 
 		$strSql = "DELETE FROM b_mail_msg_attachment WHERE MESSAGE_ID=".$id;
 		$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
+
+		$DB->query(sprintf('DELETE FROM b_mail_message_access WHERE MESSAGE_ID = %u', $id));
+
+		$DB->query(sprintf('DELETE FROM b_mail_message_closure WHERE MESSAGE_ID = %1$u OR PARENT_ID = %1$u', $id));
 
 		$strSql = "DELETE FROM b_mail_message WHERE ID=".$id;
 		$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
@@ -1677,12 +2011,17 @@ class CAllMailMessage
 	{
 		global $DB;
 		if(!is_array($arRow))
-			$res = $DB->Query("SELECT SPAM, FOR_SPAM_TEST, MAILBOX_ID FROM b_mail_message WHERE ID=".Intval($ID));
+			$res = $DB->Query("SELECT SPAM, HEADER, BODY_HTML, BODY, MAILBOX_ID FROM b_mail_message WHERE ID=".Intval($ID));
 		else
 			$ar = $arRow;
 
 		if(is_array($arRow) || $ar = $res->Fetch())
 		{
+			if (empty($ar['FOR_SPAM_TEST']))
+			{
+				$ar['FOR_SPAM_TEST'] = sprintf('%s %s', $ar['HEADER'], $ar['BODY_HTML'] ?: $ar['BODY'] );
+			}
+
 			if($bIsSPAM)
 			{
 				if($ar["SPAM"]!="Y")
@@ -1723,23 +2062,25 @@ class CAllMailMessage
 		}
 	}
 
-	function AddAttachment($arFields)
+	function addAttachment($arFields)
 	{
 		global $DB;
 
-		$strSql = "SELECT ATTACHMENTS FROM b_mail_message WHERE ID=".IntVal($arFields["MESSAGE_ID"]);
+		$arFields['FILE_NAME'] = trim($arFields['FILE_NAME']);
+
+		$strSql = "SELECT ID, MAILBOX_ID, ATTACHMENTS FROM b_mail_message WHERE ID=".IntVal($arFields["MESSAGE_ID"]);
 		$dbr = $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 		if(!($dbr_arr = $dbr->Fetch()))
 			return false;
 
 		$n = IntVal($dbr_arr["ATTACHMENTS"])+1;
-		if(strlen($arFields["FILE_NAME"])<=0)
+		if (empty($arFields['FILE_NAME']))
 		{
-			$arFields["FILE_NAME"] = $n.".";
-			if(strpos($arFields["CONTENT_TYPE"], "message/")===0)
-				$arFields["FILE_NAME"] .= "msg";
-			else
-				$arFields["FILE_NAME"] .= "tmp";
+			$arFields['FILE_NAME'] = sprintf(
+				'%u-%u-%u.%s',
+				$dbr_arr['MAILBOX_ID'], $dbr_arr['ID'], $n,
+				strpos($arFields['CONTENT_TYPE'], 'message/') === 0 ? 'msg' : 'file'
+			);
 		}
 
 		if(is_set($arFields, "CONTENT_TYPE"))
@@ -1769,7 +2110,12 @@ class CAllMailMessage
 		);
 
 		if (!($file_id = CFile::saveFile($file, 'mail/attachment')))
+		{
+			\CMail::option('attachment_failure', true);
 			return false;
+		}
+
+		\CMail::option('attachment_failure', false);
 
 		unset($arFields['FILE_DATA']);
 		$arFields['FILE_ID'] = $file_id;
@@ -1780,9 +2126,42 @@ class CAllMailMessage
 		{
 			$strSql = 'UPDATE b_mail_message SET ATTACHMENTS = ' . $n . ' WHERE ID = ' . intval($arFields['MESSAGE_ID']);
 			$DB->query($strSql, false, 'File: '.__FILE__.'<br>Line: '.__LINE__);
+
+			try
+			{
+				\Bitrix\Mail\Helper\Attachment\Storage::registerAttachment(array(
+					'FILE_ID' => $arFields['FILE_ID'],
+					'FILE_NAME' => $arFields['FILE_NAME'],
+					'FILE_SIZE' => $arFields['FILE_SIZE'],
+				));
+			}
+			catch (\Exception $e)
+			{
+				\Bitrix\Main\Application::getInstance()->getExceptionHandler()->writeToLog($e);
+			}
 		}
 
 		return $ID;
+	}
+}
+
+
+class _CMailAttachmentDBRes extends CDBResult
+{
+	function __construct($res)
+	{
+		parent::__construct($res);
+	}
+
+	function fetch()
+	{
+		if (($res = parent::fetch()) && $res['FILE_ID'] > 0)
+		{
+			if ($file = \CFile::makeFileArray($res['FILE_ID']))
+				$res['FILE_DATA'] = file_get_contents($file['tmp_name']);
+		}
+
+		return $res;
 	}
 }
 
@@ -1891,6 +2270,7 @@ class CMailAttachment
 		$strSql .= " WHERE 1=1 ".$strSqlSearch.$strSqlOrder;
 		//echo "<pre>".$strSql."</pre>";
 		$dbr = $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
+		$dbr = new _CMailAttachmentDBRes($dbr);
 		$dbr->is_filtered = $is_filtered;
 		return $dbr;
 	}
@@ -1909,7 +2289,10 @@ class CMailAttachment
 		while ($file = $res->fetch())
 		{
 			if ($file['FILE_ID'])
+			{
 				CFile::delete($file['FILE_ID']);
+				\Bitrix\Mail\Helper\Attachment\Storage::unregisterAttachment($file['FILE_ID']);
+			}
 		}
 
 		$strSql = "DELETE FROM b_mail_msg_attachment WHERE ID=".$id;
@@ -1924,64 +2307,69 @@ class CMailAttachment
 				$attachment = $res->fetch();
 		}
 
-		if (!is_array($attachment) || !isset($attachment['FILE_DATA']) && empty($attachment['FILE_ID']))
-			return false;
+		if (is_array($attachment))
+		{
+			if (!empty($attachment['FILE_DATA']))
+				return $attachment['FILE_DATA'];
 
-		if ($attachment['FILE_ID'] > 0)
-		{
-			if ($file = CFile::makeFileArray($attachment['FILE_ID']))
-				return file_get_contents($file['tmp_name']);
+			if ($attachment['FILE_ID'] > 0)
+			{
+				if ($file = \CFile::makeFileArray($attachment['FILE_ID']))
+					return file_get_contents($file['tmp_name']);
+			}
 		}
-		else
-		{
-			return $attachment['FILE_DATA'];
-		}
+
+		return false;
 	}
 }
 
 class CAllMailUtil
 {
-	public static function ConvertCharset($str, $from, $to)
+	public static function convertCharset($str, $from, $to)
 	{
+		if (!trim($str))
+			return $str;
+
 		$from = trim(strtolower($from));
-		$to = trim(strtolower($to));
+		$to   = trim(strtolower($to));
 
-		if (($from == 'utf-8' || $to == 'utf-8') || defined('BX_UTF'))
+		$escape = function ($matches)
 		{
-			$error = "";
-			$result = CharsetConverter::ConvertCharset($str, $from, $to, $error, true);
-			return $result;
+			return isset($matches[2]) ? '?' : $matches[1];
+		};
+
+		if ($from != $to)
+		{
+			if (in_array($from, array('utf-8', 'utf8')))
+			{
+				// escape all invalid (rfc-3629) utf-8 characters
+				$str = preg_replace_callback('/
+					([\x00-\x7F]+
+						|[\xC2-\xDF][\x80-\xBF]
+						|\xE0[\xA0-\xBF][\x80-\xBF]|[\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}|\xED[\x80-\x9F][\x80-\xBF]
+						|\xF0[\x90-\xBF][\x80-\xBF]{2}|[\xF1-\xF3][\x80-\xBF]{3}|\xF4[\x80-\x8F][\x80-\xBF]{2})
+					|([\x80-\xFF])
+				/x', $escape, $str);
+			}
+
+			if ($result = Bitrix\Main\Text\Encoding::convertEncoding($str, $from, $to, $error))
+				$str = $result;
+			else
+				addMessage2Log(sprintf('Failed to convert email part. (%s -> %s : %s)', $from, $to, $error));
 		}
 
-
-		if($from=='windows-1251' || $from=='cp1251')
-			$from = 'w';
-		elseif(strpos($from, 'koi8')===0)
-			$from = 'k';
-		elseif($from=='dos-866')
-			$from = 'd';
-		elseif($from=='iso-8859-5')
-			$from = 'i';
-		else
-			$from = '';
-
-		if($to=='windows-1251' || $to=='cp1251')
-			$to = 'w';
-		elseif(strpos($to, 'koi8')===0)
-			$to = 'k';
-		elseif($to=='dos-866')
-			$to = 'd';
-		elseif($to=='iso-8859-5')
-			$to = 'i';
-		else
-			$to = '';
-
-		if(strlen($from)>0 && strlen($to)>0)
+		if (in_array($to, array('utf-8', 'utf8')))
 		{
-			$str = convert_cyr_string($str, $from, $to);
+			// escape invalid (rfc-3629) and 4-bytes utf-8 characters
+			$str = preg_replace_callback('/
+				([\x00-\x7F]+
+					|[\xC2-\xDF][\x80-\xBF]
+					|\xE0[\xA0-\xBF][\x80-\xBF]|[\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}|\xED[\x80-\x9F][\x80-\xBF])
+				|([\x80-\xFF])
+			/x', $escape, $str);
 		}
+
 		return $str;
-
 	}
 
 	public static function uue_decode($str)
@@ -2177,15 +2565,15 @@ class CAllMailUtil
 		return $strResult;
 	}
 
-	function ByteXOR($a,$b,$l)
+	public static function ByteXOR($a,$b,$l)
 	{
 		$c="";
 		for($i=0; $i<$l; $i++)
-			$c .= $a{$i}^$b{$i};
+			$c .= $a[$i]^$b[$i];
 		return($c);
 	}
 
-	function BinMD5($val)
+	public static function BinMD5($val)
 	{
 		return(pack("H*",md5($val)));
 	}
@@ -2197,7 +2585,7 @@ class CAllMailUtil
 			$key = COption::GetOptionString("main", "pwdhashadd", "");
 		$key1 = CMailUtil::BinMD5($key);
 		$str = base64_decode($str);
-		while($str)
+		while (\CUtil::binStrlen($str) > 0)
 		{
 			$m = CUtil::BinSubstr($str, 0, 16);
 			$str = CUtil::BinSubstr($str, 16);
@@ -2214,7 +2602,7 @@ class CAllMailUtil
 		if($key===false)
 			$key = COption::GetOptionString("main", "pwdhashadd", "");
 		$key1 = CMailUtil::BinMD5($key);
-		while($str)
+		while (\CUtil::binStrlen($str) > 0)
 		{
 			$m = CUtil::BinSubstr($str, 0, 16);
 			$str = CUtil::BinSubstr($str, 16);
@@ -2224,7 +2612,7 @@ class CAllMailUtil
 		return(base64_encode($res));
 	}
 
-	function ExtractAllMailAddresses($emails)
+	public static function extractAllMailAddresses($emails)
 	{
 		$result = array();
 		$arEMails = explode(",", $emails);
@@ -2246,24 +2634,22 @@ class CAllMailUtil
 		return strtolower($email);
 	}
 
-	public static function CheckImapMailbox($server, $port, $use_tls, $login, $password, &$error, $timeout = 1)
+	public static function checkImapMailbox($server, $port, $use_tls, $login, $password, &$error)
 	{
-		$host = ((is_string($use_tls) ? ($use_tls == 'Y' || $use_tls == 'S') : $use_tls) ? 'tls://' : '') . $server;
+		$use_tls = is_string($use_tls) ? $use_tls : ($use_tls ? 'Y' : 'N');
 
-		$imap = new CMailImap();
+		$imap = new \Bitrix\Mail\Imap(
+			$server, $port,
+			$use_tls == 'Y' || $use_tls == 'S',
+			$use_tls == 'Y',
+			$login, $password,
+			'UTF-8'
+		);
 
-		try
-		{
-			$imap->connect($host, $port, $timeout, $use_tls != 'Y');
-			$imap->authenticate($login, $password);
-			$unseen = $imap->getUnseen();
-		}
-		catch (Exception $e)
-		{
-			$unseen = -1;
-			$error  = $e->getMessage();
-		}
+		if (($unseen = $imap->getUnseen('INBOX', $error)) === false)
+			return (-1);
 
+		$error = false;
 		return $unseen;
 	}
 }
@@ -2914,10 +3300,11 @@ class CMailFilter
 	function RecalcSpamRating()
 	{
 		global $DB;
-		$res = $DB->Query("SELECT ID, FOR_SPAM_TEST FROM b_mail_message WHERE SPAM_LAST_RESULT<>'N'");
+		$res = $DB->Query("SELECT ID, HEADER, BODY_HTML, BODY FROM b_mail_message WHERE SPAM_LAST_RESULT<>'N'");
 		while($arr = $res->Fetch())
 		{
-			$arSpam = CMailFilter::GetSpamRating($arr["FOR_SPAM_TEST"]);
+			$forSpamTest = sprintf('%s %s', $arr['HEADER'], $arr['BODY_HTML'] ?: $arr['BODY']);
+			$arSpam = CMailFilter::GetSpamRating($forSpamTest);
 			$DB->Query("UPDATE b_mail_message SET SPAM_RATING=".Round($arSpam["RATING"], 4).", SPAM_LAST_RESULT='Y', SPAM_WORDS='".$DB->ForSql($arSpam["WORDS"], 255)."' WHERE ID=".$arr["ID"]);
 		}
 	}

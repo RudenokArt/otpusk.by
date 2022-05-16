@@ -144,6 +144,19 @@ div.bx-popup-menu td.popupmenu div.popupitem td.gutter div.grid-views {backgroun
 .bx-bizproc.bx-bizproc-grid-head .bx-bizproc-actions-col a.bx-bizproc-action{
 	opacity:.4;
 }
+.bx-bizproc-sorted > a {
+	display: inline-block;
+	overflow: hidden;
+	vertical-align: top;
+	max-width: 350px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.bx-bizproc-sorted {
+	min-width: 65%;
+}
+
 .bx-head-advanced-more{
 	display:inline-block;
 	width:16px;
@@ -253,6 +266,7 @@ input.bx-bizproc-folder-title{
 	opacity:.2;
 	background:url(images/sprite.png) no-repeat;
 	background-position:-16px -191px;
+	vertical-align: top;
 }
 .bx-bizproc-actions-col            a.bx-bizproc-action .empty,
 .bx-bizproc-actions-col            a.bx-bizproc-action .empty:hover,

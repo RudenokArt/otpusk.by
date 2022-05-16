@@ -1,6 +1,20 @@
 <?
 if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
 
+/**
+ * Bitrix vars
+ * @global CUser $USER
+ * @global CMain $APPLICATION
+ * @global CDatabase $DB
+ * @global CUserTypeManager $USER_FIELD_MANAGER
+ * @global CCacheManager $CACHE_MANAGER
+ * @param array $arParams
+ * @param array $arResult
+ * @param CBitrixComponent $this
+ */
+
+global $USER_FIELD_MANAGER, $CACHE_MANAGER;
+
 if (!CModule::IncludeModule("socialnetwork"))
 {
 	ShowError(GetMessage("SONET_MODULE_NOT_INSTALL"));
@@ -41,43 +55,104 @@ if (!is_array($arParams['EDITABLE_FIELDS']) || count($arParams['EDITABLE_FIELDS'
 		$arParams['EDITABLE_FIELDS'] = array_merge($arParams['EDITABLE_FIELDS'], array('BLOG_ALIAS', 'BLOG_DESCRIPTION', 'BLOG_INTERESTS', 'BLOG_AVATAR', 'BLOG_SIGNATURE'));
 }
 $arResult["arSocServ"] = array();
-if(CModule::IncludeModule("socialservices"))
+if (CModule::IncludeModule("socialservices"))
 {
 	$oAuthManager = new CSocServAuthManager();
 	$arResult["arSocServ"] = $oAuthManager->GetActiveAuthServices(array());
-	if(!empty($arResult["arSocServ"]))
+	if (!empty($arResult["arSocServ"]))
+	{
 		$arParams['EDITABLE_FIELDS'][] = 'SOCSERVICES';
+	}
 }
 
-
 if(in_array('TIME_ZONE', $arParams['EDITABLE_FIELDS']))
+{
 	$arParams['EDITABLE_FIELDS'][] = 'AUTO_TIME_ZONE';
-	
+}
+
+$arResult['CONTEXT'] = \Bitrix\Socialnetwork\ComponentHelper::getUrlContext();
+$arParams['PATH_TO_USER'] = \Bitrix\Socialnetwork\ComponentHelper::addContextToUrl($arParams['PATH_TO_USER'], $arResult["CONTEXT"]);
+
 $arResult["urlToCancel"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER"], array("user_id" => $arParams["ID"]));
 
-$CurrentUserPerms = CSocNetUserPerms::InitUserPerms($USER->GetID(), $arParams["ID"], CSocNetUser::IsCurrentUserModuleAdmin(SITE_ID, (CModule::IncludeModule("bitrix24") && CBitrix24::IsPortalAdmin($USER->GetID()) ? false : true)));
-if (!$CurrentUserPerms["Operations"]["modifyuser"] || !$CurrentUserPerms["Operations"]["modifyuser_main"])
-	$arParams['ID'] = $USER->GetID();
-
-$arResult["bEdit"] = ($USER->CanDoOperation('edit_own_profile') || $USER->IsAdmin()) ? "Y" : "N";
-
-if ($arResult['bEdit'] != 'Y')
-	$APPLICATION->AuthForm(GetMessage('SONET_P_PU_NO_RIGHTS'));
+$CurrentUserPerms = CSocNetUserPerms::InitUserPerms(
+	$USER->GetID(),
+	$arParams["ID"],
+	CSocNetUser::IsCurrentUserModuleAdmin(SITE_ID, (CModule::IncludeModule("bitrix24") && CBitrix24::IsPortalAdmin($USER->GetID()) ? false : true))
+);
 
 $dbUser = CUser::GetByID($arParams["ID"]);
 $arResult["User"] = $dbUser->GetNext();
 
+if (in_array($arResult["User"]["EXTERNAL_AUTH_ID"], \Bitrix\Socialnetwork\ComponentHelper::checkPredefinedAuthIdList(array('bot', 'imconnector', 'replica'))))
+{
+	$CurrentUserPerms["Operations"]["modifyuser_main"] = false;
+	$CurrentUserPerms["Operations"]["modifyuser"] = false;
+}
+
+if (
+	!$CurrentUserPerms["Operations"]["modifyuser"]
+	|| !$CurrentUserPerms["Operations"]["modifyuser_main"]
+)
+{
+	$arResult["FATAL_ERROR"] = GetMessage("SONET_P_PU_NO_RIGHTS");
+}
+
+$arResult["bEdit"] = (
+	!isset($arResult["FATAL_ERROR"])
+	&& (
+		$USER->CanDoOperation('edit_own_profile')
+		|| $USER->IsAdmin()
+	)
+		? "Y"
+		: "N"
+);
+
+//check integrator for cloud
+if (
+	CModule::IncludeModule("bitrix24")
+	&& $arResult["User"]["ID"] != $USER->GetID()
+	&& \CBitrix24::isIntegrator($USER->GetID())
+	&& \CBitrix24::IsPortalAdmin($arResult["User"]["ID"])
+)
+{
+	$arResult["bEdit"] = "N";
+}
+
+if ($arResult['bEdit'] != 'Y')
+{
+	$APPLICATION->AuthForm(GetMessage('SONET_P_PU_NO_RIGHTS'));
+}
+
+$arResult["User"]["IS_EMAIL"] = (
+	$arResult["User"]['EXTERNAL_AUTH_ID'] == 'email'
+	&& IsModuleInstalled('mail')
+);
+
+if (in_array($arResult['User']['EXTERNAL_AUTH_ID'], \Bitrix\Socialnetwork\ComponentHelper::checkPredefinedAuthIdList('email')))
+{
+	$arParams['EDITABLE_FIELDS'] = array_intersect($arParams['EDITABLE_FIELDS'], array("NAME", "LAST_NAME", "SECOND_NAME", "PERSONAL_PHOTO"));
+}
+
 if ($arResult['User']['EXTERNAL_AUTH_ID'])
 {
 	foreach ($arParams['EDITABLE_FIELDS'] as $key => $value)
+	{
 		if ($value == 'LOGIN' || $value == 'PASSWORD')
+		{
 			unset($arParams['EDITABLE_FIELDS'][$key]);
+		}
+	}
 }
 elseif (in_array('PASSWORD', $arParams['EDITABLE_FIELDS']))
+{
 	$arParams['EDITABLE_FIELDS'][] = 'CONFIRM_PASSWORD';
+}
 
 if(!is_array($arResult["User"]))
+{
 	$arResult["FATAL_ERROR"] = GetMessage("SONET_P_USER_NO_USER");
+}
 else
 {
 	$arResult["GROUPS_CAN_EDIT"] = array();
@@ -180,6 +255,7 @@ else
 		}
 
 		$arPICTURE = array();
+		$picturesToDelete = array();
 		$arPICTURE_WORK = array();
 
 		//PERSONAL_PHOTO upload
@@ -188,30 +264,27 @@ else
 			$_POST['PERSONAL_PHOTO_ID']
 			&& intval($_POST['PERSONAL_PHOTO_ID']) > 0
 			&& intval($_POST['PERSONAL_PHOTO_ID']) != intval($arResult["User"]["PERSONAL_PHOTO"])
+			&& in_array($_POST['PERSONAL_PHOTO_ID'], \Bitrix\Main\UI\FileInputUtility::instance()->checkFiles(
+				'PERSONAL_PHOTO_IMAGE_ID',
+				array($_POST['PERSONAL_PHOTO_ID'])
+			))
 		)
 		{
-			if (
-				in_array($_POST['PERSONAL_PHOTO_ID'], \Bitrix\Main\UI\FileInputUtility::instance()->checkFiles(
-						'PERSONAL_PHOTO_IMAGE_ID',
-						array($_POST['PERSONAL_PHOTO_ID'])
-					)
-				)
-			)
-			{
-				$arPICTURE = CFile::MakeFileArray($_POST['PERSONAL_PHOTO_ID']);
-			}
+			$arPICTURE = CFile::MakeFileArray($_POST['PERSONAL_PHOTO_ID']);
+			$arPICTURE["old_file"] = $arResult["User"]["PERSONAL_PHOTO"];
+			$picturesToDelete[] = $_POST['PERSONAL_PHOTO_ID'];
 		}
 		elseif ( //usual template
 			strlen($_FILES["PERSONAL_PHOTO"]["name"]) > 0
 		)
 		{
-			$arPICTURE = $_FILES["PERSONAL_PHOTO"]; 
+			$arPICTURE = $_FILES["PERSONAL_PHOTO"];
+			$arPICTURE["old_file"] = $arResult["User"]["PERSONAL_PHOTO"];
 		}
-
-		if (sizeof($arPICTURE) != 0 || isset($_POST["PERSONAL_PHOTO_del"]))
+		else if (($_POST["PERSONAL_PHOTO_del"] ?: $_POST["PERSONAL_PHOTO_ID_del"]) <> '')
 		{
 			$arPICTURE["old_file"] = $arResult["User"]["PERSONAL_PHOTO"];
-			$arPICTURE["del"] = $_POST["PERSONAL_PHOTO_del"];
+			$arPICTURE["del"] = ($_POST["PERSONAL_PHOTO_del"] ?: $_POST["PERSONAL_PHOTO_ID_del"]);
 		}
 
 		//WORK_LOGO upload
@@ -220,18 +293,15 @@ else
 			$_POST['WORK_LOGO_ID']
 			&& intval($_POST['WORK_LOGO_ID']) > 0
 			&& intval($_POST['WORK_LOGO_ID']) != intval($arResult["User"]["WORK_LOGO"])
+			&& in_array($_POST['WORK_LOGO_ID'], \Bitrix\Main\UI\FileInputUtility::instance()->checkFiles(
+				'WORK_LOGO_IMAGE_ID',
+				array($_POST['WORK_LOGO_ID'])
+			))
 		)
 		{
-			if (in_array($_POST['WORK_LOGO_ID'], \Bitrix\Main\UI\FileInputUtility::instance()->checkFiles(
-						'WORK_LOGO_IMAGE_ID',
-						array($_POST['WORK_LOGO_ID'])
-					)
-				)
-			)
-			{
-				$arPICTURE_WORK = CFile::MakeFileArray($_POST['WORK_LOGO_ID']);
-			}
-		}		
+			$arPICTURE_WORK = CFile::MakeFileArray($_POST['WORK_LOGO_ID']);
+			$picturesToDelete[] = $_POST['WORK_LOGO_ID'];
+		}
 		elseif ( // usual template
 			strlen($_FILES["WORK_LOGO"]["name"]) > 0 
 			|| isset($_POST["WORK_LOGO_del"])
@@ -245,7 +315,7 @@ else
 		if (sizeof($arPICTURE_WORK) != 0)
 		{
 			$arPICTURE_WORK["old_file"] = $arResult["User"]["WORK_LOGO"];
-			$arPICTURE_WORK["del"] = $_POST["WORK_LOGO_del"];
+			$arPICTURE_WORK["del"] = ($_POST["WORK_LOGO_del"] ?: $_POST["WORK_LOGO_ID_del"]);
 		}
 
 		$arFields = Array(
@@ -268,13 +338,60 @@ else
 				if (sizeof($arPICTURE_WORK) != 0)
 					$arFieldsValue[$key] = $arPICTURE_WORK;
 			}
-			elseif ('GROUP_ID' == $key)
+			elseif ('GROUP_ID' == $key && !IsModuleInstalled("bitrix24"))
 			{
 				if (is_array($arGroupsCanEditID) && is_array($_POST[$key]))
+				{
 					$arFieldsValue[$key] = array_intersect($_POST[$key], $arGroupsCanEditID);
+				}
 			}
 			elseif ($_POST[$key] !== $arResult['User'][$key])
 				$arFieldsValue[$key] = $_POST[$key];
+		}
+
+		$removeAdminRights = false;
+
+		//groups for bitrix24 cloud
+		if (
+			\Bitrix\Main\Loader::includeModule("bitrix24")
+			&& \CBitrix24::IsPortalAdmin($USER->GetID())
+			&& $USER->GetID() != $arResult["User"]['ID']
+			&& !( // not extranet
+				!is_array($arResult["User"]['UF_DEPARTMENT'])
+				|| empty($arResult["User"]['UF_DEPARTMENT'][0])
+			)
+			&& $arResult["User"]['ACTIVE'] == "Y"
+		)
+		{
+			//moving admin rights to another user
+			if (
+				!\CBitrix24::IsPortalAdmin($arResult["User"]['ID'])
+				&& $_POST["IS_ADMIN"] == "Y"
+				&& !CBitrix24::isMoreAdminAvailable()
+			)
+			{
+				$removeAdminRights = true;
+			}
+			
+			$curUserGroups = CUser::GetUserGroup($arResult["User"]['ID']);
+			foreach ($curUserGroups as $groupKey => $group)
+			{
+				if ($group == 1 || $group == 12 || $group == 11)
+				{
+					unset($curUserGroups[$groupKey]);
+				}
+			}
+			if ($_POST["IS_ADMIN"] == "Y")
+			{
+				$curUserGroups[] = "1";
+				$curUserGroups[] = "12";
+			}
+			else
+			{
+				$curUserGroups[] = "11";
+			}
+
+			$arFieldsValue["GROUP_ID"] = $curUserGroups;
 		}
 
 		//time zones
@@ -288,7 +405,7 @@ else
 			unset($arFieldsValue['CONFIRM_PASSWORD']);
 		}
 
-		$GLOBALS["USER_FIELD_MANAGER"]->EditFormAddFields("USER", $arFieldsValue);
+		$USER_FIELD_MANAGER->EditFormAddFields("USER", $arFieldsValue);
 
 		if (in_array('PASSWORD', $arParams['EDITABLE_FIELDS']))
 			$arParams['EDITABLE_FIELDS'][] = 'CONFIRM_PASSWORD';
@@ -300,10 +417,27 @@ else
 
 		$res = $USER->Update($SONET_USER_ID, $arNewFieldsValue);
 
+		while ($f = array_pop($picturesToDelete))
+			CFile::Delete($f);
+
 		if (!$res)
 			$strErrorMessage = $USER->LAST_ERROR;
 		else
 		{
+			if ($removeAdminRights)
+			{
+				$curAdminGroups = CUser::GetUserGroup($USER->GetID());
+				foreach ($curAdminGroups as $groupKey => $group)
+				{
+					if ($group == 1 || $group == 12)
+					{
+						unset($curAdminGroups[$groupKey]);
+					}
+				}
+				$curAdminGroups[] = "11";
+				CUser::SetUserGroup($USER->GetID(), $curAdminGroups);
+			}
+
 			if ($arParams['IS_FORUM'] == 'Y')
 			{
 				$arForumFields = array(
@@ -390,9 +524,13 @@ else
 
 		if(strlen($strErrorMessage)<=0)
 			if ($_REQUEST['backurl'])
+			{
 				LocalRedirect($_REQUEST['backurl']);
+			}
 			else
+			{
 				LocalRedirect(CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER"], array("user_id" => $arParams["ID"])));
+			}
 		else
 		{
 			$arResult["ERROR_MESSAGE"] = $strErrorMessage;
@@ -421,18 +559,19 @@ else
 
 	if (CModule::IncludeModule('mail'))
 	{
-		$dbMailbox = CMailbox::getList(
-			array(
-				'TIMESTAMP_X' => 'DESC'
+		$dbMailbox = \Bitrix\Mail\MailboxTable::getList(array(
+			'filter' => array(
+				'=LID' => SITE_ID,
+				'=ACTIVE' => 'Y',
+				'=USER_ID' => $arParams['ID'],
+				'=SERVER_TYPE' => 'imap',
 			),
-			array(
-				'LID'     => SITE_ID,
-				'ACTIVE'  => 'Y',
-				'USER_ID' => intval($arParams['ID']),
-				'SERVER_TYPE' => 'imap|controller|domain'
-			)
-		);
+			'order' => array(
+				'TIMESTAMP_X' => 'DESC',
+			),
+		));
 		$mailbox = $dbMailbox->fetch();
+		\Bitrix\Mail\MailboxTable::normalizeEmail($mailbox);
 		if (strpos($mailbox['LOGIN'], '@') !== false)
 			$arResult['User']['MAILBOX'] = $mailbox['LOGIN'];
 	}
@@ -479,6 +618,7 @@ else
 		}
 	}
 
+	$userName = '';
 	if ($arParams["SET_TITLE"] == "Y" || $arParams["SET_NAV_CHAIN"] != "N")
 	{
 		if (strlen($arParams["NAME_TEMPLATE"]) <= 0)
@@ -535,7 +675,7 @@ else
 			$arResult["User"]["BLOG_AVATAR_IMG"] = CFile::ShowImage($arResult["User"]["BLOG_AVATAR_FILE"]["ID"], 150, 150, "border=0", "", true);
 	}
 
-	$arPolicy = $GLOBALS["USER"]->GetGroupPolicy($arResult["User"]["ID"]);
+	$arPolicy = $USER->GetGroupPolicy($arResult["User"]["ID"]);
 	$arResult["PASSWORD_MIN_LENGTH"] = intval($arPolicy["PASSWORD_LENGTH"]);
 	if($arResult["PASSWORD_MIN_LENGTH"] <= 0)
 		$arResult["PASSWORD_MIN_LENGTH"] = 6;

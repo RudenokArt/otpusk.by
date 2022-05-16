@@ -66,6 +66,25 @@ if($isAdmin && $_SERVER["REQUEST_METHOD"] == "POST" && strlen($_POST["module"]) 
 			$ht->Post("https://marketplace.1c-bitrix.ru/solutions/".$moduleId."/", $arF);
 			LocalRedirect($APPLICATION->GetCurPage()."?lang=".LANGUAGE_ID."&result=OPAD");
 		}
+		elseif($_POST["act"] == "unnotify_mp")
+		{
+			$arrayId = preg_replace("#[^a-zA-Z0-9.,-_]#i", "", $_POST["array_id"]);
+			$moduleId = preg_replace("#[^a-zA-Z0-9.,-_]#i", "", $_POST["module"]);
+			$cMpModulesResult = COption::GetOptionString("main", "last_mp_modules_result", "");
+			if (strlen($cMpModulesResult) > 0)
+			{
+				$arModulesResult = unserialize($cMpModulesResult);
+				foreach ($arModulesResult[$arrayId] as $key => $arModule)
+				{
+					if (trim(strtoupper($key)) == trim(strtoupper($moduleId)))
+					{
+						unset ($arModulesResult[$arrayId][$key]);
+					}
+				}
+			}
+			COption::SetOptionString("main", "last_mp_modules_result", serialize($arModulesResult));
+			die();
+		}
 	}
 }
 
@@ -112,45 +131,54 @@ $folders = array(
 );
 foreach($folders as $folder)
 {
-	$handle = @opendir($_SERVER["DOCUMENT_ROOT"].$folder);
-	if($handle)
+	if(file_exists($_SERVER["DOCUMENT_ROOT"].$folder))
 	{
-		while (false !== ($dir = readdir($handle)))
+		$handle = opendir($_SERVER["DOCUMENT_ROOT"].$folder);
+		if($handle)
 		{
-			if(!isset($arModules[$dir]) && is_dir($_SERVER["DOCUMENT_ROOT"].$folder."/".$dir) && $dir!="." && $dir!=".." && strpos($dir, ".") !== false)
+			while (false !== ($dir = readdir($handle)))
 			{
-				$module_dir = $_SERVER["DOCUMENT_ROOT"].$folder."/".$dir;
-				if($info = CModule::CreateModuleObject($dir))
+				if(!isset($arModules[$dir]) && is_dir($_SERVER["DOCUMENT_ROOT"].$folder."/".$dir) && $dir!="." && $dir!=".." && strpos($dir, ".") !== false)
 				{
-					$arModules[$dir]["MODULE_ID"] = $info->MODULE_ID;
-					$arModules[$dir]["MODULE_NAME"] = $info->MODULE_NAME;
-					$arModules[$dir]["MODULE_DESCRIPTION"] = $info->MODULE_DESCRIPTION;
-					$arModules[$dir]["MODULE_VERSION"] = $info->MODULE_VERSION;
-					$arModules[$dir]["MODULE_VERSION_DATE"] = $info->MODULE_VERSION_DATE;
-					$arModules[$dir]["MODULE_SORT"] = $info->MODULE_SORT;
-					$arModules[$dir]["MODULE_PARTNER"] = $info->PARTNER_NAME;
-					$arModules[$dir]["MODULE_PARTNER_URI"] = $info->PARTNER_URI;
-					$arModules[$dir]["IsInstalled"] = $info->IsInstalled();
-					if(defined(str_replace(".", "_", $info->MODULE_ID)."_DEMO"))
+					$module_dir = $_SERVER["DOCUMENT_ROOT"].$folder."/".$dir;
+					if($info = CModule::CreateModuleObject($dir))
 					{
-						$arModules[$dir]["DEMO"] = "Y";
-						if($info->IsInstalled())
+						$arModules[$dir]["MODULE_ID"] = $info->MODULE_ID;
+						$arModules[$dir]["MODULE_NAME"] = $info->MODULE_NAME;
+						$arModules[$dir]["MODULE_DESCRIPTION"] = $info->MODULE_DESCRIPTION;
+						$arModules[$dir]["MODULE_VERSION"] = $info->MODULE_VERSION;
+						$arModules[$dir]["MODULE_VERSION_DATE"] = $info->MODULE_VERSION_DATE;
+						$arModules[$dir]["MODULE_SORT"] = $info->MODULE_SORT;
+						$arModules[$dir]["MODULE_PARTNER"] = $info->PARTNER_NAME;
+						$arModules[$dir]["MODULE_PARTNER_URI"] = $info->PARTNER_URI;
+						$arModules[$dir]["IsInstalled"] = $info->IsInstalled();
+						if(defined(str_replace(".", "_", $info->MODULE_ID)."_DEMO"))
 						{
-							if(CModule::IncludeModuleEx($info->MODULE_ID) != MODULE_DEMO_EXPIRED)
+							$arModules[$dir]["DEMO"] = "Y";
+							if($info->IsInstalled())
 							{
-								$arModules[$dir]["DEMO_DATE"] = ConvertTimeStamp($GLOBALS["SiteExpireDate_".str_replace(".", "_", $info->MODULE_ID)], "SHORT");
+								if(CModule::IncludeModuleEx($info->MODULE_ID) != MODULE_DEMO_EXPIRED)
+								{
+									$arModules[$dir]["DEMO_DATE"] = ConvertTimeStamp($GLOBALS["SiteExpireDate_".str_replace(".", "_", $info->MODULE_ID)], "SHORT");
+								}
+								else
+									$arModules[$dir]["DEMO_END"] = "Y";
 							}
-							else
-								$arModules[$dir]["DEMO_END"] = "Y";
 						}
 					}
 				}
 			}
+			closedir($handle);
 		}
-		closedir($handle);
 	}
 }
-uasort($arModules, create_function('$a, $b', 'if($a["MODULE_SORT"] == $b["MODULE_SORT"]) return strcasecmp($a["MODULE_NAME"], $b["MODULE_NAME"]); return ($a["MODULE_SORT"] < $b["MODULE_SORT"])? -1 : 1;'));
+\Bitrix\Main\Type\Collection::sortByColumn(
+	$arModules,
+	['MODULE_SORT' => SORT_ASC, 'MODULE_NAME' => SORT_STRING],
+	'',
+	null,
+	true
+);
 
 $stableVersionsOnly = COption::GetOptionString("main", "stable_versions_only", "Y");
 $arRequestedModules = CUpdateClientPartner::GetRequestedModules("");
@@ -164,8 +192,8 @@ $linkToBuy = false;
 $linkToBuyUpdate = false;
 if(LANGUAGE_ID == "ru")
 {
-	$linkToBuy = "http://marketplace.1c-bitrix.ru"."/tobasket.php?ID=#CODE#";
-	$linkToBuyUpdate = "http://marketplace.1c-bitrix.ru"."/tobasket.php?ID=#CODE#&lckey=".md5("BITRIX".CUpdateClientPartner::GetLicenseKey()."LICENCE");
+	$linkToBuy = "https://marketplace.1c-bitrix.ru"."/tobasket.php?ID=#CODE#";
+	$linkToBuyUpdate = "https://marketplace.1c-bitrix.ru"."/tobasket.php?ID=#CODE#&lckey=".md5("BITRIX".CUpdateClientPartner::GetLicenseKey()."LICENCE");
 }
 
 $bHaveNew = false;
@@ -316,7 +344,7 @@ while($info = $rsData->Fetch())
 {
 	$row =& $lAdmin->AddRow($info["MODULE_ID"], $info);
 
-	$name = "<b><a href=\"http://marketplace.1c-bitrix.ru/".htmlspecialcharsbx($info["MODULE_ID"])."\" target=\"_blank\">".htmlspecialcharsbx($info["MODULE_NAME"])."</a></b> (".htmlspecialcharsbx($info["MODULE_ID"]).")";
+	$name = "<b><a href=\"https://marketplace.1c-bitrix.ru/".htmlspecialcharsbx($info["MODULE_ID"])."\" target=\"_blank\">".htmlspecialcharsbx($info["MODULE_NAME"])."</a></b> (".htmlspecialcharsbx($info["MODULE_ID"]).")";
 	if($info["DEMO"] == "Y")
 		$name .= " <span style=\"color:red;\">".GetMessage("MOD_DEMO")."</span>";
 	$name .= "<br />".htmlspecialcharsbx($info["MODULE_DESCRIPTION"]);

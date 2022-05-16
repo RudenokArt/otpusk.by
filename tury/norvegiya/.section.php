@@ -1,0 +1,6 @@
+<?
+$sSectionName = "Норвегия";
+$arDirProperties = array(
+
+);
+?>

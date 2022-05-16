@@ -24,7 +24,6 @@ class CSocNetSearch
 		CALENDAR_GROUP_IBLOCK_ID
 		PATH_TO_GROUP_CALENDAR_ELEMENT
 
-		TASK_IBLOCK_ID
 		PATH_TO_GROUP_TASK_ELEMENT
 		PATH_TO_USER_TASK_ELEMENT
 
@@ -49,7 +48,7 @@ class CSocNetSearch
 		$this->_params = $arParams;
 	}
 
-	function OnUserRelationsChange($user_id)
+	public static function OnUserRelationsChange($user_id)
 	{
 		if(CModule::IncludeModule('search'))
 		{
@@ -70,7 +69,7 @@ class CSocNetSearch
 		}
 	}
 
-	function SetFeaturePermissions($entity_type, $entity_id, $feature, $operation, $new_perm)
+	public static function SetFeaturePermissions($entity_type, $entity_id, $feature, $operation, $new_perm)
 	{
 		if(substr($operation, 0, 4) == "view")//This kind of extremely dangerous optimization
 		{
@@ -96,64 +95,67 @@ class CSocNetSearch
 				CBlogPost::ChangeSocNetPermission($entity_type, $entity_id, $operation);
 			}
 
-			if($operation == "view_post")
+			if(CModule::IncludeModule('search'))
 			{
-				$arPost = CBlogPost::GetSocNetPostsPerms($entity_type, $entity_id);
-				foreach($arPost as $id => $perms)
+				if($operation == "view_post")
 				{
-					CSearch::ChangePermission("blog", $perms["PERMS"], "P".$id);
-				}
-			}
-			else
-			{
-				$arTmpCache = Array();
-				$arPost = CBlogPost::GetSocNetPostsPerms($entity_type, $entity_id);
-				$dbComment = CBlogComment::GetSocNetPostsPerms($entity_type, $entity_id);
-				while($arComment = $dbComment->Fetch())
-				{
-					if(!empty($arPost[$arComment["POST_ID"]]))
+					$arPost = CBlogPost::GetSocNetPostsPerms($entity_type, $entity_id);
+					foreach($arPost as $id => $perms)
 					{
-						if(empty($arPost[$arComment["POST_ID"]]["PERMS_CALC"]))
+						CSearch::ChangePermission("blog", $perms["PERMS"], "P".$id);
+					}
+				}
+				else
+				{
+					$arTmpCache = Array();
+					$arPost = CBlogPost::GetSocNetPostsPerms($entity_type, $entity_id);
+					$dbComment = CBlogComment::GetSocNetPostsPerms($entity_type, $entity_id);
+					while($arComment = $dbComment->Fetch())
+					{
+						if(!empty($arPost[$arComment["POST_ID"]]))
 						{
-							$arPost[$arComment["POST_ID"]]["PERMS_CALC"] = array();
-							if(is_array($arPost[$arComment["POST_ID"]]["PERMS_FULL"]) && !empty($arPost[$arComment["POST_ID"]]["PERMS_FULL"]))
+							if(empty($arPost[$arComment["POST_ID"]]["PERMS_CALC"]))
 							{
-								foreach($arPost[$arComment["POST_ID"]]["PERMS_FULL"] as $e => $v)
+								$arPost[$arComment["POST_ID"]]["PERMS_CALC"] = array();
+								if(is_array($arPost[$arComment["POST_ID"]]["PERMS_FULL"]) && !empty($arPost[$arComment["POST_ID"]]["PERMS_FULL"]))
 								{
-									if(in_array($v["TYPE"], Array("SG", "U")))
+									foreach($arPost[$arComment["POST_ID"]]["PERMS_FULL"] as $e => $v)
 									{
-										$type = $v["TYPE"] == "SG" ? "G" : "U";
-										if(array_key_exists($type.$v["ID"], $arTmpCache))
+										if(in_array($v["TYPE"], Array("SG", "U")))
 										{
-											$spt = $arTmpCache[$type.$v["ID"]];
+											$type = $v["TYPE"] == "SG" ? "G" : "U";
+											if(array_key_exists($type.$v["ID"], $arTmpCache))
+											{
+												$spt = $arTmpCache[$type.$v["ID"]];
+											}
+											else
+											{
+												$spt = CBlogPost::GetSocnetGroups($type, $v["ID"], "view_comment");
+												$arTmpCache[$type.$v["ID"]] = $spt;
+											}
+											foreach($spt as $vv)
+											{
+												if(!in_array($vv, $arPost[$arComment["POST_ID"]]["PERMS_CALC"]))
+													$arPost[$arComment["POST_ID"]]["PERMS_CALC"][] = $vv;
+											}
 										}
 										else
 										{
-											$spt = CBlogPost::GetSocnetGroups($type, $v["ID"], "view_comment");
-											$arTmpCache[$type.$v["ID"]] = $spt;
+											$arPost[$arComment["POST_ID"]]["PERMS_CALC"][] = $e;
 										}
-										foreach($spt as $vv)
-										{
-											if(!in_array($vv, $arPost[$arComment["POST_ID"]]["PERMS_CALC"]))
-												$arPost[$arComment["POST_ID"]]["PERMS_CALC"][] = $vv;
-										}
-									}
-									else
-									{
-										$arPost[$arComment["POST_ID"]]["PERMS_CALC"][] = $e;
 									}
 								}
 							}
-						}
 
-						CSearch::ChangePermission("blog", $arPost[$arComment["POST_ID"]]["PERMS_CALC"], "C".$arComment["ID"]);
+							CSearch::ChangePermission("blog", $arPost[$arComment["POST_ID"]]["PERMS_CALC"], "C".$arComment["ID"]);
+						}
 					}
 				}
 			}
 		}
 	}
 
-	function GetSearchParams($entity_type, $entity_id, $feature, $operation)
+	public static function GetSearchParams($entity_type, $entity_id, $feature, $operation)
 	{
 		return array(
 			"feature_id" => "S".$entity_type."_".$entity_id."_".$feature."_".$operation,
@@ -161,7 +163,7 @@ class CSocNetSearch
 		);
 	}
 
-	function GetSearchGroups($entity_type, $entity_id, $feature, $operation)
+	public static function GetSearchGroups($entity_type, $entity_id, $feature, $operation)
 	{
 		$arResult = array();
 
@@ -179,8 +181,13 @@ class CSocNetSearch
 					break;
 				case "K"://Group members includes moderators and admins
 					$arResult[] = $prefix.'K';
+					$arResult[] = $prefix.'E';
+					$arResult[] = $prefix.'A';
+					break;
 				case "E"://Moderators includes admins
 					$arResult[] = $prefix.'E';
+					$arResult[] = $prefix.'A';
+					break;
 				case "A"://Admins
 					$arResult[] = $prefix.'A';
 					break;
@@ -201,6 +208,8 @@ class CSocNetSearch
 				case "E"://Friends of friends (has no rights yet) so it counts as
 				case "M"://Friends
 					$arResult[] = $prefix.'M';
+				$arResult[] = $prefix.'Z';
+					break;
 				case "Z"://Personal
 					$arResult[] = $prefix.'Z';
 					break;
@@ -219,6 +228,9 @@ class CSocNetSearch
 			$id = intval($NS["ID"]);
 		else
 			$id = 0;//very first id
+
+		$strNSJoin1 = "";
+		$strNSFilter1 = "";
 
 		if($NS["SITE_ID"]!="")
 		{
@@ -298,17 +310,20 @@ class CSocNetSearch
 
 	function OnSearchPrepareFilter($strSearchContentAlias, $field, $val)
 	{
+		global $CACHE_MANAGER;
+
 		if(defined("BX_COMP_MANAGED_CACHE") && in_array($field, array("SOCIAL_NETWORK_USER", "SOCIAL_NETWORK_GROUP")))
 		{
 			$tag_val = (is_array($val) ? serialize($val) : $val);
 			$tag_field = ($field == "SOCIAL_NETWORK_GROUP" ? SONET_ENTITY_GROUP : SONET_ENTITY_USER);
-			$GLOBALS["CACHE_MANAGER"]->RegisterTag("sonet_search_".$tag_field."_".$tag_val);
+			$CACHE_MANAGER->RegisterTag("sonet_search_".$tag_field."_".$tag_val);
 		}
 	}
 
 	function OnSearchCheckPermissions($FIELD)
 	{
-		global $DB, $USER;
+		global $USER;
+
 		$user_id = intval($USER->GetID());
 		$arResult = array();
 
@@ -443,10 +458,9 @@ class CSocNetSearch
 		}
 
 		if (
-			($feature == 'tasks') &&
-			(COption::GetOptionString("intranet", "use_tasks_2_0", "N") == 'Y') &&
-			($arFields["PARAM1"] == COption::GetOptionString("tasks", "task_forum_id", 0)) &&
-			CModule::IncludeModule('tasks')
+			$feature == 'tasks'
+			&& $arFields["PARAM1"] == COption::GetOptionString("tasks", "task_forum_id", 0)
+			&& CModule::IncludeModule('tasks')
 		)
 		{
 			if (!preg_match('/^EVENT_[0-9]+/', $arFields["TITLE"], $match)) // calendar comments live in the same TASK_FORUM_ID :(
@@ -505,11 +519,10 @@ class CSocNetSearch
 
 	function BeforeIndex($arFields)
 	{
-		global $USER;
-
 		//Check if we in right context
 		if (
-			!is_object($this) 
+			!isset($this)
+			|| !is_object($this)
 			|| !is_array($this->_params)
 		)
 		{
@@ -546,6 +559,7 @@ class CSocNetSearch
 			elseif(
 				$arFields["MODULE_ID"] == "forum" 
 				&& intval($arFields["PARAM1"]) == intval($this->_params["FILES_FORUM_ID"])
+				&& isModuleInstalled("webdav")
 			)
 			{
 				$arFields = $this->BeforeIndexForum($arFields,
@@ -560,7 +574,7 @@ class CSocNetSearch
 				&& !preg_match('/^EVENT_[0-9]+/', $arFields["TITLE"], $match) // calendar comments live in the same TASK_FORUM_ID :(
 			)
 			{
-				$arFields = $this->BeforeIndexForum(
+/*				$arFields = $this->BeforeIndexForum(
 					$arFields,
 					SONET_ENTITY_GROUP,
 					$this->_group_id,
@@ -574,7 +588,7 @@ class CSocNetSearch
 						"message#message_id#"
 					)
 				);
-			}
+*/			}
 			elseif(
 				$arFields["MODULE_ID"] == "forum" 
 				&& preg_match('/^EVENT_[0-9]+/', $arFields["TITLE"], $match)
@@ -641,8 +655,9 @@ class CSocNetSearch
 				);
 			}
 			elseif(
-				$arFields["MODULE_ID"] == "forum" 
+				$arFields["MODULE_ID"] == "forum"
 				&& intval($arFields["PARAM1"]) == intval($this->_params["FILES_FORUM_ID"])
+				&& isModuleInstalled("webdav")
 			)
 			{
 				$arFields = $this->BeforeIndexForum($arFields,
@@ -652,11 +667,11 @@ class CSocNetSearch
 				);
 			}
 			elseif(
-				$arFields["MODULE_ID"] == "forum" 
+				$arFields["MODULE_ID"] == "forum"
 				&& intval($arFields["PARAM1"]) == intval($this->_params["TASK_FORUM_ID"])
 			)
 			{
-				if (!preg_match('/^EVENT_[0-9]+/', $arFields["TITLE"], $match)) // calendar comments live in the same TASK_FORUM_ID :(
+/*				if (!preg_match('/^EVENT_[0-9]+/', $arFields["TITLE"], $match)) // calendar comments live in the same TASK_FORUM_ID :(
 				{
 					$arFields = $this->BeforeIndexForum($arFields,
 						SONET_ENTITY_USER, $this->_user_id,
@@ -664,7 +679,7 @@ class CSocNetSearch
 						$this->Url($this->_params["PATH_TO_USER_TASK_ELEMENT"], array("MID"=>"#message_id#"), "message#message_id#")
 					);
 				}
-			}
+*/			}
 			elseif(
 				$arFields["MODULE_ID"] == "forum" 
 				&& preg_match('/^EVENT_[0-9]+/', $arFields["TITLE"], $match)
@@ -732,8 +747,26 @@ class CSocNetSearch
 		return $arFields;
 	}
 
+	function BeforeIndexLast($arFields)
+	{
+		if(
+			$arFields["MODULE_ID"] == "blog"
+			&& $arFields["PARAM1"] == "USER"
+		)
+		{
+			$arFields = array(
+				"TITLE" => "",
+				"BODY" => ""
+			);
+		}
+
+		return $arFields;
+	}
+
 	function IndexIBlockElement($arFields, $entity_id, $entity_type, $feature, $operation, $path_template, $arFieldList)
 	{
+		global $CACHE_MANAGER;
+
 		$ID = intval($arFields["ID"]);
 		$IBLOCK_ID = intval($arFields["IBLOCK_ID"]);
 		$IBLOCK_SECTION_ID = (is_array($arFields["IBLOCK_SECTION"])) ? $arFields["IBLOCK_SECTION"][0] : $arFields["IBLOCK_SECTION"];
@@ -742,7 +775,7 @@ class CSocNetSearch
 		if($entity_type == "G")
 			$url = str_replace(
 				array("#group_id#", "#user_alias#", "#section_id#", "#element_id#", "#action#", "#task_id#", "#name#"),
-				array($entity_id, "group_".$entity_id, $IBLOCK_SECTION_ID, $arFields["ID"], "view", $arFields["ID"], urlencode($arFields["NAME"])),
+				array($entity_id, "group_".$entity_id, $IBLOCK_SECTION_ID, $arFields["ID"], "view", $arFields["ID"], rawurlencode($arFields["NAME"])),
 				$path_template
 			);
 		else
@@ -808,7 +841,7 @@ class CSocNetSearch
 
 		if(defined("BX_COMP_MANAGED_CACHE"))
 		{
-			$GLOBALS["CACHE_MANAGER"]->ClearByTag("sonet_search_".$entity_type."_".$entity_id);
+			$CACHE_MANAGER->ClearByTag("sonet_search_".$entity_type."_".$entity_id);
 		}
 	}
 
@@ -867,42 +900,6 @@ class CSocNetSearch
 			$path_template = trim($this->_params["PATH_TO_GROUP_CALENDAR_ELEMENT"]);
 			if(strlen($path_template))
 				$this->IndexIBlockElement($arFields, $this->_group_id, "G", "calendar", "view", $path_template, array("DETAIL_TEXT"));
-			break;
-
-		case intval($this->_params["TASK_IBLOCK_ID"]):
-			if(is_array($arFields["IBLOCK_SECTION"]))
-			{
-				foreach($arFields["IBLOCK_SECTION"] as $section_id)
-					break;
-			}
-			else
-			{
-				$section_id = $arFields["IBLOCK_SECTION"];
-			}
-			$section_id = intval($section_id);
-
-			if($section_id)
-			{
-				$rsPath = CIBlockSection::GetNavChain($arFields["IBLOCK_ID"], $section_id);
-				$arSection = $rsPath->Fetch();
-				if($arSection)
-				{
-					if($arSection["EXTERNAL_ID"]=="users_tasks")
-					{
-						$rsAssigned = CIBlockElement::GetProperty($arFields["IBLOCK_ID"], $arFields["ID"], "sort", "asc", array("CODE"=>"TASKASSIGNEDTO", "EMPTY"=>"N"));
-						$arAssigned = $rsAssigned->Fetch();
-						$path_template = trim($this->_params["PATH_TO_USER_TASK_ELEMENT"]);
-						if($arAssigned && strlen($path_template))
-							$this->IndexIBlockElement($arFields, $arAssigned["VALUE"], "U", "tasks", "view_all", $path_template, array("DETAIL_TEXT"));
-					}
-					elseif(intval($arSection["EXTERNAL_ID"]) > 0)
-					{
-						$path_template = trim($this->_params["PATH_TO_GROUP_TASK_ELEMENT"]);
-						if(strlen($path_template))
-							$this->IndexIBlockElement($arFields, intval($arSection["EXTERNAL_ID"]), "G", "tasks", "view", $path_template, array("DETAIL_TEXT"));
-					}
-				}
-			}
 			break;
 
 		case intval($this->_params["FILES_GROUP_IBLOCK_ID"]):
@@ -973,6 +970,8 @@ class CSocNetSearch
 
 	function IndexIBlockSection($arFields, $entity_id, $entity_type, $feature, $operation, $path_template)
 	{
+		global $CACHE_MANAGER;
+
 		$rSection = CIBlockSection::GetByID($arFields['ID']);
 		$arSection = $rSection->Fetch();
 
@@ -989,7 +988,7 @@ class CSocNetSearch
 		if($entity_type == "G")
 			$url = str_replace(
 				array("#group_id#", "#user_alias#", "#section_id#", "#element_id#", "#action#", "#task_id#", "#name#", "#path#"),
-				array($entity_id, "group_".$entity_id, $arFields["IBLOCK_SECTION"], $arFields["ID"], "view", $arFields["ID"], urlencode($arFields["NAME"]), $path),
+				array($entity_id, "group_".$entity_id, $arFields["IBLOCK_SECTION"], $arFields["ID"], "view", $arFields["ID"], rawurlencode($arFields["NAME"]), $path),
 				$path_template
 			);
 		else
@@ -1037,7 +1036,9 @@ class CSocNetSearch
 		), true);
 
 		if(defined("BX_COMP_MANAGED_CACHE"))
-			$GLOBALS["CACHE_MANAGER"]->ClearByTag("sonet_search_".$entity_type."_".$entity_id);
+		{
+			$CACHE_MANAGER->ClearByTag("sonet_search_".$entity_type."_".$entity_id);
+		}
 	}
 
 	function IBlockSectionUpdate(&$arFields)

@@ -62,7 +62,10 @@ BX.adminPanel.prototype.setButtonMenu = function(button)
 
 BX.adminPanel.prototype.isFixed = function()
 {
-	return BX.hasClass(document.documentElement, 'adm-header-fixed');
+	return (
+		BX.type.isDomNode(this.panel)
+		&& BX.hasClass(document.documentElement, 'adm-header-fixed')
+	);
 };
 
 BX.adminPanel.prototype.Fix = function(el)
@@ -204,7 +207,7 @@ BX.adminPanel.prototype.Notify = function(str)
 		return;
 	}
 
-	if (null == BX.adminPanel.NOTIFY)
+	if (null == BX.adminPanel.NOTIFY && BX.adminPanel.panel)
 	{
 		BX.adminPanel.NOTIFY = BX.adminPanel.panel.appendChild(BX.create('DIV', {
 			props: {className: 'adm-warning-block'},
@@ -215,7 +218,10 @@ BX.adminPanel.prototype.Notify = function(str)
 	}
 	else
 	{
-		BX.adminPanel.NOTIFY.firstChild.innerHTML = str||'&nbsp;';
+		if (BX.adminPanel.NOTIFY)
+		{
+			BX.adminPanel.NOTIFY.firstChild.innerHTML = str||'&nbsp;';
+		}
 	}
 
 	BX.removeClass(BX.adminPanel.NOTIFY, 'adm-warning-animate');
@@ -270,7 +276,15 @@ BX.adminPanel.prototype.Redirect = function(args, url, e)
 		window.open(url);
 	else
 	{
-		window.location.href=url;
+		var search = window.location.search;
+		if (search.indexOf("IFRAME_TYPE=PUBLIC_FRAME") !== -1 || search.indexOf("IFRAME_TYPE%3DPUBLIC_FRAME") !== -1)
+		{
+			top.window.location.href=url;
+		}
+		else
+		{
+			window.location.href=url;
+		}
 	}
 };
 
@@ -397,7 +411,7 @@ BX.adminFormTools = {
 	{
 		if ((!BX.browser.IsIE() || BX.browser.IsIE9()) && BX.type.isElementNode(el) && el.tagName.toUpperCase() == 'INPUT' && el.type.toUpperCase() == 'CHECKBOX')
 		{
-			if (!BX.hasClass(el, 'adm-designed-checkbox'))
+			if (!BX.hasClass(el, 'adm-designed-checkbox') && !BX.hasClass(el, 'ui-ctl-element'))
 			{
 				if (!el.id)
 					el.id = 'designed_checkbox_' + Math.random();
@@ -716,6 +730,11 @@ BX.adminMenu.prototype.Init = function()
 	{
 		for (var key in this.dest)
 		{
+			if (!BX('fav_dest_' + key) || !BX('fav_cont_' + key))
+			{
+				continue;
+			}
+
 			this.dest[key] = BX('fav_dest_' + key);
 			this.dest_cont[key] = BX('fav_cont_' + key);
 
@@ -796,7 +815,12 @@ BX.adminMenu.prototype.showFavorites = function(el)
 
 BX.adminMenu.prototype.itemsStretchScroll = function()
 {
-	BX.onCustomEvent(BX.adminMenu, 'onAdminMenuItemsStretchScroll');
+	this.items.forEach(function(item) {
+		if (item && item.MSOVERMIRROR)
+		{
+			item.MSOVERMIRROR.style.display = 'none';
+		}
+	});
 };
 
 BX.adminMenu.prototype.setMinimizedState = function(state)
@@ -1073,7 +1097,7 @@ BX.adminMenu.prototype.__item_onmouseout = function()
 
 BX.adminMenu.prototype._registerItem = function(i)
 {
-	this.items[i].NODE = BX(this.items[i].ID);
+	this.items[i].NODE = BX(this.items[i].ID) ? BX(this.items[i].ID) : top.BX(this.items[i].ID);
 	this.items[i].NODE.BXMENUITEM = i;
 	if (this.items[i].NODE)
 	{
@@ -1090,7 +1114,6 @@ BX.adminMenu.prototype._registerItem = function(i)
 		case 'submenu-item':
 			BX.bind(this.items[i].NODE, 'mouseover', BX.proxy(this._item_onmouseover, this.items[i]));
 			BX.bind(this.items[i].NODE, 'mouseout', BX.proxy(this._item_onmouseout, this.items[i]));
-			BX.addCustomEvent(this, 'onAdminMenuItemsStretchScroll', BX.proxy(this._item_onmouseout, this.items[i]));
 		break;
 	}
 };
@@ -1397,7 +1420,7 @@ BX.adminFav = {
 		if(!htmlMenu)
 			return;
 
-		var menu = BX("_global_menu_desktop");
+		var menu = BX("_global_menu_desktop") ? BX("_global_menu_desktop") : top.BX("_global_menu_desktop");
 		menu.innerHTML = htmlMenu;
 
 		BX.adminFav.setActiveItem();
@@ -1677,12 +1700,19 @@ BX.adminList.prototype.Init = function()
 
 	if(!!this.FORM)
 	{
-		this.ACTION_SELECTOR = this.FORM.action;
-		this.ACTION_BUTTON = this.FORM.apply;
-		this.ACTION_TARGET = this.FORM.action_target;
+		this.ACTION_SELECTOR = this.FORM.elements.action;
+		this.ACTION_BUTTON = this.FORM.elements.apply;
+		this.ACTION_TARGET = this.FORM.elements.action_target;
 
-		BX.bind(this.ACTION_SELECTOR, 'change', BX.proxy(this.UpdateCheckboxCounter, this));
-		BX.bind(this.ACTION_TARGET, 'click', BX.proxy(this.UpdateCheckboxCounter, this));
+		if(this.ACTION_SELECTOR)
+		{
+			BX.bind(this.ACTION_SELECTOR, 'change', BX.proxy(this.UpdateCheckboxCounter, this));
+		}
+
+		if(this.ACTION_TARGET)
+		{
+			BX.bind(this.ACTION_TARGET, 'click', BX.proxy(this.UpdateCheckboxCounter, this));
+		}
 	}
 
 	if (!!this.TABLE && this.TABLE.tBodies[0] && this.TABLE.tBodies[0].rows.length > 0)
@@ -1823,8 +1853,7 @@ BX.adminList.prototype.ReInit = function()
 
 BX.adminList.prototype.GetAdminList = function(url, callback)
 {
-	url = BX.util.remove_url_param(url, ['mode', 'table_id']);
-	url += (url.indexOf('?') >= 0 ? '&' : '?') + 'mode=list&table_id='+BX.util.urlencode(this.table_id);
+	url = BX.util.add_url_param(url, {'mode': 'list', 'table_id': BX.util.urlencode(this.table_id)});
 
 	BX.ajax({
 		method: 'GET',
@@ -2158,15 +2187,743 @@ BX.adminList.ShowMenu = function(el, menu, el_row)
 			BX.addCustomEvent(el, 'onAdminMenuClose', BX.proxy(BX.adminList._onpopupmenuclose, el_row));
 		}
 
-		BX.adminShowMenu(el, menu, {active_class: 'adm-list-table-popup-active'});
+		var menuParams = {active_class: 'adm-list-table-popup-active'};
+		var search = window.location.search;
+		if (search.indexOf("IFRAME_TYPE=PUBLIC_FRAME") !== -1 || search.indexOf("IFRAME_TYPE%3DPUBLIC_FRAME") !== -1)
+		{
+			menuParams.public_frame = '1';
+		}
+		BX.adminShowMenu(el, menu, menuParams);
 	}
 };
 
-BX.adminTabControl = function (name, unique_name, aTabs)
+BX.adminList.showPublicMenu = function(element, listAction)
+{
+	var actionPopupItems = [];
+
+	if (listAction.length)
+	{
+		for (var k = 0; k < listAction.length; k++)
+		{
+			var popupItems = {
+				text : listAction[k].TEXT
+			};
+			if (BX.type.isNotEmptyString(listAction[k].ONCLICK))
+			{
+				popupItems["onclick"] = listAction[k].ONCLICK;
+			}
+			else if (BX.type.isNotEmptyString(listAction[k].LINK))
+			{
+				popupItems["href"] = listAction[k].LINK;
+			}
+			if (BX.type.isArray(listAction[k].MENU) && listAction[k].MENU.length)
+			{
+				var popupChild = [], childs = listAction[k].MENU;
+				childs.forEach(function(child) {
+					var childData = {
+						text: child.TEXT
+					};
+					if (BX.type.isNotEmptyString(child.ONCLICK))
+					{
+						childData["onclick"] = child.ONCLICK;
+					}
+					else if (BX.type.isNotEmptyString(child.LINK))
+					{
+						childData["href"] = child.LINK;
+					}
+					popupChild.push(childData);
+				}, this);
+				if (popupChild.length)
+				{
+					popupItems["items"] = popupChild;
+				}
+			}
+			actionPopupItems.push(popupItems);
+		}
+	}
+
+	var buttonRect = element.getBoundingClientRect();
+	var actionPopupObject = BX.PopupMenu.create(
+		"context-menu-" + BX.util.getRandomString(3),
+		element,
+		actionPopupItems,
+		{
+			closeByEsc : true,
+			angle: true,
+			offsetLeft: buttonRect.width/2,
+			zIndex: -3
+		}
+	);
+	if(actionPopupObject)
+	{
+		actionPopupObject.popupWindow.show();
+	}
+};
+
+/*** BX.adminUiFilter (BX.Main.Filter) ***/
+BX.adminUiFilter = function(filterId, params)
+{
+	this.filterId = filterId;
+
+	this.init();
+};
+
+BX.adminUiFilter.prototype.init = function()
+{
+	BX.addCustomEvent("BX.Main.Filter:apply", this.onApplyFilter);
+	BX.addCustomEvent("BX.Main.Filter:show", this.onShow);
+};
+
+BX.adminUiFilter.prototype.onApplyFilter = function(id, data, ctx, promise, params)
+{
+	if (!ctx.grid || (ctx.grid && !(ctx.grid instanceof BX.Main.grid)))
+	{
+		params.autoResolve = false;
+
+		BX.ajax.post(window.location.toString(), {}, function(result) {
+			promise.fulfill();
+			window.location.reload();
+		});
+	}
+};
+
+BX.adminUiFilter.prototype.onShow = function(filterObject)
+{
+	BX.onCustomEvent(window, "onAdminFilterInited", [{filterId: this.filterId}]);
+};
+
+BX.adminUserFilterHandler = function(params)
+{
+	this.filterId = params.filterId;
+	this.fieldId = params.fieldId;
+	this.languageId = params.languageId;
+	this.selfFolderUrl = params.selfFolderUrl;
+
+	this.init();
+};
+
+BX.adminUserFilterHandler.prototype.init = function()
+{
+	this.control = null;
+	this.userSearchWindow = null;
+
+	BX.addCustomEvent(window, "BX.Main.Filter:customEntityFocus", BX.proxy(this.onCustomEntitySelectorOpen, this));
+};
+
+BX.adminUserFilterHandler.prototype.openWindow = function()
+{
+	var url = this.selfFolderUrl+"user_search.php?lang="+this.languageId+"&JSFUNC=setUserId_"+this.fieldId,
+		params = "scrollbars=yes,resizable=yes,width=760,height=500,top="+Math.floor((screen.height-
+			560)/2-14)+",left="+Math.floor((screen.width - 760)/2-5);
+	this.userSearchWindow = window.open(url, '', params);
+	if (this.userSearchWindow)
+	{
+		this.userSearchWindow.onbeforeunload = function(e) {
+			setTimeout(function() {
+				this.userSearchWindow = null;
+			}.bind(this), 300);
+		}.bind(this);
+	}
+};
+
+BX.adminUserFilterHandler.prototype.closeWindow = function()
+{
+	this.userSearchWindow.close();
+	setTimeout(function() {
+		this.userSearchWindow = null;
+	}.bind(this), 300);
+};
+
+BX.adminUserFilterHandler.prototype.setSelected = function(userId)
+{
+	if (this.control)
+	{
+		var node = this.control.getLabelNode();
+		node.value = '';
+
+		BX.ajax.post(this.selfFolderUrl+"get_user.php",
+			{
+				ID: userId,
+				ajax: "Y",
+				format: "Y",
+				sessid: BX.bitrix_sessid()
+			},
+			BX.proxy(function(result) {
+				result = BX.parseJSON(result, {});
+				var userLabel = userId;
+				if (result["NAME"])
+				{
+					userLabel = result["NAME"];
+				}
+				this.control.setData(userLabel, userId);
+			}, this)
+		);
+
+		this.closeWindow();
+	}
+};
+
+BX.adminUserFilterHandler.prototype.onCustomEntitySelectorOpen = function(control)
+{
+	if (!this.userSearchWindow && control.getId() === this.fieldId)
+	{
+		this.control = control;
+		this.openWindow();
+	}
+};
+
+BX.adminProductFilterHandler = function(params)
+{
+	this.filterId = params.filterId;
+	this.fieldId = params.fieldId;
+	this.languageId = params.languageId;
+	this.publicMode = params.publicMode;
+	this.selfFolderUrl = params.selfFolderUrl;
+
+	this.init();
+};
+
+BX.adminProductFilterHandler.prototype.init = function()
+{
+	BX.addCustomEvent(window, "BX.Main.Filter:customEntityFocus", BX.proxy(this.onCustomEntitySelectorOpen, this));
+
+	this.control = null;
+	this.popup = null;
+};
+
+BX.adminProductFilterHandler.prototype.onCustomEntitySelectorOpen = function(control)
+{
+	if (control.getId() === this.fieldId)
+	{
+		this.control = control;
+		this.showProductSearchDialog();
+	}
+};
+
+BX.adminProductFilterHandler.prototype.showProductSearchDialog = function()
+{
+	this.popup = this.makeProductSearchDialog({
+		caller: this.fieldId,
+		lang: this.languageId,
+		callback: "FillProductFields_"+this.fieldId
+	});
+
+	var content = this.popup.GetContent();
+	BX.bind(content.parentNode.parentNode, "mousedown", function(event) {
+		event.stopPropagation();
+	});
+
+	this.popup.Show();
+};
+
+BX.adminProductFilterHandler.prototype.makeProductSearchDialog = function(params)
+{
+	var caller = params.caller || "",
+		lang = params.lang || "ru",
+		siteId = params.siteId || "",
+		callback = params.callback || "",
+		storeId = params.storeId || "0",
+		contentUrl = "/bitrix/tools/sale/product_search_dialog.php?lang="+lang+"&LID="+siteId+"&caller=" + caller
+			+ "&func_name="+callback+"&STORE_FROM_ID="+storeId;
+
+	if (this.publicMode === "Y")
+	{
+		contentUrl = contentUrl + "&public_mode=Y";
+	}
+
+	var popup = new BX.CDialog({
+		content_url: contentUrl,
+		height: Math.max(500, window.innerHeight-400),
+		width: Math.max(800, window.innerWidth-400),
+		draggable: true,
+		resizable: true,
+		min_height: 500,
+		min_width: 800,
+		zIndex: 2000
+	});
+	BX.addCustomEvent(popup, "onWindowRegister", BX.defer(function(){
+		popup.Get().style.position = "fixed";
+		popup.Get().style.top = (parseInt(popup.Get().style.top) - BX.GetWindowScrollPos().scrollTop) + "px";
+	}));
+	return popup;
+};
+
+BX.adminProductFilterHandler.prototype.closeProductSearchDialog = function()
+{
+	if (this.popup)
+	{
+		this.popup.Close();
+	}
+};
+
+BX.adminProductFilterHandler.prototype.setSelected = function(productId, productName)
+{
+	if (this.control)
+	{
+		var node = this.control.getLabelNode();
+		node.value = '';
+		this.control.setData(productName, productId);
+	}
+};
+
+/*** BX.adminUiList (BX.Main.grid) ***/
+BX.adminUiList = function(gridId, params)
+{
+	this.gridId = gridId;
+	this.publicMode = (params.publicMode ? params.publicMode : false);
+	this.showTotalCountHtml = (params.showTotalCountHtml ? params.showTotalCountHtml : false);
+	this.serviceUrl = (params.serviceUrl ? params.serviceUrl : "");
+
+	this.init();
+};
+
+BX.adminUiList.prototype.init = function()
+{
+	this.basePageUrl = window.location.pathname;
+	this.serviceUrl = (this.serviceUrl ? this.serviceUrl : this.basePageUrl);
+	this.gridUrl = window.location.pathname + window.location.search;
+
+	BX.addCustomEvent("SidePanel.Slider:onMessage", BX.proxy(this.onMessage, this));
+	BX.addCustomEvent('AdminUiList:onReloadGrid', BX.proxy(this.onReloadGrid, this));
+
+	BX.addCustomEvent(window, "Grid::beforeRequest", BX.proxy(this.onBeforeRequest, this));
+	BX.addCustomEvent(window, "Grid::updated", BX.proxy(this.onUpdated, this));
+
+	this.bindShowTotalCount();
+};
+
+BX.adminUiList.prototype.onUpdated = function(gridObject)
+{
+	this.bindShowTotalCount();
+};
+
+BX.adminUiList.prototype.bindShowTotalCount = function()
+{
+	if (this.showTotalCountHtml)
+	{
+		BX.bind(BX(this.gridId + "_show_total_count"), "click", BX.proxy(this.onShowTotalCount, this));
+	}
+};
+
+BX.adminUiList.prototype.onShowTotalCount = function(event)
+{
+	BX.ajax({
+		url: this.serviceUrl,
+		method: "POST",
+		dataType: "json",
+		data: {
+			"action": "getTotalCount",
+		},
+		onsuccess: BX.proxy(function(response) {
+			if (response.hasOwnProperty("totalCountHtml"))
+			{
+				BX(this.gridId + "_show_total_count").parentElement.innerHTML = response.totalCountHtml;
+			}
+		}, this)
+	});
+
+	event.preventDefault();
+};
+
+BX.adminUiList.prototype.onMessage = function(SidePanelEvent)
+{
+	if (!(SidePanelEvent instanceof BX.SidePanel.MessageEvent))
+	{
+		return;
+	}
+
+	var data = BX.type.isPlainObject(SidePanelEvent.getData()) ? SidePanelEvent.getData() : {};
+
+	if (data.hasOwnProperty("listActions") && data.listActions.length)
+	{
+		data.listActions.forEach(function(action) {
+			switch (action)
+			{
+				case "reloadTopPage":
+					var url = this.basePageUrl;
+					if (data["reloadTopUrlParams"])
+					{
+						url = url + data["reloadTopUrlParams"];
+					}
+					window.location.href = url;
+					break;
+			}
+		}, this);
+	}
+	else
+	{
+		var eventType = SidePanelEvent.getEventId(),
+			listCancelTypes = ["cancel", "dontsave"];
+
+		if (BX.util.in_array(eventType, listCancelTypes))
+		{
+			return;
+		}
+	}
+
+	this.onReloadGrid();
+};
+
+BX.adminUiList.prototype.onReloadGrid = function()
+{
+	var reloadParams = { apply_filter: 'Y'};
+	var gridObject = top.BX.Main.gridManager.getById(this.gridId);
+	if (gridObject && gridObject.hasOwnProperty('instance'))
+	{
+		gridObject.instance.reloadTable('POST', reloadParams, false, this.gridUrl);
+	}
+};
+
+BX.adminUiList.prototype.onBeforeRequest = function(gridData, requestParams)
+{
+	if (BX.type.isPlainObject(requestParams.data))
+	{
+		var data = requestParams.data;
+		requestParams.data = this.getDataWithPreparedCustomFields(data);
+	}
+
+	if (this.publicMode)
+	{
+		requestParams.url =	BX.util.add_url_param(requestParams.url, {
+			"sessid": BX.bitrix_sessid(),
+			"public": "Y"
+		});
+	}
+	else
+	{
+		if (BX.type.isNotEmptyString(requestParams.url))
+		{
+			requestParams.url = requestParams.url +
+				((requestParams.url.indexOf("?") < 0) ? "" : "&") + window.location.search.slice(1);
+		}
+		else
+		{
+			requestParams.url = this.basePageUrl+window.location.search;
+		}
+	}
+};
+
+BX.adminUiList.prototype.getDataWithPreparedCustomFields = function(data)
+{
+	if (BX.type.isPlainObject(data.FIELDS))
+	{
+		for (var rowId in data.FIELDS)
+		{
+			var rowData = null;
+			if (data.FIELDS.hasOwnProperty(rowId))
+			{
+				rowData = data.FIELDS[rowId];
+			}
+			if (BX.type.isPlainObject(rowData))
+			{
+				for (var field in rowData)
+				{
+					if (rowData.hasOwnProperty(field) && field.indexOf("_custom") !== -1)
+					{
+						if (BX.type.isPlainObject(rowData[field]))
+						{
+							var customFields = {};
+							Object.keys(rowData[field]).forEach(function(inputName, index) {
+								if (rowData[field].hasOwnProperty(inputName))
+								{
+									customFields[index] = customFields[index] || {};
+									customFields[index]["name"] = inputName;
+									customFields[index]["value"] = rowData[field][inputName];
+								}
+							});
+							rowData[field] = customFields;
+							delete rowData[field.replace("_custom", "")];
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return data;
+};
+
+BX.adminUiList.SendSelected = function(gridId)
+{
+	var gridInstance = BX.Main.gridManager.getById(gridId).instance;
+	var values = gridInstance.getActionsPanel().getValues();
+	var selectedRows = gridInstance.getRows().getSelectedIds();
+	var data = Object.assign({
+		ID: selectedRows,
+		action: values
+	}, values);
+	gridInstance.reloadTable("POST", data);
+};
+
+/*** BX.adminSidePanel (BX.SidePanel) ***/
+BX.adminSidePanel = function(params)
+{
+	this.params = BX.type.isPlainObject(params) ? params : {};
+
+	this.publicMode = this.params.publicMode ? Boolean(this.params.publicMode) : false;
+
+	this.init();
+};
+
+BX.adminSidePanel.prototype.init = function()
+{
+	BX.addCustomEvent("AdminSidePanel:onSendRequest", BX.proxy(this.onSendRequest, this));
+	BX.addCustomEvent("SidePanel.Slider:onMessage", BX.proxy(this.onMessage, this));
+
+	this.checkActionByUrl();
+};
+
+BX.adminSidePanel.prototype.checkActionByUrl = function()
+{
+	var search = window.location.search;
+	if (search.indexOf("sidePanelAction=") !== -1 || search.indexOf("sidePanelAction%3D") !== -1)
+	{
+		var urlParams = search.substring(1), action;
+		if (BX.type.isNotEmptyString(urlParams))
+		{
+			var params = urlParams.split("&");
+			for (var i = 0; i < params.length; i++)
+			{
+				var pair = params[i].split("="), key = pair[0];
+				if (key === "sidePanelAction")
+				{
+					action = BX.type.isNotEmptyString(pair[1]) ? pair[1] : false;
+					break;
+				}
+			}
+			if (action)
+			{
+				var postParams = {};
+				switch (action)
+				{
+					case "save":
+						postParams["listActions"] = ["destroy"];
+						break;
+					case "saveAndReload":
+						postParams["listActions"] = ["destroy", "reloadTopPage"];
+						search = search.replace("&IFRAME=Y&IFRAME_TYPE=SIDE_SLIDER&sidePanelAction="+action, "");
+						postParams["reloadTopUrlParams"] = search;
+						break;
+					case "apply":
+						search = search.replace("&sidePanelAction="+action, "");
+						postParams["reloadCurrentUrlParams"] = search;
+						postParams["listActions"] = ["reloadCurrentPage"];
+						break;
+				}
+				top.BX.onCustomEvent("SidePanel:postMessage", [window, action, postParams]);
+			}
+		}
+	}
+};
+
+BX.adminSidePanel.prototype.onMessage = function(SidePanelEvent)
+{
+	if (!(SidePanelEvent instanceof top.BX.SidePanel.MessageEvent))
+	{
+		return;
+	}
+
+	var sender = SidePanelEvent.getSender();
+	var previousSlider = SidePanelEvent.getSlider();
+	var previousSliderWindow = previousSlider ? previousSlider.getWindow() : window;
+	var data = BX.type.isPlainObject(SidePanelEvent.getData()) ? SidePanelEvent.getData() : {};
+	var eventType = SidePanelEvent.getEventId();
+
+	if (!(sender instanceof top.BX.SidePanel.Slider) || !eventType)
+	{
+		return;
+	}
+
+	if (data.hasOwnProperty("listActions") && data.listActions.length)
+	{
+		data.listActions.forEach(function(action) {
+			switch (action)
+			{
+				case "closeAndOpen":
+					sender.close(true);
+					if (data.hasOwnProperty("addUrl") && BX.type.isNotEmptyString(data.addUrl))
+						this.onOpenPage(data.addUrl);
+					break;
+				case "close":
+					sender.close((eventType === "save"));
+					break;
+				case "destroy":
+					sender.destroy();
+					break;
+				case "reload":
+					if (data.hasOwnProperty("formParams") && data.formParams.hasOwnProperty("reloadUrl"))
+					{
+						if (this.publicMode)
+						{
+							data.formParams.reloadUrl = data.formParams.reloadUrl + (
+								(data.formParams.reloadUrl.indexOf("?") < 0) ? "?" : "&");
+							if (data.formParams.reloadUrl.indexOf("publicSidePanel") < 0)
+							{
+								data.formParams.reloadUrl = data.formParams.reloadUrl+"publicSidePanel=Y";
+							}
+						}
+						sender.getWindow().location.href = data.formParams.reloadUrl;
+					}
+					else
+					{
+						sender.getWindow().location.reload();
+					}
+					break;
+				case "reloadCurrentPage":
+					if (data["reloadCurrentUrlParams"])
+					{
+						sender.getWindow().location.search = data["reloadCurrentUrlParams"];
+					}
+					break;
+			}
+		}, this);
+	}
+	else
+	{
+		switch (eventType)
+		{
+			case "save":
+			case "save_and_conduct":
+			case "cancellation":
+				sender.destroy();
+				break;
+			case "save_and_add":
+				sender.close(true);
+				if (data.hasOwnProperty("addUrl") && BX.type.isNotEmptyString(data.addUrl))
+					this.onOpenPage(data.addUrl);
+				break;
+			case "apply":
+			case "save_document":
+				break;
+			case "cancel":
+			case "dontsave":
+				sender.close(false);
+				break;
+		}
+	}
+
+	var listApplyTypes = ["save", "apply", "save_document", "save_and_conduct"];
+
+	if (previousSlider && BX.util.in_array(eventType, listApplyTypes))
+	{
+		var dictionary = previousSlider.getData(),
+			formInstance = dictionary.get("adminTabControlInstance"),
+			urlParams = {"IFRAME":"Y", "IFRAME_TYPE": "SIDE_SLIDER"};
+		if (formInstance)
+		{
+			var tabId = previousSliderWindow.BX(formInstance.name+"_active_tab") ?
+				previousSliderWindow.BX(formInstance.name+'_active_tab').value : null;
+			if (tabId)
+			{
+				urlParams[formInstance.name+"_active_tab"] = tabId;
+				previousSliderWindow.location.href = BX.util.add_url_param(previousSlider.getUrl(), urlParams);
+			}
+			else
+			{
+				previousSliderWindow.location.reload();
+			}
+		}
+	}
+};
+
+BX.adminSidePanel.onOpenPage = BX.adminSidePanel.prototype.onOpenPage = function(url)
+{
+	if (top.BX.admin && top.BX.admin.dynamic_mode_show_borders)
+	{
+		return;
+	}
+
+	if (top.BX.SidePanel.Instance)
+	{
+		var adminSidePanel = top.window["adminSidePanel"], optionsOpen = {};
+		if (adminSidePanel.publicMode)
+		{
+			url = BX.util.add_url_param(url, {"publicSidePanel": "Y"});
+			optionsOpen.allowChangeHistory = false;
+		}
+		top.BX.SidePanel.Instance.open(url, optionsOpen);
+	}
+};
+
+BX.adminSidePanel.setDefaultQueryParams = BX.adminSidePanel.prototype.setDefaultQueryParams = function(url)
+{
+	if (url.indexOf("IFRAME") === -1)
+	{
+		url = BX.util.add_url_param(url, {"IFRAME": "Y"});
+	}
+
+	if (url.indexOf("IFRAME_TYPE") === -1)
+	{
+		url = BX.util.add_url_param(url, {"IFRAME_TYPE": "SIDE_SLIDER"});
+	}
+
+	var adminSidePanel = top.window["adminSidePanel"];
+	if (adminSidePanel.publicMode)
+	{
+		url = BX.util.add_url_param(url, {"publicSidePanel": "Y"});
+	}
+
+	return url;
+};
+
+BX.adminSidePanel.prototype.onSendRequest = function(url)
+{
+	if (!BX.type.isNotEmptyString(url))
+	{
+		return;
+	}
+
+	var params = {};
+
+	BX.ajax.post(BX.adminSidePanel.setDefaultQueryParams(url),
+		{
+			sessid: BX.bitrix_sessid()
+		},
+		BX.delegate(function(result) {
+			result = BX.parseJSON(result, {});
+			if (result && result.status)
+			{
+				if (result.status === 'success')
+				{
+					if (result.hasOwnProperty('listActions'))
+						params['listActions'] = BX.type.isArray(result['listActions']) ? result['listActions'] : [];
+					if (BX.SidePanel.Instance && BX.SidePanel.Instance.getTopSlider())
+					{
+						top.BX.onCustomEvent('SidePanel:postMessage', [
+							BX.SidePanel.Instance.getTopSlider().getWindow(), "request", params]);
+					}
+				}
+				else if(result.status === 'error')
+				{
+					alert(result.message.replace(/<br>/gi, ''));
+				}
+			}
+			else
+			{
+				alert('Wrong response format');
+			}
+		}, this)
+	);
+};
+
+/*** BX.adminTabControl ***/
+BX.adminTabControl = function (name, unique_name, aTabs, params)
 {
 	this.name = name;
 	this.unique_name = unique_name;
+	this.form = null;
 	this.aTabs = aTabs;
+	this.params = BX.type.isPlainObject(params) ? params : {};
+
+	this.backUrl = this.params.hasOwnProperty("backUrl") && BX.type.isNotEmptyString(this.params.backUrl) ?
+		this.params.backUrl : null;
+	this.isSidePanel = !!(this.params.hasOwnProperty("isSidePanel") &&
+		BX.type.isNotEmptyString(this.params.isSidePanel) && this.params.isSidePanel === "Y");
+	this.isPublicFrame = !!(this.params.hasOwnProperty("isPublicFrame") &&
+		BX.type.isNotEmptyString(this.params.isPublicFrame) && this.params.isPublicFrame === "Y");
+	this.publicSidePanel = !!(this.params.hasOwnProperty("publicSidePanel") &&
+		BX.type.isNotEmptyString(this.params.publicSidePanel) && this.params.publicSidePanel === "Y");
+	this.isActiveConfirm = false;
 
 	this.bInited = false;
 	this.bFixed = {top: true, bottom: true};
@@ -2271,13 +3028,16 @@ BX.adminTabControl.prototype.Init = function()
 			}
 			else
 			{
-				footer.firstChild.insertBefore(BX.create('DIV', {
-					props: {
-						className: 'adm-detail-pin-btn',
-						title: BX.message('JSADM_PIN_OFF')
-					},
-					attrs: {onclick: this.name + '.ToggleFix(\'bottom\')'}
-				}), footer.firstChild.firstChild);
+				if (true) // todo !this.isPublicFrame
+				{
+					footer.firstChild.insertBefore(BX.create('DIV', {
+						props: {
+							className: 'adm-detail-pin-btn',
+							title: BX.message('JSADM_PIN_OFF')
+						},
+						attrs: {onclick: this.name + '.ToggleFix(\'bottom\')'}
+					}), footer.firstChild.firstChild);
+				}
 
 				BX.addCustomEvent(footer, 'onFixedNodeChangeState', function(state)
 					{
@@ -2298,11 +3058,231 @@ BX.adminTabControl.prototype.Init = function()
 				}
 			}
 
-			BX.bindDelegate(footer, 'click', {property:{type: /button|submit/}}, BX.adminPanel.showWait);
+			if (this.isSidePanel)
+			{
+				this.setFormDataForSidePanel();
+				BX.bindDelegate(footer, 'click', {property:{type: /button/}}, this.onClickSidePanelButtons.bind(this));
+			}
+			else
+			{
+				BX.bindDelegate(footer, 'click', {property:{type: /button|submit/}}, BX.adminPanel.showWait);
+			}
+		}
+
+		this.form = BX.findParent(footer, {tag : "form"});
+		if (this.isSidePanel && this.form)
+		{
+			BX.bind(this.form, "change", function() {
+				if (!this.isActiveConfirm)
+				{
+					this.isActiveConfirm = true;
+					BX.addCustomEvent("SidePanel.Slider:onCloseByEsc", function(event) {
+						var reg = /bitrix\/admin\//;
+						var str = event.getSlider().getUrl();
+						if (reg.test(str) && !confirm(BX.message("JSADM_SP_ON_CLOSE_BY_ESC")))
+						{
+							event.denyAction();
+						}
+					});
+				}
+			});
 		}
 	}
 
 	this.bInited = true;
+};
+
+BX.adminTabControl.prototype.setFormDataForSidePanel = function()
+{
+	if (!BX.SidePanel.Instance)
+	{
+		return;
+	}
+
+	var slider = BX.SidePanel.Instance.getSliderByWindow(window);
+	if (slider)
+	{
+		var dictionary = slider.getData();
+		dictionary.set("adminTabControlInstance", this);
+	}
+};
+
+BX.adminTabControl.prototype.onClickSidePanelButtons = function(event)
+{
+	var button = event.target,
+		buttonType = button.name;
+
+	this.form = BX.findParent(button, {tag : "form"});
+	if (!this.form)
+	{
+		throw new Error('BX.adminTabControl: form not found.');
+	}
+
+	switch (buttonType)
+	{
+		case 'save':
+		case 'apply':
+		case 'save_and_add':
+		case 'save_and_conduct':
+		case 'save_document':
+		case 'cancellation':
+			this.submitAjax(buttonType, button);
+			break;
+		case 'cancel':
+		case 'dontsave':
+			top.BX.onCustomEvent('SidePanel:postMessage', [window, buttonType, {}]);
+			break;
+	}
+};
+
+BX.adminTabControl.prototype.submitAjax = function(buttonType, button)
+{
+	if (!buttonType)
+	{
+		throw new Error('BX.adminTabControl: buttonType not found.');
+	}
+
+	if (button)
+	{
+		BX.adminPanel.showWait(button);
+	}
+
+	this.createEventTypeInput(buttonType);
+
+	var params = {}, url = this.form.getAttribute("action");
+
+	if (this.publicSidePanel)
+	{
+		url = BX.adminSidePanel.setDefaultQueryParams(url);
+	}
+
+	BX.ajax.submitAjax(this.form, {
+		method : 'POST',
+		url: url,
+		onsuccess: BX.delegate(function(result) {
+			result = BX.parseJSON(result, {});
+			if (result && result.status)
+			{
+				if (result.status === 'success')
+				{
+					if (result.hasOwnProperty('listActions'))
+						params['listActions'] = BX.type.isArray(result['listActions']) ? result['listActions'] : [];
+					if (this.backUrl)
+						params['backUrl'] = this.backUrl;
+					if (button && button.dataset.url)
+						params['addUrl'] = button.dataset.url;
+
+					var listApplyTypes = ["apply", "save_document"];
+					if (BX.util.in_array(buttonType, listApplyTypes))
+					{
+						if (result.hasOwnProperty('formParams'))
+						{
+							params['formParams'] = result['formParams'];
+							this.createFormParamsInput(result['formParams']);
+						}
+					}
+
+					top.BX.onCustomEvent('SidePanel:postMessage', [window, buttonType, params]);
+				}
+				else if (result.status === 'error')
+				{
+					alert(result.message.replace(/<br>/gi, ''));
+				}
+			}
+			else
+			{
+				alert('Wrong response format');
+			}
+
+			if (button)
+			{
+				BX.adminPanel.closeWait(button);
+			}
+		}, this)
+	});
+};
+
+BX.adminTabControl.prototype.createEventTypeInput = function(eventType)
+{
+	if (!this.form)
+	{
+		throw new Error('BX.adminTabControl: form not found.');
+	}
+
+	if (BX(this.name + '_eventType'))
+	{
+		BX(this.name + '_eventType').innerHTML = '';
+		BX(this.name + '_eventType').appendChild(BX.create('input', {
+			attrs: {
+				'type': 'hidden',
+				'name': eventType,
+				'value': 'Y'
+			}
+		}));
+	}
+	else
+	{
+		this.form.appendChild(BX.create('div', {
+			props: {
+				'id': this.name + '_eventType'
+			},
+			children: [
+				BX.create('input', {
+					attrs: {
+						'type': 'hidden',
+						'name': eventType,
+						'value': 'Y'
+					}
+				})
+			]
+		}));
+	}
+};
+
+BX.adminTabControl.prototype.createFormParamsInput = function(formParams)
+{
+	if (!this.form)
+	{
+		throw new Error('BX.adminTabControl: form not found.');
+	}
+
+	var k;
+	formParams = BX.type.isPlainObject(formParams) ? formParams : {};
+
+	if (BX(this.name + '_formParams'))
+	{
+		BX(this.name + '_formParams').innerHTML = '';
+		for (k in formParams)
+		{
+			BX(this.name + '_formParams').appendChild(BX.create('input', {
+				attrs: {
+					'type': 'hidden',
+					'name': BX.util.htmlspecialchars(k),
+					'value': BX.util.htmlspecialchars(formParams[k])
+				}
+			}));
+		}
+
+	}
+	else
+	{
+		var formParamsDom = BX.create('div', {
+			props: {
+				'id': this.name + '_formParams'
+			}
+		});
+		for (k in formParams)
+		{
+			formParamsDom.appendChild(BX.create("input", {
+				props: {
+					type: "hidden",
+					name: BX.util.htmlspecialchars(k),
+					value: BX.util.htmlspecialchars(formParams[k])
+				}
+			}));
+		}
+		this.form.appendChild(formParamsDom);
+	}
 };
 
 BX.adminTabControl.prototype.setPublicMode = function(v)
@@ -2310,10 +3290,14 @@ BX.adminTabControl.prototype.setPublicMode = function(v)
 	this.bPublicMode = !!v;
 	if (this.bPublicMode)
 	{
-		var name = this.name;
-		BX.addCustomEvent(BX.WindowManager.Get(), 'onWindowClose', function(){
-			window[name] = null;
-		});
+		var currentWindow = BX.WindowManager.Get();
+		if (currentWindow)
+		{
+			var name = this.name;
+			BX.addCustomEvent(currentWindow, 'onWindowClose', function(){
+				window[name] = null;
+			});
+		}
 	}
 };
 
@@ -2384,92 +3368,110 @@ BX.adminTabControl.prototype.SelectTab = function(tab_id)
 	{
 		var div = BX(tab_id);
 		if (div.style.display != 'none')
-			return;
-
-		var oldHeight = 0;
-		var newHeight = 0;
-		var contentBlockPaddings = 40;
-		for (var i = 0, cnt = this.aTabs.length; i < cnt; i++)
 		{
-			var tab = BX(this.aTabs[i]["DIV"]);
-			if(tab.style.display != 'none')
+			//already visible or expanded tab
+			if(this.bExpandTabs)
 			{
-				oldHeight = this.aTabs[i].CONTENT_BLOCK.offsetHeight - contentBlockPaddings;
-				this.ShowTab(this.aTabs[i]["DIV"], false);
-				tab.style.display = 'none';
-				break;
-			}
-		}
-
-		this.ShowTab(tab_id, true);
-		div.style.display = 'block';
-
-		BX(this.name+'_active_tab').value = tab_id;
-
-		var currentTab = null;
-		for (i = 0, cnt = this.aTabs.length; i < cnt; i++)
-		{
-			if(this.aTabs[i]["DIV"] == tab_id)
-			{
-				this.aTabs[i]["_ACTIVE"] = true;
-
-				if(this.aTabs[i]["ONSELECT"])
-				{
-					BX.evalGlobal(this.aTabs[i]["ONSELECT"]);
-				}
-
-				if (!this.bPublicMode)
-				{
-					currentTab = this.aTabs[i];
-					var currentContentBlock = this.aTabs[i].CONTENT_BLOCK;
-					newHeight = currentContentBlock.offsetHeight - contentBlockPaddings;
-					if (oldHeight > 0)
-					{
-						currentContentBlock.style.height = oldHeight + "px";
-						currentContentBlock.style.overflowY = "hidden";
-						this.aTabs[i].EDIT_TABLE.style.opacity = 0;
-					}
-				}
-
-				break;
-			}
-		}
-
-		if (!!this.TABS_BLOCK)
-		{
-			if (BX.hasClass(this.TABS_BLOCK, 'adm-detail-tabs-block-fixed'))
-			{
+				//let's scroll to the expanded tab
 				var pos = BX.pos(div), wndScroll = BX.GetWindowScrollPos();
-				window.scrollTo(wndScroll.scrollLeft, pos.top - this.TABS_BLOCK.offsetHeight - parseInt(this.TABS_BLOCK.style.top));
+				if (!!this.TABS_BLOCK && this.bFixed['top'])
+				{
+					pos.top -= this.TABS_BLOCK.offsetHeight;
+				}
+				window.scrollTo(wndScroll.scrollLeft, pos.top);
 			}
-		}
-
-		if (!this.bPublicMode && oldHeight > 0 && newHeight > 0 && currentTab)
-		{
-			var easing = new BX.easing({
-				duration : 500,
-				start : { height: oldHeight, opacity : 0 },
-				finish : { height: newHeight, opacity : 100 },
-				transition : BX.easing.makeEaseOut(BX.easing.transitions.quart),
-
-				step : BX.proxy(function(state){
-					this.CONTENT_BLOCK.style.height = state.height + 'px';
-					this.EDIT_TABLE.style.opacity = state.opacity / 100;
-					BX.onCustomEvent('onAdminTabsChange');
-				}, currentTab),
-
-				complete : BX.proxy(function(){
-					this.CONTENT_BLOCK.style.height = "auto";
-					this.CONTENT_BLOCK.style.overflowY = "visible";
-					BX.onCustomEvent('onAdminTabsChange');
-
-				}, currentTab)
-
-			});
-			easing.animate();
 		}
 		else
-			BX.onCustomEvent('onAdminTabsChange');
+		{
+			//invisible tab - need to show it
+			var oldHeight = 0;
+			var newHeight = 0;
+			var contentBlockPaddings = 40;
+			for (var i = 0, cnt = this.aTabs.length; i < cnt; i++)
+			{
+				var tab = BX(this.aTabs[i]["DIV"]);
+				if(tab.style.display != 'none')
+				{
+					oldHeight = this.aTabs[i].CONTENT_BLOCK.offsetHeight - contentBlockPaddings;
+					this.ShowTab(this.aTabs[i]["DIV"], false);
+					tab.style.display = 'none';
+					break;
+				}
+			}
+
+			this.ShowTab(tab_id, true);
+			div.style.display = 'block';
+
+			BX(this.name+'_active_tab').value = tab_id;
+
+			var currentTab = null;
+			for (i = 0, cnt = this.aTabs.length; i < cnt; i++)
+			{
+				if(this.aTabs[i]["DIV"] == tab_id)
+				{
+					this.aTabs[i]["_ACTIVE"] = true;
+
+					if(this.aTabs[i]["ONSELECT"])
+					{
+						BX.evalGlobal(this.aTabs[i]["ONSELECT"]);
+					}
+
+					if (!this.bPublicMode)
+					{
+						currentTab = this.aTabs[i];
+						var currentContentBlock = this.aTabs[i].CONTENT_BLOCK;
+						newHeight = currentContentBlock.offsetHeight - contentBlockPaddings;
+						if (oldHeight > 0)
+						{
+							currentContentBlock.style.height = oldHeight + "px";
+							currentContentBlock.style.overflowY = "hidden";
+							this.aTabs[i].EDIT_TABLE.style.opacity = 0;
+						}
+					}
+
+					break;
+				}
+			}
+
+			if (!!this.TABS_BLOCK)
+			{
+				if (BX.hasClass(this.TABS_BLOCK, 'adm-detail-tabs-block-fixed'))
+				{
+					pos = BX.pos(div);
+					wndScroll = BX.GetWindowScrollPos();
+					window.scrollTo(wndScroll.scrollLeft, pos.top - this.TABS_BLOCK.offsetHeight - parseInt(this.TABS_BLOCK.style.top));
+				}
+			}
+
+			if (!this.bPublicMode && oldHeight > 0 && newHeight > 0 && currentTab)
+			{
+				var easing = new BX.easing({
+					duration : 500,
+					start : { height: oldHeight, opacity : 0 },
+					finish : { height: newHeight, opacity : 100 },
+					transition : BX.easing.makeEaseOut(BX.easing.transitions.quart),
+
+					step : BX.proxy(function(state){
+						this.CONTENT_BLOCK.style.height = state.height + 'px';
+						this.EDIT_TABLE.style.opacity = state.opacity / 100;
+						BX.onCustomEvent('onAdminTabsChange');
+					}, currentTab),
+
+					complete : BX.proxy(function(){
+						this.CONTENT_BLOCK.style.height = "auto";
+						this.CONTENT_BLOCK.style.overflowY = "visible";
+						BX.onCustomEvent('onAdminTabsChange');
+
+					}, currentTab)
+
+				});
+				easing.animate();
+			}
+			else
+			{
+				BX.onCustomEvent('onAdminTabsChange');
+			}
+		}
 	}
 };
 
@@ -2524,22 +3526,17 @@ BX.adminTabControl.prototype.ToggleTabs = function()
 	if (this.bExpandTabs)
 	{
 		BX.addClass(a, 'adm-detail-title-setting-active');
-		this.ToggleFix('top', false);
 	}
 	else
 	{
 		BX.removeClass(a, 'adm-detail-title-setting-active');
-		this.ToggleFix('top', true);
 	}
 
 	for(var i=0; i < this.aTabs.length; i++)
 	{
 		var tab_id = this.aTabs[i]["DIV"];
-		this.ShowTab(tab_id, false);
-
-		this.ShowDisabledTab(tab_id, (this.bExpandTabs || this.aTabsDisabled[tab_id]));
-
 		var div = BX(tab_id);
+		this.ShowTab(tab_id, false);
 		div.style.display = (this.bExpandTabs && !this.aTabsDisabled[tab_id]? 'block':'none');
 	}
 
@@ -2674,23 +3671,23 @@ BX.adminTabControl.prototype.SaveSettings =  function(el)
 	options_url += '&action=delete&c=form&n='+this.name+'_disabled';
 
 	BX.WindowManager.Get().showWait(el);
-	BX.ajax.post(options_url, sParam, function() {
+	BX.ajax.post(options_url, sParam, BX.proxy(function() {
 		BX.WindowManager.Get().closeWait(el);
 		BX.WindowManager.Get().Close();
-		BX.reload();
-	});
+		location.reload();
+	}, this));
 };
 
 BX.adminTabControl.prototype.DeleteSettings = function(bCommon)
 {
 	BX.showWait();
-	BX.userOptions.del('form', this.name, bCommon, function () {BX.reload()});
+	BX.userOptions.del('form', this.name, bCommon, function () {location.reload();});
 };
 
 BX.adminTabControl.prototype.DisableSettings = function()
 {
 	var request = new JCHttpRequest;
-	request.Action = function () {BX.reload()};
+	request.Action = function () {location.reload();};
 	var sParam = '';
 	sParam += '&p[0][c]=form';
 	sParam += '&p[0][n]='+encodeURIComponent(this.name+'_disabled');
@@ -2701,7 +3698,7 @@ BX.adminTabControl.prototype.DisableSettings = function()
 BX.adminTabControl.prototype.EnableSettings = function()
 {
 	var request = new JCHttpRequest;
-	request.Action = function () {BX.reload()};
+	request.Action = function () {location.reload();};
 	var sParam = '';
 	sParam += '&c=form';
 	sParam += '&n='+encodeURIComponent(this.name)+'_disabled';
@@ -2835,7 +3832,7 @@ BX.adminViewTabControl.prototype.DisableTab = function(tab_id)
 					j--;
 				}
 			}
-			
+
 			if (!bFound)
 			{
 				j = parseInt(i) + 1;
@@ -2986,6 +3983,12 @@ BX.adminHistory.prototype._get = function(e)
 
 /*************************** fixed elements *********************************/
 
+BX.FixOffsets = {
+	top: 0,
+	bottom: 0,
+	right: 0
+};
+
 BX.Fix = function(el, params)
 {
 	if (!el.BXFIXER)
@@ -3021,6 +4024,10 @@ BX.CFixer = function(node, params)
 	this.bFixed = false;
 
 	this.gutter = null;
+
+	this.clingTop = null;
+	this.clingBottom = null;
+	this.clingRight = null;
 };
 
 BX.CFixer.prototype.Start = function()
@@ -3109,6 +4116,14 @@ BX.CFixer.prototype._Fix = function()
 			this.node.style[this.params.type] = this['position_' + this.params.type] + 'px';
 
 		this.bFixed = true;
+
+		if(this.params.type == 'top')
+		{
+			this.clingTop = BX.FixOffsets.top;
+			BX.FixOffsets.top += this.pos.height;
+		}
+
+		BX.addCustomEvent('onAdminFixerUnfix', BX.proxy(this._cling_offset_correction, this));
 	}
 };
 
@@ -3132,6 +4147,19 @@ BX.CFixer.prototype._UnFix = function(bRefix)
 
 			this._check_scroll(this.pos.left, this.pos.top);
 		}
+
+		var clingPoint, offsetSize;
+
+		if(this.params.type == 'top')
+		{
+			clingPoint = this.clingTop;
+			offsetSize = this.pos.height;
+			this.clingTop = null;
+			BX.FixOffsets.top -= this.pos.height;
+		}
+
+		BX.removeCustomEvent('onAdminFixerUnfix', BX.proxy(this._cling_offset_correction, this));
+		BX.onCustomEvent('onAdminFixerUnfix', [{type: this.params.type, clingPoint: clingPoint, offsetSize: offsetSize}]);
 	}
 };
 
@@ -3140,6 +4168,17 @@ BX.CFixer.prototype._ReFix = function()
 	if (this.bFixed)
 	{
 		this._UnFix(true); BX.defer(this._Fix, this)();
+	}
+};
+
+BX.CFixer.prototype._cling_offset_correction = function(params)
+{
+	if(this.params.type == params.type)
+	{
+		if(this.params.type == 'top' && params.clingPoint < this.clingTop )
+			this.clingTop -= params.offsetSize;
+
+		this._scroll_listener();
 	}
 };
 
@@ -3175,9 +4214,10 @@ BX.CFixer.prototype._scroll_listener = function()
 		switch(this.params.type)
 		{
 			case 'top':
-				this.position_top = BX.adminPanel.isFixed() ? BX.adminPanel.panel.offsetHeight : 0;
+				var additive = this.clingTop !== null ? this.clingTop : BX.FixOffsets.top;
+				this.position_top = BX.adminPanel.isFixed() ? BX.adminPanel.panel.offsetHeight + additive : additive;
 
-				if (this.limit > 0 && wndScroll.scrollTop + this.position_top > this.limit)
+				if (this.limit > additive && wndScroll.scrollTop + this.position_top > this.limit)
 					this._UnFix();
 				else if (!this.bFixed && wndScroll.scrollTop + this.position_top >= pos.top)
 					this._Fix();
@@ -3187,7 +4227,6 @@ BX.CFixer.prototype._scroll_listener = function()
 			break;
 			case 'bottom':
 				wndSize = BX.GetWindowInnerSize();
-
 				wndScroll.scrollBottom = wndScroll.scrollTop + wndSize.innerHeight;
 
 				if (this.limit > 0 && wndScroll.scrollBottom < this.limit)
@@ -3381,6 +4420,7 @@ BX.adminShowMenu = function(el, menu, params)
 		MENU: menu,
 		TYPE: 'click',
 		ACTIVE_CLASS: (typeof params.active_class != 'undefined') ? params.active_class : 'adm-btn-active',
+		PUBLIC_FRAME: (typeof params.public_frame != 'undefined') ? parseInt(params.public_frame) : 0,
 		CLOSE_ON_CLICK: (typeof params.close_on_click != 'undefined') ? !!params.close_on_click : true
 	});
 
@@ -3558,50 +4598,14 @@ BX.AdminFilter = function(filter_id, aRows)
 		if(!this.ApplyFilter(flterId))
 			return false;
 
-		//required filter exists
-		if(flterId)
+		if(this.state.folded)
 		{
-			if(this.state.folded)
-			{
-				this.oOptions["0"]["tab"].UnSetActive();
-				this.oOptions[flterId]["tab"].SetActive();
-			}
-
-			var setFilterButton = this.GetFormButton('set_filter');
-
-			if(this.filter_id  && this.url)
-			{
-				this.OnSet(this.table_id, this.url, setFilterButton);
-			}
-			else
-			{
-				if(setFilterButton)
-				{
-					setFilterButton.onclick();
-				}
-			}
-
-			this.oOptions[flterId]["tab"].SetFiltered(true);
-			return true;
+			this.oOptions["0"]["tab"].UnSetActive();
+			this.oOptions[flterId]["tab"].SetActive();
 		}
-		else //not exist
-		{
-			var delFilterButt = this.GetFormButton('del_filter');
 
-			if(this.filter_id  && this.url)
-			{
-				this.OnClear(this.table_id, this.url, delFilterButt);
-			}
-			else
-			{
-				if(delFilterButt)
-				{
-					delFilterButt.onclick();
-				}
-			}
-
-			return false;
-		}
+		this.oOptions[flterId]["tab"].SetFiltered(true);
+		return true;
 	};
 
 	this.InitOpenedTab = function(tabIdUri, tabIdSes)
@@ -3811,7 +4815,7 @@ BX.AdminFilter = function(filter_id, aRows)
 
 			window[table_id].GetAdminList(filterUrl);
 		})();
-		
+
 		return false;
 	};
 
@@ -3846,7 +4850,6 @@ BX.AdminFilter = function(filter_id, aRows)
 
 	this.ApplyFilter = function(id)
 	{
-
 		if(this.state.requesting && !this.state.init)
 			return false;
 
@@ -4658,7 +5661,7 @@ BX.AdminFilter = function(filter_id, aRows)
 				switch(el.value)
 				{
 					case 'exact':
-						dateFrom = new Date(inputFrom.value.replace(/(\d+).(\d+).(\d+)/, '$3/$2/$1'));
+						dateFrom = BX.parseDate(inputFrom.value, false, phpVars.FORMAT_DATE, phpVars.FORMAT_DATETIME);
 						dateTo = dateFrom;
 						break;
 
@@ -5321,7 +6324,10 @@ BX.admFltWrap = {
 		switch (el.type)
 		{
 			case "select-one":
-				wrap = BX.admFltWrap.Element(el,"adm-select","span","adm-select-wrap");
+				if(el.size && el.size > 1)
+					wrap = BX.admFltWrap.Element(el,"adm-select-multiple","span","adm-select-wrap-multiple");
+				else
+					wrap = BX.admFltWrap.Element(el,"adm-select","span","adm-select-wrap");
 				break;
 
 			case "select-multiple":
@@ -5335,7 +6341,7 @@ BX.admFltWrap = {
 			case "checkbox":
 
 				var label = BX.findChild(el.parentNode, {tagName: "label", htmlFor: el.id});
-				if(label)
+				if(!label)
 				{
 					var wraplabel = BX.admFltWrap.Element(el, "", "label", "");
 
@@ -5447,8 +6453,7 @@ BX.admFltWrap = {
 		row.cells[0].className = "adm-filter-item-left";
 		row.cells[1].className = "adm-filter-item-center";
 		row.cells[2].className = 'adm-filter-item-right';
-
-		row.cells[0].innerHTML = row.cells[0].textContent || row.cells[0].innerText;
+		row.cells[0].innerHTML = row.cells[0].innerHTML.replace(/<\/?[^>]+>/gi, ''); // strip_tags
 
 		var calendarInput = ( !!BX.findChild(row.cells[1], {'className': 'adm-input adm-input-calendar'}, true));
 

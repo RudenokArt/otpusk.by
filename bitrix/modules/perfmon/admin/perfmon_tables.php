@@ -78,9 +78,10 @@ if (($arTABLES = $lAdmin->GroupAction()) && $RIGHT >= "W")
 			$tableParts = explode("_", $table_name);
 			array_shift($tableParts);
 			$moduleNamespace = ucfirst($tableParts[0]);
+			$moduleName = strtolower($tableParts[0]);
 			if (count($tableParts) > 1)
 				array_shift($tableParts);
-			$className = \Bitrix\Main\Entity\Base::snake2camel(implode("_", $tableParts));
+			$className = \Bitrix\Main\ORM\Entity::snake2camel(implode("_", $tableParts));
 
 			$obTable = new CPerfomanceTable;
 			$obTable->Init($table_name);
@@ -104,14 +105,14 @@ if (($arTABLES = $lAdmin->GroupAction()) && $RIGHT >= "W")
 			$arValidators = array();
 			$arMessages = array();
 
-			echo "File: /bitrix/modules/".$tableParts[0]."/lib/".strtolower($className).".php";
+			echo "File: /bitrix/modules/".$moduleName."/lib/".strtolower($className).".php";
 			echo "<hr>";
 			echo "<pre>";
 			echo "&lt;", "?", "php\n";
 			echo "namespace Bitrix\\".$moduleNamespace.";\n";
 			echo "\n";
-			echo "use Bitrix\\Main;\n";
-			echo "use Bitrix\\Main\\Localization\\Loc;\n";
+			echo "use Bitrix\\Main,\n";
+			echo "	Bitrix\\Main\\Localization\\Loc;\n";
 			echo "Loc::loadMessages(_"."_FILE_"."_);\n";
 			echo "\n";
 			echo "/"."**\n";
@@ -167,7 +168,7 @@ if (($arTABLES = $lAdmin->GroupAction()) && $RIGHT >= "W")
 				$parentTableParts = explode("_", $parentInfo["PARENT_TABLE"]);
 				array_shift($parentTableParts);
 				$parentModuleNamespace = ucfirst($parentTableParts[0]);
-				$parentClassName = \Bitrix\Main\Entity\Base::snake2camel(implode("_", $parentTableParts));
+				$parentClassName = \Bitrix\Main\ORM\Entity::snake2camel(implode("_", $parentTableParts));
 
 				$columnName = preg_replace("/_ID\$/", "", $columnName);
 				echo " * &lt;li&gt; ".$columnName
@@ -261,7 +262,7 @@ if (($arTABLES = $lAdmin->GroupAction()) && $RIGHT >= "W")
 				}
 				if ($columnInfo["length"] > 0 && $columnInfo["orm_type"] == "string")
 				{
-					$validateFunctionName = "validate".\Bitrix\Main\Entity\Base::snake2camel($columnName);
+					$validateFunctionName = "validate".\Bitrix\Main\ORM\Entity::snake2camel($columnName);
 					echo "\t\t\t\t'validation' => array(_"."_CLASS_"."_, '".$validateFunctionName."'),\n";
 					$arValidators[$validateFunctionName] = array(
 						"length" => $columnInfo["length"],
@@ -278,7 +279,7 @@ if (($arTABLES = $lAdmin->GroupAction()) && $RIGHT >= "W")
 				$parentTableParts = explode("_", $parentInfo["PARENT_TABLE"]);
 				array_shift($parentTableParts);
 				$parentModuleNamespace = ucfirst($parentTableParts[0]);
-				$parentClassName = \Bitrix\Main\Entity\Base::snake2camel(implode("_", $parentTableParts));
+				$parentClassName = \Bitrix\Main\ORM\Entity::snake2camel(implode("_", $parentTableParts));
 
 				$columnNameEx = preg_replace("/_ID\$/", "", $columnName);
 
@@ -305,7 +306,7 @@ if (($arTABLES = $lAdmin->GroupAction()) && $RIGHT >= "W")
 			}
 			echo "}\n";
 			echo "</pre>";
-			echo "File: /bitrix/modules/".$tableParts[0]."/lang/ru/lib/".strtolower($className).".php";
+			echo "File: /bitrix/modules/".$moduleName."/lang/ru/lib/".strtolower($className).".php";
 			echo "<hr>";
 			echo "<pre>";
 			echo "&lt;", "?\n";
@@ -547,7 +548,7 @@ if (strlen($strLastTables) > 0)
 	function filter_rows()
 	{
 		var i;
-		var input = BX('instant-search').value;
+		var input = BX('instant-search').value.replace(/[^a-z_0-9]+/, '');
 		if (input != prev)
 		{
 			prev = input;
@@ -593,7 +594,7 @@ if (strlen($strLastTables) > 0)
 		var ciNeedle = new RegExp(needle, 'i');
 		if (haystack.match(ciNeedle))
 			return true;
-		
+
 		var needleParts = needle.split('');
 		for (var i = 0; i < needleParts.length; i++)
 		{

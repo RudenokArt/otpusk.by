@@ -1,6 +1,5 @@
 <?if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
-$uid = randString(5);
-$controller = "BX('vote-".$uid."')";
+$uid = $arParams["UID"];
 $form = "vote-form-".$uid;
 
 if (!empty($arResult["ERROR_MESSAGE"])):?>
@@ -19,10 +18,10 @@ endif;
 	<input type="hidden" name="PUBLIC_VOTE_ID" value="<?=$arResult["VOTE"]["ID"]?>" />
 	<input type="hidden" name="VOTE_ID" value="<?=$arResult["VOTE"]["ID"]?>" />
 	<?=bitrix_sessid_post()?>
-	<ol class="bx-vote-question-list" id="vote-<?=$uid?>"<?if($arQuestion["REQUIRED"]=="Y"): ?> class="bx-vote-question-required"<? endif; ?>>
+	<ol class="bx-vote-question-list" id="vote-<?=$uid?>">
 	<?foreach ($arResult["QUESTIONS"] as $arQuestion):?>
-		<li id="question<?=$arQuestion["ID"]?>" >
-			<?if ($arQuestion["IMAGE"] !== false): ?><div class="bx-vote-question-image"><img src="<?=$arQuestion["IMAGE"]["SRC"]?>" /></div><? endif; ?>
+		<li id="question<?=$arQuestion["ID"]?>" <?if($arQuestion["REQUIRED"]=="Y"): ?> class="bx-vote-question-required"<? endif; ?>>
+			<?if (!empty($arQuestion["IMAGE"]) && !empty($arQuestion["IMAGE"]["SRC"])): ?><div class="bx-vote-question-image"><img src="<?=$arQuestion["IMAGE"]["SRC"]?>" /></div><? endif; ?>
 			<div class="bx-vote-question-title"><?=$arQuestion["QUESTION"]?></div>
 			<table class="bx-vote-answer-list" cellspacing="0">
 			<?foreach ($arQuestion["ANSWERS"] as $arAnswer):?>
@@ -89,7 +88,8 @@ endif;
 						</div>
 					</td>
 					<td>
-						<span class="bx-vote-voted-users-wrap"><a href="#" class="bx-vote-voted-users" onclick="return false;"></a></span>
+						<span class="bx-vote-voted-users-wrap"><?
+							?><a href="#" class="bx-vote-voted-users" onclick="return false;"></a></span>
 					</td>
 					<td><span class="bx-vote-data-percent"></span></td>
 				</tr>
@@ -107,7 +107,7 @@ if (isset($arResult["CAPTCHA_CODE"]))
 	</span>
 	<span class="bx-vote-captcha-input">
 		<label for="captcha_word"><?=GetMessage("F_CAPTCHA_PROMT")?></label>
-		<input type="text" size="20" name="captcha_word" id="captcha_word" />
+		<input type="text" size="20" name="captcha_word" id="captcha_word" autocomplete="off" />
 	</span>
 </div>
 <? } // CAPTCHA_CODE ?>
@@ -116,8 +116,5 @@ if (isset($arResult["CAPTCHA_CODE"]))
 	</div>
 </form>
 <?
-$this->__component->arParams["RETURN"] = array(
-	"uid" => $uid,
-	"controller" => $controller,
-	"form" => $form);
+$this->__component->arParams["RETURN"] = array();
 ?>

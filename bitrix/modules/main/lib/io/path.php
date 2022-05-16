@@ -15,6 +15,9 @@ class Path
 
 	const INVALID_FILENAME_CHARS = "\\/:*?\"'<>|~#&;";
 
+	//the pattern should be quoted, "|" is allowed below as a delimiter
+	const INVALID_FILENAME_BYTES = "\xE2\x80\xAE"; //Right-to-Left Override Unicode Character
+
 	protected static $physicalEncoding = "";
 	protected static $logicalEncoding = "";
 
@@ -85,7 +88,7 @@ class Path
 		$path = self::getName($path);
 		if ($path != '')
 		{
-			$pos = Text\String::strrpos($path, '.');
+			$pos = Text\UtfSafeString::getLastPosition($path, '.');
 			if ($pos !== false)
 				return substr($path, $pos + 1);
 		}
@@ -96,7 +99,7 @@ class Path
 	{
 		//$path = self::normalize($path);
 
-		$p = Text\String::strrpos($path, self::DIRECTORY_SEPARATOR);
+		$p = Text\UtfSafeString::getLastPosition($path, self::DIRECTORY_SEPARATOR);
 		if ($p !== false)
 			return substr($path, $p + 1);
 
@@ -168,6 +171,22 @@ class Path
 			$path = Text\Encoding::convertEncoding($path, self::$physicalEncoding, 'utf-8');
 
 		return implode('/', array_map("rawurlencode", explode('/', $path)));
+	}
+
+	public static function convertUriToPhysical($path)
+	{
+		if (self::$physicalEncoding == "")
+			self::$physicalEncoding = self::getPhysicalEncoding();
+
+		if (self::$directoryIndex == null)
+			self::$directoryIndex = self::getDirectoryIndexArray();
+
+		$path = implode('/', array_map("rawurldecode", explode('/', $path)));
+
+		if ('utf-8' !== self::$physicalEncoding)
+			$path = Text\Encoding::convertEncoding($path, 'utf-8', self::$physicalEncoding);
+
+		return $path;
 	}
 
 	protected static function getLogicalEncoding()
@@ -263,44 +282,77 @@ class Path
 		return self::combine($basePath, $relativePath);
 	}
 
-	public static function validate($path)
+	protected static function validateCommon($path)
 	{
 		if (!is_string($path))
+		{
 			return false;
+		}
 
-		$p = trim($path);
-		if ($p == "")
+		if (trim($path) == "")
+		{
 			return false;
+		}
 
 		if (strpos($path, "\0") !== false)
+		{
 			return false;
+		}
+
+		if(preg_match("#(".self::INVALID_FILENAME_BYTES.")#", $path))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	public static function validate($path)
+	{
+		if(!static::validateCommon($path))
+		{
+			return false;
+		}
 
 		return (preg_match("#^([a-z]:)?/([^\x01-\x1F".preg_quote(self::INVALID_FILENAME_CHARS, "#")."]+/?)*$#isD", $path) > 0);
 	}
 
 	public static function validateFilename($filename)
 	{
-		if (!is_string($filename))
+		if(!static::validateCommon($filename))
+		{
 			return false;
-
-		$fn = trim($filename);
-		if ($fn == "")
-			return false;
-
-		if (strpos($filename, "\0") !== false)
-			return false;
+		}
 
 		return (preg_match("#^[^\x01-\x1F".preg_quote(self::INVALID_FILENAME_CHARS, "#")."]+$#isD", $filename) > 0);
 	}
 
-	public static function randomizeInvalidFilename($filename)
+	/**
+	 * @param string $filename
+	 * @param callable $callback
+	 * @return string
+	 */
+	public static function replaceInvalidFilename($filename, $callback)
 	{
-		return preg_replace_callback("#([\x01-\x1F".preg_quote(self::INVALID_FILENAME_CHARS, "#")."])#", '\Bitrix\Main\IO\Path::getRandomChar', $filename);
+		return preg_replace_callback(
+			"#([\x01-\x1F".preg_quote(self::INVALID_FILENAME_CHARS, "#")."]|".self::INVALID_FILENAME_BYTES.")#",
+			$callback,
+			$filename
+		);
 	}
 
-	public static function getRandomChar()
+	/**
+	 * @param string $filename
+	 * @return string
+	 */
+	public static function randomizeInvalidFilename($filename)
 	{
-		return chr(rand(97, 122));
+		return static::replaceInvalidFilename($filename,
+			function()
+			{
+				return chr(rand(97, 122));
+			}
+		);
 	}
 
 	public static function isAbsolute($path)

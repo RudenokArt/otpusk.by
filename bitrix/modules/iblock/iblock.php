@@ -1,4 +1,7 @@
 <?php
+
+use Bitrix\Main\Loader;
+
 IncludeModuleLangFile(__FILE__);
 
 if(!defined("CACHED_b_iblock_type")) define("CACHED_b_iblock_type", 36000);
@@ -33,6 +36,7 @@ $arClasses = array(
 	"CIBlockPropertyFileMan" => "classes/general/prop_fileman.php",
 	"CIBlockPropertyHTML" => "classes/general/prop_html.php",
 	"CIBlockPropertyElementList" => "classes/general/prop_element_list.php",
+	"CCMLResult" => "classes/general/cmlresult.php",
 	"CIBlockXMLFile" => "classes/".$DBType."/cml2.php",
 	"CIBlockCMLImport" => "classes/general/cml2.php",
 	"CIBlockCMLExport" => "classes/general/cml2.php",
@@ -55,23 +59,38 @@ $arClasses = array(
 	"CIBlockRightsStorage" => "classes/general/iblock_rights.php",
 	"CIBlockPropertyTools" => "classes/general/iblockproptools.php",
 	"CIBlockSectionPropertyLink" => "classes/general/section_property.php",
-	'\Bitrix\Iblock\ElementTable' => "lib/element.php",
-	'\Bitrix\Iblock\IblockTable' => "lib/iblock.php",
+	"CIBlockXmlImport" => "classes/general/iblockxmlimport.php",
 	'\Bitrix\Iblock\IblockFieldTable' => "lib/iblockfield.php",
 	'\Bitrix\Iblock\IblockGroupTable' => "lib/iblockgroup.php",
 	'\Bitrix\Iblock\IblockMessageTable' => "lib/iblockmessage.php",
 	'\Bitrix\Iblock\IblockRssTable' => "lib/iblockrss.php",
 	'\Bitrix\Iblock\IblockSiteTable' => "lib/iblocksite.php",
 	'\Bitrix\Iblock\InheritedPropertyTable' => "lib/inheritedproperty.php",
-	'\Bitrix\Iblock\PropertyTable' => "lib/property.php",
 	'\Bitrix\Iblock\PropertyEnumerationTable' => "lib/propertyenumeration.php",
-	'\Bitrix\Iblock\SectionTable' => "lib/section.php",
-	'\Bitrix\Iblock\SectionElementTable' => "lib/sectionelement.php",
-	'\Bitrix\Iblock\SectionPropertyTable' => "lib/sectionproperty.php",
+	'\Bitrix\Iblock\PropertyFeatureTable' => 'lib/propertyfeature.php',
 	'\Bitrix\Iblock\SequenceTable' => "lib/sequence.php",
 	'\Bitrix\Iblock\SiteTable' => "lib/site.php",
 	'\Bitrix\Iblock\TypeTable' => "lib/type.php",
 	'\Bitrix\Iblock\TypeLanguageTable' => "lib/typelanguage.php",
+	'\Bitrix\Iblock\BizprocType\UserTypeProperty' => "lib/bizproctype/usertypeproperty.php",
+	'\Bitrix\Iblock\BizprocType\ECrm' => "lib/bizproctype/ecrm.php",
+	'\Bitrix\Iblock\BizprocType\Money' => "lib/bizproctype/money.php",
+	'\Bitrix\Iblock\BizprocType\UserTypePropertyDiskFile' => "lib/bizproctype/usertypepropertydiskfile.php",
+	'\Bitrix\Iblock\BizprocType\UserTypePropertyElist' => "lib/bizproctype/usertypepropertyelist.php",
+	'\Bitrix\Iblock\BizprocType\UserTypePropertyEmployee' => "lib/bizproctype/usertypepropertyemployee.php",
+	'\Bitrix\Iblock\BizprocType\UserTypePropertyHtml' => "lib/bizproctype/usertypepropertyhtml.php",
+	'\Bitrix\Iblock\Component\Base' => "lib/component/base.php",
+	'\Bitrix\Iblock\Component\Element' => "lib/component/element.php",
+	'\Bitrix\Iblock\Component\ElementList' => "lib/component/elementlist.php",
+	'\Bitrix\Iblock\Component\Filters' => "lib/component/filters.php",
+	'\Bitrix\Iblock\Component\Selector\Element' => "lib/component/selector/element.php",
+	'\Bitrix\Iblock\Component\Selector\Entity' => "lib/component/selector/entity.php",
+	'\Bitrix\Iblock\Component\Tools' => "lib/component/tools.php",
+	'\Bitrix\Iblock\Grid\Panel\GroupAction' => "lib/grid/panel/groupaction.php",
+	'\Bitrix\Iblock\Grid\ActionType' => "lib/grid/actiontype.php",
+	'\Bitrix\Iblock\Helpers\Admin\Property' => "lib/helpers/admin/property.php",
+	'\Bitrix\Iblock\Helpers\Filter\Property' => "lib/helpers/filter/property.php",
+	'\Bitrix\Iblock\Helpers\Filter\PropertyManager' => "lib/helpers/filter/propertymanager.php",
 	'\Bitrix\Iblock\InheritedProperty\BaseTemplate' => "lib/inheritedproperty/basetemplate.php",
 	'\Bitrix\Iblock\InheritedProperty\BaseValues' => "lib/inheritedproperty/basevalues.php",
 	'\Bitrix\Iblock\InheritedProperty\ElementTemplates' => "lib/inheritedproperty/elementtemplates.php",
@@ -80,6 +99,11 @@ $arClasses = array(
 	'\Bitrix\Iblock\InheritedProperty\IblockValues' => "lib/inheritedproperty/iblockvalues.php",
 	'\Bitrix\Iblock\InheritedProperty\SectionTemplates' => "lib/inheritedproperty/sectiontemplates.php",
 	'\Bitrix\Iblock\InheritedProperty\SectionValues' => "lib/inheritedproperty/sectionvalues.php",
+	'\Bitrix\Iblock\InheritedProperty\ValuesQueue' => "lib/inheritedproperty/valuesqueue.php",
+	'\Bitrix\Iblock\LandingSource\DataLoader' => "lib/landingsource/dataloader.php",
+	'\Bitrix\Iblock\LandingSource\Element' => "lib/landingsource/element.php",
+	'\Bitrix\Iblock\Model\PropertyFeature' => "lib/model/propertyfeature.php",
+	'\Bitrix\Iblock\Model\Section' => "lib/model/section.php",
 	'\Bitrix\Iblock\PropertyIndex\Dictionary' => "lib/propertyindex/dictionary.php",
 	'\Bitrix\Iblock\PropertyIndex\Element' => "lib/propertyindex/element.php",
 	'\Bitrix\Iblock\PropertyIndex\Facet' => "lib/propertyindex/facet.php",
@@ -124,14 +148,18 @@ $arClasses = array(
 	'\Bitrix\Iblock\Template\Functions\FunctionMin' => "lib/template/functions/fabric.php",
 	'\Bitrix\Iblock\Template\Functions\FunctionMax' => "lib/template/functions/fabric.php",
 	'\Bitrix\Iblock\Template\Functions\FunctionDistinct' => "lib/template/functions/fabric.php",
+	'\Bitrix\Iblock\Update\AdminFilterOption' => 'lib/update/adminfilteroption.php',
+	'\Bitrix\Iblock\Update\AdminGridOption' => 'lib/update/admingridoption.php',
 	'\Bitrix\Iblock\SenderEventHandler' => "lib/senderconnector.php",
 	'\Bitrix\Iblock\SenderConnectorIblock' => "lib/senderconnector.php",
 );
-if(IsModuleInstalled('bizproc'))
-{
+if (\Bitrix\Main\ModuleManager::isModuleInstalled('bizproc'))
 	$arClasses["CIBlockDocument"] = "classes/general/iblockdocument.php";
-}
-CModule::AddAutoloadClasses("iblock", $arClasses);
+
+Loader::registerAutoLoadClasses("iblock", $arClasses);
+
+// orm autoloader
+Loader::registerHandler([\Bitrix\Iblock\ORM\Loader::class, 'autoLoad']);
 
 /**
  * Returns list of the information blocks of specified $type linked to the current site
@@ -979,7 +1007,7 @@ function ImportXMLFile($file_name, $iblock_type="-", $site_id='', $section_actio
 		if(!$obCatalog->IndexTemporaryTables())
 			return GetMessage("IBLOCK_XML2_INDEX_ERROR");
 
-		$xml_root = 1;
+		$xml_root = $obCatalog->GetRoot();
 		$bUpdateIBlock = true;
 	}
 
@@ -987,7 +1015,11 @@ function ImportXMLFile($file_name, $iblock_type="-", $site_id='', $section_actio
 
 	$result = $obCatalog->ImportMetaData($xml_root, $iblock_type, $site_id, $bUpdateIBlock);
 	if($result !== true)
+	{
+		if($sync)
+			$obCatalog->EndSession();
 		return GetMessage("IBLOCK_XML2_METADATA_ERROR").implode("\n", $result);
+	}
 
 	$obCatalog->ImportSections();
 	$obCatalog->DeactivateSections($section_action);

@@ -3,7 +3,7 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
 
 class CBPDelayActivity
 	extends CBPActivity
-	implements IBPEventActivity, IBPActivityExternalEventListener
+	implements IBPEventActivity, IBPActivityExternalEventListener, IBPEventDrivenActivity
 {
 	private $subscriptionId = 0;
 	private $isInEventActivityMode = false;
@@ -12,18 +12,20 @@ class CBPDelayActivity
 	{
 		parent::__construct($name);
 		$this->arProperties = array(
-			"Title" => "",
-			"TimeoutDuration" => null,
+			"Title"               => "",
+			"TimeoutDuration"     => null,
 			"TimeoutDurationType" => "s",
-			"TimeoutTime" => null,
-			"TimeoutTimeCurrent" => null,
+			"TimeoutTime"         => null,
+			"TimeoutTimeIsLocal"  => 'N'
 		);
 	}
 
 	public function Cancel()
 	{
 		if (!$this->isInEventActivityMode && $this->subscriptionId > 0)
+		{
 			$this->Unsubscribe($this);
+		}
 
 		return CBPActivityExecutionStatus::Closed;
 	}
@@ -31,73 +33,104 @@ class CBPDelayActivity
 	public function Execute()
 	{
 		if ($this->isInEventActivityMode)
+		{
 			return CBPActivityExecutionStatus::Closed;
-
-		if ($this->TimeoutTime != null)
-		{
-			$this->TimeoutTimeCurrent = $this->TimeoutTime;
-			if (intval($this->TimeoutTime)."|" != $this->TimeoutTime."|")
-				$this->TimeoutTimeCurrent = MakeTimeStamp($this->TimeoutTime);
 		}
 
-		$this->Subscribe($this);
+		$result = $this->Subscribe($this);
+		$this->isInEventActivityMode = false;
 
-		if ($this->TimeoutDuration != null)
+		return $result ? CBPActivityExecutionStatus::Executing : CBPActivityExecutionStatus::Closed;
+	}
+
+	public function Subscribe(IBPActivityExternalEventListener $eventHandler)
+	{
+		$this->isInEventActivityMode = true;
+
+		$timeoutDuration = $this->TimeoutDuration;
+		$timeoutDurationValue = 0;
+		$timeoutTime = $this->TimeoutTime;
+		$isLocalTime = ($this->TimeoutTimeIsLocal === 'Y');
+
+		if ($timeoutDuration != null)
 		{
-			$timeoutDuration = $this->CalculateTimeoutDuration();
-			$this->WriteToTrackingService(str_replace("#PERIOD#", CBPHelper::FormatTimePeriod($timeoutDuration), GetMessage("BPDA_TRACK")));
+			$timeoutDurationValue = $this->CalculateTimeoutDuration();
+			$expiresAt = time() + $timeoutDurationValue;
 		}
-		elseif ($this->TimeoutTime != null)
+		elseif ($timeoutTime != null)
 		{
-			$this->WriteToTrackingService(str_replace("#PERIOD#", ConvertTimeStamp($this->TimeoutTimeCurrent, "FULL"), GetMessage("BPDA_TRACK1")));
+			if ($timeoutTime instanceof \Bitrix\Bizproc\BaseType\Value\Date)
+			{
+				$timeoutTime = $timeoutTime->getTimestamp();
+			}
+			else
+			{
+				if (intval($timeoutTime)."|" != $timeoutTime."|")
+				{
+					$timeoutTime = MakeTimeStamp($timeoutTime);
+				}
+
+				if ($isLocalTime)
+				{
+					$timeoutTime -= \CTimeZone::GetOffset();
+				}
+			}
+
+			$expiresAt = $timeoutTime;
+		}
+		else
+		{
+			$expiresAt = time();
+		}
+
+		if ($timeoutTime != null && $eventHandler === $this && $expiresAt <= time() + 1) //now + 1 second
+		{
+			$this->WriteToTrackingService(GetMessage("BPDA_TRACK3"));
+			return false;
+		}
+
+		$schedulerService = $this->workflow->GetService("SchedulerService");
+		$this->subscriptionId = $schedulerService->SubscribeOnTime($this->workflow->GetInstanceId(), $this->name, $expiresAt);
+
+		$this->workflow->AddEventHandler($this->name, $eventHandler);
+
+		if ($timeoutDuration != null)
+		{
+			$timeoutDurationValue = max($timeoutDurationValue, CBPSchedulerService::getDelayMinLimit());
+			$timestamp = time() + $timeoutDurationValue;
+
+			$this->WriteToTrackingService(
+				GetMessage('BPDA_TRACK4', [
+					'#PERIOD1#' => trim(CBPHelper::FormatTimePeriod($timeoutDurationValue)),
+					'#PERIOD2#' => sprintf(
+							'%s (%s)',
+							ConvertTimeStamp($timestamp, "FULL"),
+							date('P', $timestamp)
+						),
+					]
+				)
+			);
+		}
+		elseif ($timeoutTime != null)
+		{
+			$timestamp = max($timeoutTime, time() + CBPSchedulerService::getDelayMinLimit());
+			$this->WriteToTrackingService(GetMessage("BPDA_TRACK1", [
+				'#PERIOD#' => sprintf('%s (%s)', ConvertTimeStamp($timestamp, "FULL"), date('P', $timestamp))
+			]));
 		}
 		else
 		{
 			$this->WriteToTrackingService(GetMessage("BPDA_TRACK2"));
 		}
 
-		$this->isInEventActivityMode = false;
-		return CBPActivityExecutionStatus::Executing;
-	}
-
-	public function Subscribe(IBPActivityExternalEventListener $eventHandler)
-	{
-		if ($eventHandler == null)
-			throw new Exception("eventHandler");
-
-		$this->isInEventActivityMode = true;
-		if ($this->TimeoutDuration != null)
-			$expiresAt = time() + $this->CalculateTimeoutDuration();
-		elseif ($this->TimeoutTime != null)
-		{
-			if ($this->TimeoutTimeCurrent === null)
-			{
-				$this->TimeoutTimeCurrent = $this->TimeoutTime;
-				if (intval($this->TimeoutTime)."|" != $this->TimeoutTime."|")
-					$this->TimeoutTimeCurrent = MakeTimeStamp($this->TimeoutTime);
-			}
-
-			$expiresAt = $this->TimeoutTimeCurrent;
-		}
-		else
-			$expiresAt = time();
-
-		$schedulerService = $this->workflow->GetService("SchedulerService");
-		$this->subscriptionId = $schedulerService->SubscribeOnTime($this->workflow->GetInstanceId(), $this->name, $expiresAt);
-
-		$this->workflow->AddEventHandler($this->name, $eventHandler);
+		return true;
 	}
 
 	public function Unsubscribe(IBPActivityExternalEventListener $eventHandler)
 	{
-		if ($eventHandler == null)
-			throw new Exception("eventHandler");
-
 		$schedulerService = $this->workflow->GetService("SchedulerService");
 		$schedulerService->UnSubscribeOnTime($this->subscriptionId);
-
 		$this->workflow->RemoveEventHandler($this->name, $eventHandler);
-
 		$this->subscriptionId = 0;
 	}
 
@@ -112,32 +145,31 @@ class CBPDelayActivity
 
 	public function HandleFault(Exception $exception)
 	{
-		if ($exception == null)
-			throw new Exception("exception");
-
 		$status = $this->Cancel();
 		if ($status == CBPActivityExecutionStatus::Canceling)
+		{
 			return CBPActivityExecutionStatus::Faulting;
+		}
 
 		return $status;
 	}
 
 	public static function ValidateProperties($arTestProperties = array(), CBPWorkflowTemplateUser $user = null)
 	{
-		$arErrors = array();
+		$errors = [];
 
 		if (
 			(!array_key_exists("TimeoutDuration", $arTestProperties)
-			|| (intval($arTestProperties["TimeoutDuration"]) <= 0 && !CBPActivity::isExpression($arTestProperties["TimeoutDuration"])))
+				|| (intval($arTestProperties["TimeoutDuration"]) <= 0 && !CBPActivity::isExpression($arTestProperties["TimeoutDuration"])))
 			&&
 			(!array_key_exists("TimeoutTime", $arTestProperties)
-			|| (intval($arTestProperties["TimeoutTime"]) <= 0 && !CBPActivity::isExpression($arTestProperties["TimeoutTime"])))
+				|| (intval($arTestProperties["TimeoutTime"]) <= 0 && !CBPActivity::isExpression($arTestProperties["TimeoutTime"])))
 		)
 		{
-			$arErrors[] = array("code" => "NotExist", "parameter" => "TimeoutDuration", "message" => GetMessage("BPDA_EMPTY_PROP"));
+			$errors[] = array("code" => "NotExist", "parameter" => "TimeoutDuration", "message" => GetMessage("BPDA_EMPTY_PROP"));
 		}
 
-		return array_merge($arErrors, parent::ValidateProperties($arTestProperties, $user));
+		return array_merge($errors, parent::ValidateProperties($arTestProperties, $user));
 	}
 
 	private function CalculateTimeoutDuration()
@@ -147,7 +179,9 @@ class CBPDelayActivity
 		$timeoutDurationType = ($this->IsPropertyExists("TimeoutDurationType") ? $this->TimeoutDurationType : "s");
 		$timeoutDurationType = strtolower($timeoutDurationType);
 		if (!in_array($timeoutDurationType, array("s", "d", "h", "m")))
+		{
 			$timeoutDurationType = "s";
+		}
 
 		$timeoutDuration = intval($timeoutDuration);
 		switch ($timeoutDurationType)
@@ -165,7 +199,7 @@ class CBPDelayActivity
 				break;
 		}
 
-		return $timeoutDuration;
+		return min($timeoutDuration, 3600 * 24 * 365 * 5);
 	}
 
 	public static function GetPropertiesDialog($documentType, $activityName, $arWorkflowTemplate, $arWorkflowParameters, $arWorkflowVariables, $arCurrentValues = null, $formName = "")
@@ -187,6 +221,11 @@ class CBPDelayActivity
 					$arCurrentValues["delay_date"] = $arCurrentActivity["Properties"]["TimeoutTime"];
 					if (!CBPActivity::isExpression($arCurrentValues["delay_date"]))
 						$arCurrentValues["delay_date"] = ConvertTimeStamp($arCurrentValues["delay_date"], "FULL");
+				}
+
+				if (array_key_exists("TimeoutTimeIsLocal", $arCurrentActivity["Properties"]) && !is_null($arCurrentActivity["Properties"]["TimeoutTimeIsLocal"]))
+				{
+					$arCurrentValues["delay_date_is_local"] = $arCurrentActivity["Properties"]["TimeoutTimeIsLocal"];
 				}
 			}
 
@@ -224,50 +263,63 @@ class CBPDelayActivity
 			$arCurrentValues["delay_type"] = "h";
 		}
 
+		if (!is_array($arCurrentValues) || !array_key_exists("delay_date_is_local", $arCurrentValues))
+		{
+			$arCurrentValues["delay_date_is_local"] = "N";
+		}
+
 		return $runtime->ExecuteResourceFile(
 			__FILE__,
 			"properties_dialog.php",
 			array(
 				"arCurrentValues" => $arCurrentValues,
-				"formName" => $formName
+				"formName"        => $formName
 			)
 		);
 	}
 
-	public static function GetPropertiesDialogValues($documentType, $activityName, &$arWorkflowTemplate, &$arWorkflowParameters, &$arWorkflowVariables, $arCurrentValues, &$arErrors)
+	public static function GetPropertiesDialogValues($documentType, $activityName, &$arWorkflowTemplate, &$arWorkflowParameters, &$arWorkflowVariables, $arCurrentValues, &$errors)
 	{
-		$arErrors = Array();
-
-		$runtime = CBPRuntime::GetRuntime();
-
-		$arProperties = array();
+		$errors = [];
+		$properties = [];
 
 		if ($arCurrentValues["time_type_selector"] == "time")
 		{
-			if ((strlen($arCurrentValues["delay_date"]) > 0)
-				&& ($d = MakeTimeStamp($arCurrentValues["delay_date"])))
+			if (CBPDocument::IsExpression($arCurrentValues["delay_date"]))
 			{
-				$arProperties["TimeoutTime"] = $d;
+				$arCurrentValues["delay_date_x"] = $arCurrentValues["delay_date"];
+				$arCurrentValues["delay_date"] = '';
 			}
-			elseif ((strlen($arCurrentValues["delay_date_x"]) > 0) && CBPActivity::isExpression($arCurrentValues["delay_date_x"]))
+
+			if (strlen($arCurrentValues["delay_date"]) > 0 && $d = MakeTimeStamp($arCurrentValues["delay_date"]))
 			{
-				$arProperties["TimeoutTime"] = $arCurrentValues["delay_date_x"];
+				$properties["TimeoutTime"] = $d;
 			}
+			elseif (
+				strlen($arCurrentValues["delay_date_x"]) > 0 &&
+				CBPActivity::isExpression($arCurrentValues["delay_date_x"])
+			)
+			{
+				$properties["TimeoutTime"] = $arCurrentValues["delay_date_x"];
+			}
+
+			$properties['TimeoutTimeIsLocal'] = ($arCurrentValues["delay_date_is_local"] === 'Y') ? 'Y' : 'N';
 		}
 		else
 		{
-			$arProperties["TimeoutDuration"] = $arCurrentValues["delay_time"];
-			$arProperties["TimeoutDurationType"] = $arCurrentValues["delay_type"];
+			$properties["TimeoutDuration"] = $arCurrentValues["delay_time"];
+			$properties["TimeoutDurationType"] = $arCurrentValues["delay_type"];
 		}
 
-		$arErrors = self::ValidateProperties($arProperties, new CBPWorkflowTemplateUser(CBPWorkflowTemplateUser::CurrentUser));
-		if (count($arErrors) > 0)
+		$errors = self::ValidateProperties($properties, new CBPWorkflowTemplateUser(CBPWorkflowTemplateUser::CurrentUser));
+		if (count($errors) > 0)
+		{
 			return false;
+		}
 
-		$arCurrentActivity = &CBPWorkflowTemplateLoader::FindActivityByName($arWorkflowTemplate, $activityName);
-		$arCurrentActivity["Properties"] = $arProperties;
+		$currentActivity = &CBPWorkflowTemplateLoader::FindActivityByName($arWorkflowTemplate, $activityName);
+		$currentActivity["Properties"] = $properties;
 
 		return true;
 	}
 }
-?>

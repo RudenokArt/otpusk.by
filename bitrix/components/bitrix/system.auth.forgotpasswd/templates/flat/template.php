@@ -25,7 +25,7 @@ if(!empty($arParams["~AUTH_RESULT"])):
 
 	<h3 class="bx-title"><?=GetMessage("AUTH_GET_CHECK_STRING")?></h3>
 
-	<p class="bx-authform-content-container"><?=GetMessage("AUTH_FORGOT_PASSWORD_1")?></p>
+	<p class="bx-authform-content-container"><?=GetMessage("AUTH_FORGOT_PASSWORD_2")?></p>
 
 	<form name="bform" method="post" target="_top" action="<?=$arResult["AUTH_URL"]?>">
 <?if($arResult["BACKURL"] <> ''):?>
@@ -40,7 +40,31 @@ if(!empty($arParams["~AUTH_RESULT"])):
 				<input type="text" name="USER_LOGIN" maxlength="255" value="<?=$arResult["LAST_LOGIN"]?>" />
 				<input type="hidden" name="USER_EMAIL" />
 			</div>
+			<div class="bx-authform-note-container"><?echo GetMessage("forgot_pass_email_note")?></div>
 		</div>
+
+<?if($arResult["PHONE_REGISTRATION"]):?>
+		<div class="bx-authform-formgroup-container">
+			<div class="bx-authform-label-container"><?echo GetMessage("forgot_pass_phone_number")?></div>
+			<div class="bx-authform-input-container">
+				<input type="text" name="USER_PHONE_NUMBER" maxlength="255" value="" />
+			</div>
+			<div class="bx-authform-note-container"><?echo GetMessage("forgot_pass_phone_number_note")?></div>
+		</div>
+<?endif?>
+
+<?if ($arResult["USE_CAPTCHA"]):?>
+		<input type="hidden" name="captcha_sid" value="<?=$arResult["CAPTCHA_CODE"]?>" />
+
+		<div class="bx-authform-formgroup-container">
+			<div class="bx-authform-label-container"><?echo GetMessage("system_auth_captcha")?></div>
+			<div class="bx-captcha"><img src="/bitrix/tools/captcha.php?captcha_sid=<?=$arResult["CAPTCHA_CODE"]?>" width="180" height="40" alt="CAPTCHA" /></div>
+			<div class="bx-authform-input-container">
+				<input type="text" name="captcha_word" maxlength="50" value="" autocomplete="off"/>
+			</div>
+		</div>
+
+<?endif?>
 
 		<div class="bx-authform-formgroup-container">
 			<input type="submit" class="btn btn-primary" name="send_account_info" value="<?=GetMessage("AUTH_SEND")?>" />

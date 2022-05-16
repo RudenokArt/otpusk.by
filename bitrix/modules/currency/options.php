@@ -60,7 +60,7 @@ if ($moduleAccessLevel >= 'R')
 		}
 		if (isset($_POST['procedures']) && $_POST['procedures'] === 'Y' && isset($_POST['action']) && $_POST['action'] == 'recalc')
 		{
-			CCurrency::updateAllCurrencyBaseRate();
+			Currency\CurrencyManager::updateBaseRates();
 			LocalRedirect($APPLICATION->GetCurPage().'?lang='.LANGUAGE_ID.'&mid='.$module_id.'&'.$systemTabControl->ActiveTabParam());
 		}
 		if (isset($_POST['agents']) && $_POST['agents'] == 'Y' && isset($_POST['action']) && !empty($_POST['action']))
@@ -72,7 +72,7 @@ if ($moduleAccessLevel >= 'R')
 				case 'deactivate':
 					$agentIterator = CAgent::GetList(
 						array(),
-						array('MODULE_ID' => 'currency','=NAME' => '\Bitrix\Currency\CurrencyTable::currencyBaseRateAgent();')
+						array('MODULE_ID' => 'currency','=NAME' => '\Bitrix\Currency\CurrencyManager::currencyBaseRateAgent();')
 					);
 					if ($currencyAgent = $agentIterator->Fetch())
 					{
@@ -82,7 +82,7 @@ if ($moduleAccessLevel >= 'R')
 					break;
 				case 'create':
 					$checkDate = DateTime::createFromTimestamp(strtotime('tomorrow 00:01:00'));;
-					CAgent::AddAgent('\Bitrix\Currency\CurrencyTable::currencyBaseRateAgent();', 'currency', 'Y', 86400, '', 'Y', $checkDate->toString(), 100, false, true);
+					CAgent::AddAgent('\Bitrix\Currency\CurrencyManager::currencyBaseRateAgent();', 'currency', 'Y', 86400, '', 'Y', $checkDate->toString(), 100, false, true);
 					break;
 			}
 			LocalRedirect($APPLICATION->GetCurPage().'?lang='.LANGUAGE_ID.'&mid='.$module_id.'&'.$systemTabControl->ActiveTabParam());
@@ -127,10 +127,10 @@ function RestoreDefaults()
 		window.location = "<?echo $APPLICATION->GetCurPage()?>?lang=<? echo LANGUAGE_ID; ?>&mid=<? echo $module_id; ?>&RestoreDefaults=Y&<?=bitrix_sessid_get()?>";
 }
 </script>
-	<input type="submit" <?if ($moduleAccessLevel < "W") echo "disabled" ?> name="Update" value="<?echo Loc::getMessage("CUR_OPTIONS_BTN_SAVE")?>">
+	<input type="submit"<?=($moduleAccessLevel < 'W' ? ' disabled' : ''); ?> name="Update" value="<?=Loc::getMessage('CUR_OPTIONS_BTN_SAVE')?>" class="adm-btn-save" title="<?=Loc::getMessage('CUR_OPTIONS_BTN_SAVE_TITLE'); ?>">
 	<input type="hidden" name="Update" value="Y">
-	<input type="reset" name="reset" value="<?echo Loc::getMessage("CUR_OPTIONS_BTN_RESET")?>">
-	<input type="button" <?if ($moduleAccessLevel < "W") echo "disabled" ?> title="<?echo Loc::getMessage("CUR_OPTIONS_BTN_HINT_RESTORE_DEFAULT")?>" onclick="RestoreDefaults();" value="<?echo Loc::getMessage("CUR_OPTIONS_BTN_RESTORE_DEFAULT")?>">
+	<input type="reset" name="reset" value="<?=Loc::getMessage('CUR_OPTIONS_BTN_RESET')?>" title="<?=Loc::getMessage('CUR_OPTIONS_BTN_RESET_TITLE'); ?>">
+	<input type="button"<?=($moduleAccessLevel < 'W' ? ' disabled' : ''); ?> title="<?=Loc::getMessage("CUR_OPTIONS_BTN_HINT_RESTORE_DEFAULT")?>" onclick="RestoreDefaults();" value="<?=Loc::getMessage('CUR_OPTIONS_BTN_RESTORE_DEFAULT'); ?>">
 	</form>
 	<?$tabControl->End();
 
@@ -151,7 +151,7 @@ function RestoreDefaults()
 	$currencyAgent = false;
 	$agentIterator = CAgent::GetList(
 		array(),
-		array('MODULE_ID' => 'currency','=NAME' => '\Bitrix\Currency\CurrencyTable::currencyBaseRateAgent();')
+		array('MODULE_ID' => 'currency','=NAME' => '\Bitrix\Currency\CurrencyManager::currencyBaseRateAgent();')
 	);
 	if ($agentIterator)
 		$currencyAgent = $agentIterator->Fetch();

@@ -1,0 +1,35 @@
+#placements-map {
+	height: 500px;
+}
+
+.fs-18 {
+	font-size: 18px;
+}
+.sidebar-inner {
+	padding-bottom: 10px !important;
+}
+.order-link {
+	padding: 8px 8px 7px;
+	font-size: 10px !important;
+	font-weight: 600;
+	text-transform: uppercase;
+	/*letter-spacing: 2px;*/
+	line-height: 1;
+	color: #004991;
+	/*padding-left: 5px;*/
+	border: 1px solid #004991;
+	/*padding-right: 5px;*/
+}
+.content form {
+	margin-top: 8px;
+}
+.block-order-form {
+	width: auto;
+}
+.ok_mess {
+	padding: 20px;
+	color: #004991;
+}
+.select2-container .select2-selection--multiple {
+	height: auto !important;
+}

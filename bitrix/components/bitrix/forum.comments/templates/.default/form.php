@@ -26,10 +26,9 @@ if (!empty($arResult["ERROR_MESSAGE"]))
 	<input type="hidden" name="ENTITY_XML_ID" value="<?=$arParams["ENTITY_XML_ID"]?>" />
 	<input type="hidden" name="ENTITY_TYPE" value="<?=$arParams["ENTITY_TYPE"]?>" />
 	<input type="hidden" name="ENTITY_ID" value="<?=$arParams["ENTITY_ID"]?>" />
-	<input type="hidden" name="REVIEW_USE_SMILES" value="Y"  />
-	<input type="hidden" name="comment_review" value="Y"  />
 	<?=bitrix_sessid_post()?>
-	<?
+	<input type="hidden" name="REVIEW_USE_SMILES" value="Y"  />
+	<input type="hidden" name="comment_review" value="Y"  /><?
 	if ($arParams['AUTOSAVE'])
 		$arParams['AUTOSAVE']->Init();
 		ob_start();
@@ -77,17 +76,6 @@ if (!empty($arResult["ERROR_MESSAGE"]))
 		}
 		$html_after_textarea = ob_get_clean();
 
-		$arSmiles = array();
-		if ($arParams["ALLOW_SMILES"] == "Y")
-		{
-			foreach($arResult["SMILES"] as $arSmile)
-			{
-				$arSmiles[] = array_change_key_case($arSmile, CASE_LOWER) + array(
-					'path' => $arSmile["IMAGE"],
-					'code' => array_shift(explode(" ", str_replace("\\\\","\\",$arSmile["TYPING"]))));
-			}
-		}
-
 		$APPLICATION->IncludeComponent("bitrix:main.post.form", "",
 			Array(
 				"FORM_ID" => $arParams["FORM_ID"],
@@ -104,9 +92,9 @@ if (!empty($arResult["ERROR_MESSAGE"]))
 					'jsObjName' => $arParams["jsObjName"],
 					'bSetDefaultCodeView' => ($arParams['EDITOR_CODE_DEFAULT'] == 'Y'),
 					"documentCSS" => "body {color:#434343;}",
+					"iframeCss" => "html body {padding-left: 14px!important;}",
 					"fontFamily" => "'Helvetica Neue', Helvetica, Arial, sans-serif",
 					"fontSize" => "12px",
-					"ctrlEnterHandler" => 'commentsCtrlEnterHandler'.$arParams["FORM_ID"],
 					"bInitByJS" => ($arParams['SHOW_MINIMIZED'] == "Y"),
 					"height" => 80
 				),
@@ -134,9 +122,15 @@ if (!empty($arResult["ERROR_MESSAGE"]))
 					)
 				),
 				"UPLOAD_FILE_PARAMS" => array("width" => $arParams["IMAGE_SIZE"], "height" => $arParams["IMAGE_SIZE"]),
-				"PROPERTIES" => array($arResult["USER_FIELDS"]["UF_FORUM_MESSAGE_DOC"]),
-
-				"SMILES" => Array("VALUE" => $arSmiles),
+				"PROPERTIES" => array(
+					array_merge(is_array($arResult["USER_FIELDS"]["UF_FORUM_MESSAGE_DOC"]) ? $arResult["USER_FIELDS"]["UF_FORUM_MESSAGE_DOC"] : array(), (is_array($arParams["USER_FIELDS_SETTINGS"]["UF_FORUM_MESSAGE_DOC"]) ? $arParams["USER_FIELDS_SETTINGS"]["UF_FORUM_MESSAGE_DOC"] : array())),
+					array_merge(is_array($arResult["USER_FIELDS"]["UF_FORUM_MES_URL_PRV"]) ? $arResult["USER_FIELDS"]["UF_FORUM_MES_URL_PRV"] : array(), (is_array($arParams["USER_FIELDS_SETTINGS"]["UF_FORUM_MES_URL_PRV"]) ? $arParams["USER_FIELDS_SETTINGS"]["UF_FORUM_MES_URL_PRV"] : array())),
+				),
+				"SMILES" => (
+						$arParams["ALLOW_SMILES"] == "Y"
+							? \COption::GetOptionInt("forum", "smile_gallery_id", 0) :
+							array("VALUE" => array())
+				),
 				"HTML_BEFORE_TEXTAREA" => $APPLICATION->GetViewContent(implode('_', array($tplID, 'EDIT', 'BEFORE'))).$html_before_textarea,
 				"HTML_AFTER_TEXTAREA" => $APPLICATION->GetViewContent(implode('_', array($tplID, 'EDIT', 'AFTER'))).$html_after_textarea
 			),
@@ -147,22 +141,8 @@ if (!empty($arResult["ERROR_MESSAGE"]))
 </form>
 <script type="text/javascript">
 BX.ready(function(){
-	window["UC"]["f<?=$arParams["FORM_ID"]?>"] = new FCForm({
-		entitiesId : {'<?=$arParams["ENTITY_XML_ID"]?>' : ['<?=$arParams["ENTITY_TYPE"]?>', <?=$arParams["ENTITY_ID"]?>]},
-		formId : '<?=$arParams["FORM_ID"]?>',
-		editorName : '<?=$arParams["jsObjName"]?>',
-		editorId : '<?=$arParams["LheId"]?>'});
-	if (!!window["UC"]["f<?=$arParams["FORM_ID"]?>"].eventNode)
-	{
-		BX.addCustomEvent(window["UC"]["f<?=$arParams["FORM_ID"]?>"].eventNode, 'OnUCFormClear', __fcOnUCFormClear);
-		BX.addCustomEvent(window["UC"]["f<?=$arParams["FORM_ID"]?>"].eventNode, 'OnUCFormAfterShow', __fcOnUCFormAfterShow);
-	}
+	BX.addCustomEvent(BX('<?=$arParams["FORM_ID"]?>'), 'OnUCFormAfterShow', __fcOnUCFormAfterShow);
 });
-
-function commentsCtrlEnterHandler<?=$arParams["FORM_ID"]?>()
-{
-	window["UC"]["f<?=$arParams["FORM_ID"]?>"].submit();
-}
 BX.message({
 	FCCID : '<?=$arParams["mfi"]?>'
 });

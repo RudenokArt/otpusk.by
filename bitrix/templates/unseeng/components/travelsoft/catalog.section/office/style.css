@@ -1,0 +1,11 @@
+.block-name-city {
+    display: block;
+}
+.block-name-city h6, .block-name-city span {
+    display: inline-block;
+}
+.block-name-city span {
+    float: right;
+    font-style: italic;
+    font-weight: 600;
+}

@@ -6,9 +6,53 @@ function showHiddenDestination(cont, el)
 
 function showMenuLinkInput(ind, url)
 {
-	id = 'post-menu-' + ind + '-link',
-	it = BX.proxy_context,
-	height = parseInt(!!it.getAttribute("bx-height") ? it.getAttribute("bx-height") : it.offsetHeight);
+	var
+		id = 'post-menu-' + ind + '-link',
+		menuItemText = BX(id + '-text'),
+		menuItemIconDone = BX(id + '-icon-done');
+
+	if (BX.clipboard.isCopySupported())
+	{
+		if (menuItemText && menuItemText.getAttribute('data-block-click') == 'Y')
+		{
+			return;
+		}
+
+		BX.clipboard.copy(url);
+
+		if (
+			menuItemText
+			&& menuItemIconDone
+		)
+		{
+			menuItemIconDone.style.display = 'inline-block';
+			BX.removeClass(BX(id + '-icon-animate'), 'post-menu-link-icon-animate');
+
+			BX.adjust(menuItemText, {
+				attrs: {
+					'data-block-click': 'Y'
+				}
+			});
+
+			setTimeout(function() {
+				BX.addClass(BX(id + '-icon-animate'), 'post-menu-link-icon-animate');
+			}, 1);
+
+			setTimeout(function() {
+				BX.adjust(menuItemText, {
+					attrs: {
+						'data-block-click': 'N'
+					}
+				});
+			}, 500);
+		}
+
+		return;
+	}
+
+	var
+		it = BX.proxy_context,
+		height = parseInt(!!it.getAttribute("bx-height") ? it.getAttribute("bx-height") : it.offsetHeight);
 
 	if (it.getAttribute("bx-status") != "shown")
 	{
@@ -20,7 +64,7 @@ function showMenuLinkInput(ind, url)
 				pos = BX.pos(node),
 				pos2 = BX.pos(node.parentNode);
 				pos3 = BX.pos(BX.findParent(node, {'className': 'menu-popup-item'}, true));
-				
+
 			pos["height"] = pos2["height"] - 1;
 
 			BX.adjust(it, {
@@ -48,7 +92,10 @@ function showMenuLinkInput(ind, url)
 												height : pos["height"] + 'px',
 												width : (pos3["width"] - 21) + 'px'
 											},
-											events : { click : function(e){ this.select(); BX.PreventDefault(e);} }
+											events : { click : function(e){
+												this.select();
+												BX.PreventDefault(e);
+											} }
 										}
 									)
 								]
@@ -84,52 +131,24 @@ function showMenuLinkInput(ind, url)
 		BX.fx.hide(BX(id), 0.2);
 	}
 }
-					
-function showBlogPost(id, source)
-{
-	var el = BX.findChild(BX('blg-post-' + id), {className: 'feed-post-text-block-inner'}, true, false);
-	el2 = BX.findChild(BX('blg-post-' + id), {className: 'feed-post-text-block-inner-inner'}, true, false);
-	BX.remove(source);
-
-	if(el)
-	{
-		var fxStart = 300;
-		var fxFinish = el2.offsetHeight;
-		(new BX.fx({
-			time: 1.0 * (fxFinish - fxStart) / (1200-fxStart),
-			step: 0.05,
-			type: 'linear',
-			start: fxStart,
-			finish: fxFinish,
-			callback: BX.delegate(__blogExpandSetHeight, el),
-			callback_complete: BX.delegate(function() {
-				this.style.maxHeight = 'none'; 
-				BX.LazyLoad.showImages(true);
-			}, el)
-		})).start();
-	}
-}
-
-function __blogExpandSetHeight(height)
-{
-	this.style.maxHeight = height + 'px';
-}
 
 function deleteBlogPost(id)
 {
-	url = BX.message('sonetBPDeletePath');
-	url1 = url.replace('#del_post_id#', id);
+	var
+		el = BX('blg-post-'+id);
 
-	if(BX.findChild(BX('blg-post-'+id), {'attr': {id: 'form_c_del'}}, true, false))
+	if(BX.findChild(el, {'attr': {id: 'form_c_del'}}, true, false))
 	{
 		BX.hide(BX('form_c_del'));
-		BX(BX('blg-post-'+id).parentNode.parentNode).appendChild(BX('form_c_del')); // Move form
+		BX(el.parentNode.parentNode).appendChild(BX('form_c_del')); // Move form
 	}
 
-	BX.ajax.get(url1, function(data){
-		if(window.deletePostEr && window.deletePostEr == "Y")
+	BX.ajax.get(BX.message('sonetBPDeletePath').replace('#del_post_id#', id), function(data){
+		if(
+			window.deletePostEr
+			&& window.deletePostEr == "Y"
+		)
 		{
-			var el = BX('blg-post-'+id);
 			BX.findChild(el, {className: 'feed-post-cont-wrap'}, true, false).insertBefore(
 				BX.create('SPAN', {
 					html: data
@@ -139,10 +158,10 @@ function deleteBlogPost(id)
 		}
 		else
 		{
-			BX('blg-post-'+id).parentNode.innerHTML = data;
+			__logDeleteSuccess(BX('blg-post-'+id));
 		}
 	});
-	
+
 	return false;
 }
 
@@ -178,46 +197,397 @@ function blogShowImagePopup(src)
 
 function __blogPostSetFollow(log_id)
 {
-	var strFollowOld = (BX("log_entry_follow_" + log_id, true).getAttribute("data-follow") == "Y" ? "Y" : "N");
-	var strFollowNew = (strFollowOld == "Y" ? "N" : "Y");	
+	var
+		strFollowOld = (BX("log_entry_follow_" + log_id).getAttribute("data-follow") == "Y" ? "Y" : "N"),
+		strFollowNew = (strFollowOld == "Y" ? "N" : "Y"),
+		followNode = BX("log_entry_follow_" + log_id);
 
-	if (BX("log_entry_follow_" + log_id, true))
+	if (followNode)
 	{
-		BX.findChild(BX("log_entry_follow_" + log_id, true), { tagName: 'a' }).innerHTML = BX.message('sonetBPFollow' + strFollowNew);
-		BX("log_entry_follow_" + log_id, true).setAttribute("data-follow", strFollowNew);
+		BX.findChild(followNode, { tagName: 'a' }).innerHTML = BX.message('sonetBPFollow' + strFollowNew);
+		followNode.setAttribute("data-follow", strFollowNew);
 	}
-				
-	BX.ajax({
-		url: BX.message('sonetBPSetPath'),
-		method: 'POST',
-		dataType: 'json',
+
+	BX.ajax.runAction('socialnetwork.api.livefeed.changeFollow', {
 		data: {
-			"log_id": log_id,
-			"action": "change_follow",
-			"follow": strFollowNew,
-			"sessid": BX.bitrix_sessid(),
-			"site": BX.message('sonetBPSiteId')
+			logId: log_id,
+			value: strFollowNew
 		},
-		onsuccess: function(data) {
-			if (
-				data["SUCCESS"] != "Y"
-				&& BX("log_entry_follow_" + log_id, true)
-			)
-			{
-				BX.findChild(BX("log_entry_follow_" + log_id, true), { tagName: 'a' }).innerHTML = BX.message('sonetBPFollow' + strFollowOld);
-				BX("log_entry_follow_" + log_id, true).setAttribute("data-follow", strFollowOld);
-			}
-		},
-		onfailure: function(data) {
-			if (BX("log_entry_follow_" +log_id, true))
-			{
-				BX.findChild(BX("log_entry_follow_" + log_id, true), { tagName: 'a' }).innerHTML = BX.message('sonetBPFollow' + strFollowOld);
-				BX("log_entry_follow_" + log_id, true).setAttribute("data-follow", strFollowOld);
-			}		
+		analyticsLabel: {
+			b24statAction: (strFollowNew == 'Y' ? 'setFollow' : 'setUnfollow')
+		}
+	}).then(function(response) {
+		if (
+			!response.data.success
+			&& followNode
+		)
+		{
+			BX.findChild(followNode, { tagName: 'a' }).innerHTML = BX.message('sonetBPFollow' + strFollowOld);
+			followNode.setAttribute("data-follow", strFollowOld);
+		}
+	}, function(response) {
+		if (followNode)
+		{
+			BX.findChild(followNode, { tagName: 'a' }).innerHTML = BX.message('sonetBPFollow' + strFollowOld);
+			followNode.setAttribute("data-follow", strFollowOld);
 		}
 	});
+
 	return false;
 }
+
+(function() {
+	if (!!BX.SBPostMenu)
+		return false;
+
+	BX.SBPostMenu = function(node) {
+	};
+
+	BX.SBPostMenu.showMenu = function(params) {
+		if (
+			typeof params == 'undefined'
+			|| typeof params.postId == 'undefined'
+			|| parseInt(params.postId) <= 0
+			|| typeof params.bindNode == 'undefined'
+			|| !BX(params.bindNode)
+		)
+		{
+			return false;
+		}
+
+		BX.PopupMenu.destroy('blog-post-' + params.postId);
+
+		var
+			isPublicPage = (typeof params.publicPage != 'undefined' && !!params.publicPage),
+			isTasksAvailable = (typeof params.tasksAvailable != 'undefined' && !!params.tasksAvailable),
+			pathToPost = (typeof params.pathToPost != 'undefined' ? params.pathToPost : ''),
+			urlToEdit = (typeof params.urlToEdit != 'undefined' ? params.urlToEdit : ''),
+			urlToHide = (typeof params.urlToHide != 'undefined' ? params.urlToHide : ''),
+			urlToDelete = (typeof params.urlToDelete != 'undefined' ? params.urlToDelete : ''),
+			voteId = (typeof params.voteId != 'undefined' ? parseInt(params.voteId) : false),
+			postType = (typeof params.postType != 'undefined' ? params.postType : false);
+
+		if (BX.type.isNotEmptyString(urlToHide))
+		{
+			urlToHide = BX.util.remove_url_param(urlToHide, [ 'b24statAction' ]);
+			urlToHide = BX.util.add_url_param(urlToHide, {
+				b24statAction: 'hidePost'
+			});
+		}
+
+		if (isPublicPage)
+		{
+			return false;
+		}
+
+		var menuWaiterPopup = new BX.PopupWindow('blog-post-' + params.postId + '-waiter', params.bindNode, {
+			offsetLeft: -14,
+			offsetTop: 4,
+			lightShadow: false,
+			angle: {position: 'top', offset: 50},
+			content: BX.create("SPAN", { props: {className: "bx-ilike-wait"}})
+		});
+
+		setTimeout(function() {
+			if (menuWaiterPopup)
+			{
+				menuWaiterPopup.show();
+			}
+		}, 300);
+
+		BX.ajax.runAction('socialnetwork.api.livefeed.blogpost.getData', {
+			data: {
+				params: {
+					postId : parseInt(params.postId),
+					public : (isPublicPage ? 'Y' : 'N'),
+					mobile : 'N',
+					groupReadOnly : (typeof params.group_readonly != 'undefined' && !!params.group_readonly ? 'Y' : 'N'),
+					pathToPost : pathToPost,
+					voteId: voteId,
+					checkModeration : 'Y',
+				}
+			},
+		}).then(function (response) {
+
+			var postData = response.data;
+
+			if (
+				postData.perms <= 'D' // \Bitrix\Blog\Item\Permissions::DENY
+				&& (
+					typeof params.items == 'undefined'
+					|| params.items.length <= 0
+				)
+			)
+			{
+				menuWaiterPopup.destroy();
+				return false;
+			}
+
+			var menuItems = [];
+
+			if(!BX.util.in_array(postType, [ 'DRAFT', 'MODERATION' ]))
+			{
+				if (
+					postData.isGroupReadOnly != 'Y'
+					&& parseInt(BX.message('USER_ID')) > 0
+					&& (parseInt(postData.logId) > 0)
+				)
+				{
+					var isFavorites = (parseInt(postData.logFavoritesUserId) > 0);
+					menuItems.push({
+						text: BX.message(isFavorites ? "sonetLMenuFavoritesTitleY" : "sonetLMenuFavoritesTitleN"),
+						onclick: function(e) {
+							__logChangeFavorites(
+								parseInt(postData.logId),
+								'log_entry_favorites_' + parseInt(postData.logId),
+								(isFavorites ? 'N' : 'Y'),
+								true
+							);
+							return false;
+						}
+					});
+				}
+
+				var serverName = params.serverName;
+
+				menuItems.push({
+					text: BX.message('BLOG_HREF'),
+					href: postData.urlToPost,
+					class: 'feed-entry-popup-menu-link',
+					target: '_top'
+				});
+
+				menuItems.push({
+					text: '<span id="post-menu-' + postData.logId + '-link-text">' + BX.message('BLOG_LINK') + '</span>' +
+						'<span id="post-menu-' + postData.logId + '-link-icon-animate" class="post-menu-link-icon-wrap">' +
+						'<span class="post-menu-link-icon" id="post-menu-' + postData.logId + '-link-icon-done" style="display: none;">' +
+
+						'</span>' +
+						'</span>',
+					onclick: function(e) {
+						showMenuLinkInput(
+							parseInt(postData.logId),
+							serverName + postData.urlToPost
+						);
+						return false;
+					},
+					class: 'feed-entry-popup-menu-link'
+				});
+
+				if (
+					parseInt(BX.message('USER_ID')) > 0
+					&& postData.isGroupReadOnly != 'Y'
+					&& postData.isShareForbidden != 'Y'
+				)
+				{
+					menuItems.push({
+						text: BX.message('BLOG_SHARE'),
+						onclick: function() {
+							showSharing(
+								parseInt(params.postId),
+								parseInt(postData.authorId)
+							);
+							this.popupWindow.close();
+						}
+					});
+				}
+
+				if (
+					postData.perms >= 'W' // \Bitrix\Blog\Item\Permissions::FULL
+					|| (
+						postData.perms >= 'P' // \Bitrix\Blog\Item\Permissions::WRITE
+						&& postData.authorId == BX.message('USER_ID')
+					)
+				)
+				{
+					menuItems.push({
+						text: BX.message('BLOG_BLOG_BLOG_EDIT'),
+						href: urlToEdit,
+						target: '_top'
+					});
+				}
+
+				if(postData.perms >= 'T') // \Bitrix\Blog\Item\Permissions::MODERATE
+				{
+					menuItems.push({
+						text: BX.message('BLOG_MES_HIDE'),
+						onclick: function() {
+							if(confirm(BX.message('BLOG_MES_HIDE_POST_CONFIRM')))
+							{
+								window.location = urlToHide;
+								this.popupWindow.close();
+							}
+						}
+					});
+				}
+
+				if (postData.perms >= 'W') //  // \Bitrix\Blog\Item\Permissions::FULL
+				{
+					menuItems.push({
+						text: BX.message('BLOG_BLOG_BLOG_DELETE'),
+						onclick: function() {
+							if (confirm(BX.message('BLOG_MES_DELETE_POST_CONFIRM')))
+							{
+								if (urlToDelete.length > 0)
+								{
+									window.location = urlToDelete.replace('#del_post_id#', parseInt(params.postId));
+								}
+								else
+								{
+									window.deleteBlogPost(parseInt(params.postId));
+								}
+								this.popupWindow.close();
+							}
+						}
+					});
+				}
+
+				if (
+					isTasksAvailable
+					&& postData.perms > 'D'
+				)
+				{
+					menuItems.push({
+						text: BX.message('BLOG_POST_CREATE_TASK'),
+						onclick: function(e) {
+							var target = e.target || e.srcElement;
+
+							oLF.createTask({
+								entityType: 'BLOG_POST',
+								entityId: parseInt(params.postId)
+							});
+							this.popupWindow.close();
+							return e.preventDefault();
+						}
+					});
+				}
+
+				if (postData.urlToVoteExport.length > 0)
+				{
+					menuItems.push({
+						text: BX.message('BLOG_POST_VOTE_EXPORT'),
+						href: postData.urlToVoteExport,
+						target: '_top'
+					});
+				}
+			}
+
+			if(
+				postType == 'DRAFT'
+				&& postData.allowModerate == 'Y'
+				&& BX.type.isNotEmptyString(params.urlToPub)
+			)
+			{
+				menuItems.push({
+					text: BX.message('BLOG_POST_MOD_PUB'),
+					href: params.urlToPub,
+					target: '_top'
+				});
+			}
+
+			var
+				onclickHandler = null,
+				menuItem = null,
+				item = null;
+
+			if (typeof params.items != 'undefined')
+			{
+				for (var key in params.items)
+				{
+					if (params.items.hasOwnProperty(key))
+					{
+						item = params.items[key];
+
+						menuItem = {};
+						if (typeof item.text_php != 'undefined')
+						{
+							menuItem.text = item.text_php;
+						}
+
+						if (typeof item.onclick != 'undefined')
+						{
+							eval("onclickHandler = " + item.onclick);
+							menuItem.onclick = onclickHandler;
+						}
+						else if (typeof item.href != 'undefined')
+						{
+							menuItem.href = item.href;
+						}
+
+						menuItems.push(menuItem);
+					}
+				}
+			}
+
+			var popupEvents = (
+				typeof params.logId != 'undefined' && parseInt(params.logId) > 0
+					? {
+						onPopupShow : function(ob)
+						{
+							if (BX('log_entry_favorites_' + parseInt(params.logId)))
+							{
+								var menuItems = BX.findChildren(ob.contentContainer, {'className' : 'menu-popup-item-text'}, true);
+								if (menuItems != null)
+								{
+									for (var i = 0; i < menuItems.length; i++)
+									{
+										if (
+											menuItems[i].innerHTML == BX.message('sonetLMenuFavoritesTitleY')
+											|| menuItems[i].innerHTML == BX.message('sonetLMenuFavoritesTitleN')
+										)
+										{
+											var favoritesMenuItem = menuItems[i];
+											break;
+										}
+									}
+								}
+
+								if (typeof favoritesMenuItem != 'undefined')
+								{
+									BX(favoritesMenuItem).innerHTML = (
+										BX.hasClass(BX('log_entry_favorites_' + parseInt(params.logId)), 'feed-post-important-switch-active')
+											? BX.message('sonetLMenuFavoritesTitleY')
+											: BX.message('sonetLMenuFavoritesTitleN')
+									);
+								}
+							}
+
+							if (BX('post-menu-' + parseInt(params.logId) + '-link'))
+							{
+								var linkMenuItem = BX.findChild(ob.popupContainer, {className: 'feed-entry-popup-menu-link'}, true, false);
+								if (linkMenuItem)
+								{
+									var height = parseInt(!!linkMenuItem.getAttribute('bx-height') ? linkMenuItem.getAttribute('bx-height') : 0);
+									if (height > 0)
+									{
+										BX('post-menu-' + parseInt(params.logId) + '-link').style.display = 'none';
+										linkMenuItem.setAttribute('bx-status', 'hidden');
+										linkMenuItem.style.height = height + 'px';
+									}
+								}
+							}
+						}
+					}
+					: {}
+			);
+
+			menuWaiterPopup.destroy();
+			BX.PopupMenu.show('blog-post-' + params.postId, params.bindNode, menuItems,
+				{
+					offsetLeft: -14,
+					offsetTop: 4,
+					lightShadow: false,
+					angle: {position: 'top', offset: 50},
+					events: popupEvents
+				});
+			return false;
+		}, function (response) {
+			menuWaiterPopup.destroy();
+			return false;
+		});
+	};
+
+}());
 
 (function() {
 	if (!!window.SBPImpPost)
@@ -240,10 +610,10 @@ function __blogPostSetFollow(log_id)
 			this.onclick();
 
 		return false;
-	}
+	};
 	window.SBPImpPost.prototype.onclick = function(){
 		this.sendData();
-	}
+	};
 	window.SBPImpPost.prototype.showClick = function(){
 		var start_anim = this.btn.offsetWidth,
 			text = BX.message('BLOG_ALREADY_READ'),
@@ -272,28 +642,19 @@ function __blogPostSetFollow(log_id)
 				}, this)
 		});
 		easing.animate();
-	}
+	};
 	window.SBPImpPost.prototype.wait = function(status){
 		status = (status == 'show' ? 'show' : 'hide');
 		if (status == 'show')
 		{
 			this.node.disabled = true;
-			BX.adjust(this.node, {style : {position : "relative"},
-				children : [
-					BX.create('DIV', {
-						attrs : {className: 'mpf-load-img', "mpf-load-img" : "Y"},
-						style : { position: "absolute", top : 0, left : 0, width: "100%" }
-					})
-				]});
+			BX.addClass(this.node, 'ui-btn-clock');
 		}
 		else
 		{
-			if (!!this.node.lastChild && this.node.lastChild.hasAttribute("mpf-load-img"))
-			{
-				BX.remove(this.node.lastChild);
-			}
+			BX.removeClass(this.node, 'ui-btn-clock');
 		}
-	}
+	};
 	window.SBPImpPost.prototype.sendData = function(){
 		if (this.busy)
 			return false;
@@ -304,7 +665,7 @@ function __blogPostSetFollow(log_id)
 		var data = {
 			options : [{ post_id : this.postId, name : "BLOG_POST_IMPRTNT", value : "Y"}],
 			sessid : BX.bitrix_sessid()},
-			url = this.node.href;
+			url = this.node.getAttribute('bx-url');
 
 		BX.onCustomEvent(this.node, "onSend", [data]);
 		data = BX.ajax.prepareData(data);
@@ -327,7 +688,7 @@ function __blogPostSetFollow(log_id)
 			}, this),
 			'onfailure': BX.delegate(function(data){ this.busy = false; this.wait('hide');}, this)
 		});
-	}
+	};
 
 	top.SBPImpPostCounter = function(node, postId, params) {
 		this.parentNode = node;
@@ -358,11 +719,15 @@ function __blogPostSetFollow(log_id)
 				if (!!params["data"])
 				{
 					this.change(params["data"]);
+					if (this.popup != null)
+					{
+						this.popup.isNew = true;
+					}
 				}
 			}
 		}, this);
 		BX.addCustomEvent("onPullEvent-socialnetwork", this.onPullEvent);
-	}
+	};
 	top.SBPImpPostCounter.prototype.click = function(obj) {
 		obj.uController = this;
 		BX.addCustomEvent(obj.node, "onUserVote", BX.proxy(this.change, this));
@@ -377,18 +742,24 @@ function __blogPostSetFollow(log_id)
 			data["return"] = "users";
 		}, this));
 		this.btnObj = obj;
-	}
+	};
 
 	top.SBPImpPostCounter.prototype.change = function(data) {
 		if (!!data && !!data.items)
 		{
 			var res = false;
 			this.data = [];
-			for (var ii in data.items) {
-				this.data.push(data.items[ii]);
+			for (var ii in data.items)
+			{
+				if (data.items.hasOwnProperty(ii))
+				{
+					this.data.push(data.items[ii]);
+				}
 			}
 			if (data["StatusPage"] == "done")
+			{
 				this.node.setAttribute("inumpage", "done");
+			}
 			else
 				this.node.setAttribute("inumpage", 1);
 			BX.adjust(this.parentNode, {style : {display : "inline-block"}});
@@ -399,7 +770,7 @@ function __blogPostSetFollow(log_id)
 			BX.hide(this.parentNode);
 		}
 		this.node.firstChild.innerHTML = data["RecordCount"];
-	}
+	};
 	top.SBPImpPostCounter.prototype.init = function(e) {
 		if (!!this.node.timeoutOver){
 			clearTimeout(this.node.timeoutOver);
@@ -447,7 +818,7 @@ function __blogPostSetFollow(log_id)
 			}
 			this.node.timeoutOver = setTimeout(this.node.mouseoverFunc, 400);
 		}
-	}
+	};
 
 	top.SBPImpPostCounter.prototype.get = function() {
 		if (this.node.getAttribute("inumpage") != "done")
@@ -457,50 +828,53 @@ function __blogPostSetFollow(log_id)
 			this.make((this.node.getAttribute("inumpage") != "done"));
 		}
 
-		if (this.node.getAttribute("inumpage") != "done") {
+		if (this.node.getAttribute("inumpage") != "done")
+		{
 			this.node.setAttribute("status", "busy");
-			BX.ajax({
-				url: "/bitrix/components/bitrix/socialnetwork.blog.blog/users.php",
-				method: 'POST',
-				dataType: 'json',
-				data: {
-					'ID' : this.postId,
-					'post_id' : this.postId,
-					'name' : "BLOG_POST_IMPRTNT",
-					'value' : "Y",
-					'iNumPage' : this.node.getAttribute("inumpage"),
-					'PATH_TO_USER' : this.pathToUser,
-					'NAME_TEMPLATE' : this.nameTemplate,
-					'sessid': BX.bitrix_sessid()
-				},
-				onsuccess: BX.proxy(function(data){
-					if (!!data && !!data.items)
-					{
-						var res = false;
-						for (var ii in data.items) {
-							this.data.push(data.items[ii]);
-						}
-						if (data.StatusPage == "done")
-							this.node.setAttribute("inumpage", "done");
 
-						this.make((this.node.getAttribute("inumpage") != "done"));
+			BX.ajax.runAction('socialnetwork.api.livefeed.blogpost.important.getUsers', {
+				data: {
+					params: {
+						POST_ID: this.postId,
+						NAME: 'BLOG_POST_IMPRTNT',
+						VALUE: 'Y',
+						PAGE_NUMBER: this.node.getAttribute("inumpage"),
+						PATH_TO_USER: this.pathToUser,
+						NAME_TEMPLATE: this.nameTemplate
 					}
-					else
+				}
+			}).then(function(response) {
+				var resultData = response.data;
+
+				if (BX.type.isNotEmptyObject(resultData.items))
+				{
+					for (var ii in resultData.items)
 					{
-						this.node.setAttribute("inumpage", "done");
+						if (resultData.items.hasOwnProperty(ii))
+						{
+							this.data.push(resultData.items[ii]);
+						}
 					}
-					this.node.firstChild.innerHTML = data["RecordCount"];
-					this.node.setAttribute("status", "ready");
-				}, this),
-				onfailure: BX.proxy(function(data){ this.node.setAttribute("status", "ready"); }, this)
-			});
+					if (resultData.StatusPage == 'done')
+					{
+						this.node.setAttribute('inumpage', 'done');
+					}
+
+					this.make((this.node.getAttribute('inumpage') != 'done'));
+				}
+				else
+				{
+					this.node.setAttribute('inumpage', 'done');
+				}
+				this.node.firstChild.innerHTML = resultData['RecordCount'];
+				this.node.setAttribute('status', 'ready');
+			}.bind(this), function(response) {
+				this.node.setAttribute('status', 'ready');
+			}.bind(this));
 		}
-	}
+	};
 	top.SBPImpPostCounter.prototype.show = function()
 	{
-		if (this.popup != null)
-			this.popup.close();
-
 		if (this.popup == null)
 		{
 			this.popup = new BX.PopupWindow('bx-vote-popup-cont-' + this.postId, this.node, {
@@ -525,20 +899,19 @@ function __blogPostSetFollow(log_id)
 		this.popup.bindOptions.forceBindPosition = true;
 		this.popup.adjustPosition();
 		this.popup.bindOptions.forceBindPosition = false;
-	}
+	};
 	top.SBPImpPostCounter.prototype.make = function(needToCheckData)
 	{
 		if (!this.popup)
 			return true;
-		needToCheckData = (needToCheckData === false ? false : true);
+		needToCheckData = (needToCheckData !== false);
 
 		var
 			res1 = (this.popup && this.popup.contentContainer ? this.popup.contentContainer : BX('popup-window-content-bx-vote-popup-cont-' + this.postId)),
 			node = false, res = false, data = this.data;
 		if (this.popup.isNew)
 		{
-			var
-				node = BX.create("SPAN", {
+			node = BX.create("SPAN", {
 						props : {className : "bx-ilike-popup"},
 						children : [
 							BX.create("SPAN", {
@@ -546,8 +919,8 @@ function __blogPostSetFollow(log_id)
 							})
 						]
 					}
-				),
-				res = BX.create("SPAN", {
+				);
+			res = BX.create("SPAN", {
 					props : {className : "bx-ilike-wrap-block"},
 					children : [
 						node
@@ -560,34 +933,72 @@ function __blogPostSetFollow(log_id)
 		}
 		if (!!node)
 		{
+			var avatarNode = null;
+
 			for (var i in data)
 			{
-				if (!BX.findChild(node, {tag : "A", attr : {id : ("u" + data[i]['ID'])}}, true))
+				if (data.hasOwnProperty(i))
 				{
-					node.appendChild(
-						BX.create("A", {
-							attrs : {id : ("u" + data[i]['ID'])},
-							props: {href:data[i]['URL'], target: "_blank", className: "bx-ilike-popup-img"},
-							text: "",
-							children: [
-								BX.create("SPAN", {
-										props: {className: "bx-ilike-popup-avatar"},
-										html : data[i]['PHOTO']
-									}
-								),
-								BX.create("SPAN", {
-										props: {className: "bx-ilike-popup-name"},
-										html : data[i]['FULL_NAME']
-									}
-								)
-							]
-						})
-					);
+					if (!BX.findChild(node, {tag : "A", attr : {id : ("u" + data[i]['ID'])}}, true))
+					{
+						if (data[i]['PHOTO_SRC'].length > 0)
+						{
+							avatarNode = BX.create("IMG", {
+								attrs: {src: data[i]['PHOTO_SRC']},
+								props: {className: "bx-ilike-popup-avatar-img"}
+							});
+						}
+						else
+						{
+							avatarNode = BX.create("IMG", {
+								attrs: {src: '/bitrix/images/main/blank.gif'},
+								props: {className: "bx-ilike-popup-avatar-img bx-ilike-popup-avatar-img-default"}
+							});
+						}
+
+						node.appendChild(
+							BX.create("A", {
+								attrs : {
+									id : ("u" + data[i]['ID'])
+								},
+								props: {
+									href: (data[i]['URL'].length > 0 ? data[i]['URL'] : '#'),
+									target: "_blank",
+									className: "bx-ilike-popup-img" + (!!data[i]['TYPE'] ? " bx-ilike-popup-img-" + data[i]['TYPE'] : "")
+								},
+								text: "",
+								children: [
+									BX.create("SPAN", {
+											props: {className: "bx-ilike-popup-avatar-new"},
+											children: [
+												avatarNode,
+												BX.create("SPAN", {
+													props: {className: "bx-ilike-popup-avatar-status-icon"}
+												})
+											]
+										}
+									),
+									BX.create("SPAN", {
+											props: {className: "bx-ilike-popup-name-new"},
+											html : data[i]['FULL_NAME']
+										}
+									)
+								],
+								events: {
+									click: (
+										data[i]['URL'].length > 0
+											? function(e) { return true; }
+											: function(e) { BX.PreventDefault(e); }
+									)
+								}
+							})
+						);
+					}
 				}
 			}
 			if (needToCheckData)
 			{
-				BX.bind(node, 'scroll' , BX.delegate(this.popupScrollCheck, this));
+				BX.bind(node, 'scroll' , BX.proxy(this.popupScrollCheck, this));
 			}
 		}
 		if (this.popup.isNew)
@@ -607,135 +1018,55 @@ function __blogPostSetFollow(log_id)
 			this.popup.adjustPosition();
 			this.popup.bindOptions.forceBindPosition = false;
 		}
-	}
+	};
 
 	top.SBPImpPostCounter.prototype.popupScrollCheck = function()
 	{
 		var res = BX.proxy_context;
 		if (res.scrollTop > (res.scrollHeight - res.offsetHeight) / 1.5)
 		{
-			BX.unbind(res, 'scroll' , BX.delegate(this.popupScrollCheck, this));
 			this.get();
+			BX.unbindAll(res);
 		}
 	}
 })(window);
 
-window.BXfpdPostSelectCallback = function(item, type, search)
-{
-	if(!BX.findChild(BX('feed-add-post-destination-item-post'), { attr : { 'data-id' : item.id }}, false, false))
-	{
-		var type1 = type;
-		prefix = 'S';
-		if (type == 'sonetgroups')
-			prefix = 'SG';
-		else if (type == 'groups')
-		{
-			prefix = 'UA';
-			type1 = 'all-users';
-		}
-		else if (type == 'users')
-			prefix = 'U';
-		else if (type == 'department')
-			prefix = 'DR';
-
-		var stl = (type == 'sonetgroups' && typeof window['arExtranetGroupID'] != 'undefined' && BX.util.in_array(item.entityId, window['arExtranetGroupID']) ? ' feed-add-post-destination-extranet' : '');
-
-		BX('feed-add-post-destination-item-post').appendChild(BX.create("span", { 
-			attrs : { 
-				'data-id' : item.id 
-			}, 
-			props : { 
-				className : "feed-add-post-destination feed-add-post-destination-"+type1+stl
-			}, 
-			children: [
-				BX.create("input", { attrs : { 'type' : 'hidden', 'name' : 'SPERM['+prefix+'][]', 'value' : item.id }}),
-				BX.create("span", { props : { 'className' : "feed-add-post-destination-text" }, html : item.name}),
-				BX.create("span", { 
-					props : { 
-						'className' : "feed-add-post-del-but"
-					}, 
-					events : {
-						'click' : function(e){
-							BX.SocNetLogDestination.deleteItem(item.id, type, BXSocNetLogDestinationFormNamePost);
-							BX.PreventDefault(e);
-						}, 
-						'mouseover' : function(){
-							BX.addClass(this.parentNode, 'feed-add-post-destination-hover');
-						}, 
-						'mouseout' : function(){
-							BX.removeClass(this.parentNode, 'feed-add-post-destination-hover');
-						}
-					}
-				})
-			]}));
-	}
-
-	BX('feed-add-post-destination-input-post').value = '';
-
-	BX.SocNetLogDestination.BXfpSetLinkName({
-		formName: window.BXSocNetLogDestinationFormNamePost,
-		tagInputName: 'bx-destination-tag-post',
-		tagLink1: BX.message('BX_FPD_LINK_1'),
-		tagLink2: BX.message('BX_FPD_LINK_2')
-	});
-}
-
-window.BXfpdPostClear = function()
-{
-	var elements = BX.findChildren(BX('feed-add-post-destination-item-post'), {className : 'feed-add-post-destination'}, true);
-	if (elements != null)
-	{
-		for (var j = 0; j < elements.length; j++)
-		{
-			BX.remove(elements[j]);
-		}
-	}
-	BX('feed-add-post-destination-input-post').value = '';
-
-	BX.SocNetLogDestination.BXfpSetLinkName({
-		formName: window.BXSocNetLogDestinationFormNamePost,
-		tagInputName: 'bx-destination-tag-post',
-		tagLink1: BX.message('BX_FPD_LINK_1'),
-		tagLink2: BX.message('BX_FPD_LINK_2')
-	});
-}
-
 window.showSharing = function(postId, userId)
 {
-	BXfpdPostClear();
 	BX('sharePostId').value = postId;
 	BX('shareUserId').value = userId;
+	var selectorId = BX('blogShare').getAttribute('bx-selector-id');
 
-	BX.SocNetLogDestination.obItemsSelected[BXSocNetLogDestinationFormNamePost] = {};
-	if(window["postDest"+postId])
+	if (!BX.type.isNotEmptyString(selectorId))
 	{
-		for (var i = 0; i < window["postDest"+postId].length; i++) 
+		return;
+	}
+
+	var selectorInstance = BX.UI.SelectorManager.instances[selectorId];
+	if (!BX.type.isNotEmptyObject(selectorInstance))
+	{
+		return;
+	}
+
+	var
+		selectedItems = {},
+		undeletableItems = [],
+		val = null
+	;
+	if(window["postDest" + postId])
+	{
+		for (var i = 0; i < window["postDest" + postId].length; i++)
 		{
-			if(BX.SocNetLogDestination.obItemsSelected[BXSocNetLogDestinationFormNamePost])
-			{
-				BX.SocNetLogDestination.obItemsSelected[BXSocNetLogDestinationFormNamePost][window["postDest"+postId][i].id] = window["postDest"+postId][i].type;
-			}
-
-			if(!BX.SocNetLogDestination.obItems[BXSocNetLogDestinationFormNamePost][window["postDest"+postId][i].type][window["postDest"+postId][i].id])
-			{
-				BX.SocNetLogDestination.obItems[BXSocNetLogDestinationFormNamePost][window["postDest"+postId][i].type][window["postDest"+postId][i].id] = {
-					avatar: '', entityId: window["postDest"+postId][i].entityId, id: window["postDest"+postId][i].id, name: window["postDest"+postId][i].name
-				};
-			}
-		};
-
-		if(BXSocNetLogDestinationFormNamePost)
-			BX.SocNetLogDestination.reInit(BXSocNetLogDestinationFormNamePost);
-
-		var elements = BX.findChildren(BX('feed-add-post-destination-item-post'), {className : 'feed-add-post-destination'}, true);
-		if (elements != null)
-		{
-			for (var j = 0; j < elements.length; j++)
-			{
-				BX.addClass(elements[j], 'feed-add-post-destination-undelete');
-				BX.remove(elements[j].lastChild);
-			}
+			val = window["postDest" + postId][i];
+			selectedItems[val.id] = val.type;
+			undeletableItems.push(val.id);
 		}
+
+		BX.onCustomEvent("BX.Main.SelectorV2:reInitDialog", [ {
+			selectorId: selectorId,
+			selectedItems: selectedItems,
+			undeletableItems: undeletableItems
+		} ]);
 
 		var destForm = BX('destination-sharing');
 
@@ -760,11 +1091,10 @@ window.showSharing = function(postId, userId)
 			},
 			complete : function(){
 				destForm.style.cssText = '';
-				BX.SocNetLogDestination.openDialog(BXSocNetLogDestinationFormNamePost);
 			}
 		})).animate();
 	}
-}
+};
 
 window.closeSharing = function()
 {
@@ -772,7 +1102,7 @@ window.closeSharing = function()
 
 	if (BX('sharePostSubmitButton'))
 	{
-		BX.removeClass(BX('sharePostSubmitButton'), 'feed-add-button-load');
+		BX.removeClass(BX('sharePostSubmitButton'), 'ui-btn-clock');
 	}
 
 	(new BX.easing({
@@ -788,7 +1118,7 @@ window.closeSharing = function()
 			BX.hide(destForm);
 		}
 	})).animate();
-}
+};
 
 window.sharingPost = function()
 {
@@ -797,69 +1127,14 @@ window.sharingPost = function()
 	var shareForm = BX('blogShare');
 	var actUrl = socBPDest.shareUrl.replace(/#post_id#/, postId).replace(/#user_id#/, userId);
 
+	actUrl = BX.util.remove_url_param(actUrl, [ 'b24statAction' ]);
+	actUrl = BX.util.add_url_param(actUrl, {
+		b24statAction: "sharePost"
+	});
+
 	if (BX('sharePostSubmitButton'))
 	{
-		BX.addClass(BX('sharePostSubmitButton'), 'feed-add-button-load');
-	}
-
-	var elements = BX.findChildren(BX('feed-add-post-destination-item-post'), {className : 'feed-add-post-destination'}, true);
-	if (elements != null)
-	{
-		var hiddenDest = BX('blog-destination-hidden-'+postId);
-		if(!hiddenDest)
-		{
-			var el = BX.findChildren(BX('blg-post-img-'+postId), {className : 'feed-add-post-destination-new'}, true);
-			var lastDest = el[el.length-1];
-		}
-
-		for (var j = 0; j < elements.length; j++)
-		{
-			if(!BX.hasClass(elements[j], 'feed-add-post-destination-undelete'))
-			{
-				var name = BX.findChild(elements[j], {className: 'feed-add-post-destination-text' }, false, false).innerHTML;
-				var obj = BX.findChild(elements[j], {tag: 'input' }, false, false);
-				var id = obj.value;
-
-				var type;
-				if(obj.name == "SPERM[SG][]")
-					type = 'sonetgroups';
-				else if(obj.name == "SPERM[DR][]")
-					type = 'department';
-				else if(obj.name == "SPERM[G][]")
-					type = 'groups';
-				else if(obj.name == "SPERM[U][]")
-					type = 'users';
-				else if(obj.name == "SPERM[UA][]")
-					type = 'groups';
-
-				if (type.length > 0)
-				{
-					window["postDest" + postId].push({
-						id: id, 
-						name: name, 
-						type: type
-					});
-					var destText = BX.create("span", { children: [
-								BX.create("span", {html : ', '}),
-								BX.create("a", {
-									props: {
-										'className': "feed-add-post-destination-new"
-									},
-									href: '', 
-									html : name
-								})
-								]});
-					if(hiddenDest)
-					{
-						hiddenDest.appendChild(destText);
-					}
-					else if(lastDest)
-					{
-						BX(lastDest.parentNode).insertBefore(destText, lastDest.nextSibling);
-					}
-				}
-			}
-		}
+		BX.addClass(BX('sharePostSubmitButton'), 'ui-btn-clock');
 	}
 
 	shareForm.action = actUrl;
@@ -886,16 +1161,217 @@ window.sharingPost = function()
 				break;
 		}
 	}
-	s += "&save=Y"
+	s += "&save=Y&MODE=RECORD&AJAX_POST=Y&ENTITY_XML_ID=BLOG_" + postId;
+
+	var newNodes = renderSharingPost(postId);
 
 	BX.ajax({
-		'method': 'POST',
-		'dataType': 'html',
-		'url': actUrl,
-		'data': s,
-		'async': true,
-		'processData': false
+		method: 'POST',
+		dataType: 'json',
+		url: actUrl,
+		data: s,
+		onsuccess: function(data)
+		{
+			if (
+				typeof data == 'undefined'
+				|| typeof data.status == 'undefined'
+				|| data.status != 'success'
+			)
+			{
+				hideRenderedSharingNodes(newNodes);
+				if (
+					typeof data.status != 'undefined'
+					&& data.status == 'error'
+					&& typeof data.errorMessage != 'undefined'
+				)
+				{
+					var errorPopup = new BX.PopupWindow('error_popup', BX('blg-post-inform-' + postId), {
+						lightShadow : true,
+						offsetTop: -10,
+						offsetLeft: 100,
+						autoHide: true,
+						closeByEsc: true,
+						closeIcon: {
+							right : "5px",
+							top : "5px"
+						},
+						draggable: {
+							restrict:true
+						},
+						contentColor : 'white',
+						contentNoPaddings: true,
+						bindOptions: {position: "bottom"},
+						content : BX.create('DIV', {
+							props: {
+								className: 'feed-create-task-popup-content'
+							},
+							children: [
+								BX.create('DIV', {
+									props: {
+										className: 'feed-create-task-popup-description'
+									},
+									text: data.errorMessage
+								})
+							]
+						})
+					});
 
+					errorPopup.show();
+				}
+			}
+			else
+			{
+				var true_data = data;
+				BX.onCustomEvent(window, 'OnUCAfterRecordAdd', ['BLOG_' + postId, data, true_data]);
+			}
+		},
+		onfailure: function(data)
+		{
+			hideRenderedSharingNodes(newNodes);
+		}
 	});
 	closeSharing();
+};
+
+window.renderSharingPost = function(postId)
+{
+	var res = [];
+	var nodeId = '';
+
+	var elements = BX.findChildren(BX('feed-add-post-destination-item-post'), {className : 'feed-add-post-destination'}, true);
+	if (elements != null)
+	{
+		var hiddenDest = BX('blog-destination-hidden-'+postId);
+		if(!hiddenDest)
+		{
+			var el = BX.findChildren(BX('blg-post-img-'+postId), {className : 'feed-add-post-destination-new'}, true);
+			var lastDest = el[el.length-1];
+		}
+
+		for (var j = 0; j < elements.length; j++)
+		{
+			if(!BX.hasClass(elements[j], 'feed-add-post-destination-undelete'))
+			{
+				var name = BX.findChild(elements[j], {className: 'feed-add-post-destination-text' }, false, false).innerHTML;
+				var obj = BX.findChild(elements[j], {tag: 'input' }, false, false);
+				var id = obj.value;
+				var elementClassName = 'feed-add-post-destination-new';
+
+				if(BX.hasClass(elements[j], 'feed-add-post-destination-email'))
+				{
+					elementClassName += ' feed-add-post-destination-new-email';
+				}
+				else if (BX.hasClass(elements[j], 'feed-add-post-destination-extranet'))
+				{
+					elementClassName += ' feed-add-post-destination-new-extranet';
+				}
+
+				var type;
+				if(obj.name == "SPERM[SG][]")
+					type = 'sonetgroups';
+				else if(obj.name == "SPERM[DR][]")
+					type = 'department';
+				else if(obj.name == "SPERM[G][]")
+					type = 'groups';
+				else if(obj.name == "SPERM[U][]")
+					type = 'users';
+				else if(obj.name == "SPERM[UE][]")
+					type = 'users';
+				else if(obj.name == "SPERM[UA][]")
+					type = 'groups';
+
+				if (type.length > 0)
+				{
+					window["postDest" + postId].push({
+						id: id,
+						name: name,
+						type: type
+					});
+					nodeId = 'post_' + postId + '_dest_' + id;
+					res.push(nodeId);
+
+					var destText = BX.create("span", {
+						props: {
+							id: nodeId
+						},
+						children: [
+							BX.create("span", {
+								html : ', '
+							}),
+							BX.create("a", {
+								props: {
+									className: elementClassName
+								},
+								href: '',
+								html : name
+							})
+						]}
+					);
+					if(hiddenDest)
+					{
+						hiddenDest.appendChild(destText);
+					}
+					else if(lastDest)
+					{
+						BX(lastDest.parentNode).insertBefore(destText, lastDest.nextSibling);
+					}
+				}
+			}
+		}
+	}
+
+	return res;
+};
+
+window.hideRenderedSharingNodes = function(newNodes)
+{
+	var nodeId = false;
+	for(i=0; i<newNodes.length; i++)
+	{
+		nodeId = newNodes[i];
+		if (BX(nodeId))
+		{
+			BX.cleanNode(BX(nodeId), true);
+		}
+	}
+
+};
+
+(function() {
+	if (!!BX.SBPostManager)
+		return false;
+
+	BX.SBPostManager = function() {
+		this.inited = false;
+		this.tagLinkPattern = '';
+	};
+
+	BX.SBPostManager.prototype.init = function(params) {
+		this.tagLinkPattern = (BX.type.isNotEmptyString(params.tagLinkPattern) ? params.tagLinkPattern : '');
+		this.inited = true;
+	};
+
+	BX.SBPostManager.prototype.clickTag = function(tagValue)
+	{
+		var result = false;
+
+		if (
+			BX.type.isNotEmptyString(tagValue)
+			&& BX.type.isNotEmptyString(this.tagLinkPattern)
+		)
+		{
+			top.location.href = this.tagLinkPattern.replace('#tag#', tagValue);
+			result = true;
+		}
+
+		return result;
+	};
+
+}());
+
+if (typeof oSBPostManager == 'undefined')
+{
+	oSBPostManager = new BX.SBPostManager;
+	window.oSBPostManager = oSBPostManager;
 }
+

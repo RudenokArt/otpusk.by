@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW 2018 (64-Bit) -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="15.1825mm" height="15.3971mm" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 75.76 76.83"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+ <defs>
+  <font id="FontID0" horiz-adv-x="666" font-variant="normal" style="fill-rule:nonzero" font-style="normal" font-weight="400">
+	<font-face 
+		font-family="Arial">
+		<font-face-src>
+			<font-face-name name="Arial"/>
+		</font-face-src>
+	</font-face>
+   <missing-glyph><path d="M0 0z"/></missing-glyph>
+   <glyph unicode="5" horiz-adv-x="556" d="M41.9978 187.998l92.0044 7.00133c6.83342,-44.8319 22.6627,-78.5004 47.3302,-101.168 24.6675,-22.4999 54.8353,-33.8313 90.3355,-33.8313 42.8323,0 78.6632,16.0023 107.834,47.834 28.9975,31.9996 43.4988,74.3332 43.4988,127.001 0,50.1643 -13.8348,89.6639 -41.6671,118.666 -27.8323,28.9975 -64.6657,43.4988 -110.5,43.4988 -28.4989,0 -54.0008,-6.4976 -76.6687,-19.4979 -22.4999,-13.0003 -40.1661,-29.8371 -53.1664,-50.5002l-82.9984 11.9979 69.0008 368.002 354.997 0 0 -84.0007 -284.831 0 -38.1664 -193.168c42.8323,30.1678 87.8321,45.1678 134.832,45.1678 62.3353,0 115.003,-21.6706 157.835,-65.0015 42.8323,-43.336 64.3349,-99.0007 64.3349,-166.999 0,-64.8336 -18.8364,-120.834 -56.5042,-168.001 -45.8292,-58.0001 -108.5,-86.9977 -187.83,-86.9977 -65.0015,0 -118,18.3327 -159.168,54.8302 -41.1684,36.5026 -64.6657,84.8352 -70.5018,145.166z"/>
+  </font>
+  <style type="text/css">
+   <![CDATA[
+    @font-face { font-family:"Arial";font-variant:normal;font-style:normal;font-weight:normal;src:url("#FontID0") format(svg)}
+    .fil0 {fill:#9D9E9E}
+    .fil1 {fill:#0B5E94}
+    .fnt0 {font-weight:normal;font-size:98.06px;font-family:'Arial'}
+   ]]>
+  </style>
+ </defs>
+ <g id="Слой_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <text x="25.15" y="73.87"  class="fil0 fnt0">5</text>
+  <path class="fil1" d="M-0 0l9.02 0 0 76.34c-0.93,0.26 -5.04,-0.5 -9.02,0.49l0 -76.83z"/>
+ </g>
+</svg>

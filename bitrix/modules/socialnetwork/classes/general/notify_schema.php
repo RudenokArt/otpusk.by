@@ -12,7 +12,8 @@ class CSocNetNotifySchema
 		$arResult = array(
 			"socialnetwork" => array(
 				"invite_group" => Array(
-					"NAME" => GetMessage("SONET_NS_INVITE_GROUP")
+					"NAME" => GetMessage("SONET_NS_INVITE_GROUP"),
+					"DISABLED" => Array(IM_NOTIFY_FEATURE_SITE)
 				),
 				"inout_group" => Array(
 					"NAME" => GetMessage("SONET_NS_INOUT_GROUP")
@@ -24,18 +25,14 @@ class CSocNetNotifySchema
 					"NAME" => GetMessage("SONET_NS_OWNER_GROUP")
 				),
 				"sonet_group_event" => Array(
-					"NAME" => GetMessage("SONET_NS_SONET_GROUP_EVENT")
+					"NAME" => GetMessage("SONET_NS_SONET_GROUP_EVENT"),
+					"PUSH" => 'Y'
 				),
 			),
 		);
 
 		if (CSocNetUser::IsFriendsAllowed())
 		{
-/*
-			$arResult["socialnetwork"]["invite_user"] = Array(
-				"NAME" => GetMessage("SONET_NS_INVITE_USER")
-			);
-*/
 			$arResult["socialnetwork"]["inout_user"] = Array(
 				"NAME" => GetMessage("SONET_NS_FRIEND")
 			);

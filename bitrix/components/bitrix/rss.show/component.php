@@ -22,15 +22,23 @@ if(!CModule::IncludeModule("iblock"))
 if(!isset($arParams["CACHE_TIME"]))
 	$arParams["CACHE_TIME"] = 3600;
 
-if(isset($arParams["URL"]))
+if (isset($arParams["URL"]))
 {
-	$ar = parse_url($arParams["URL"]);
-	if(is_array($ar))
+	$parsedUrl = parse_url($arParams["URL"]);
+	if (is_array($parsedUrl))
 	{
-		$arParams["SITE"] = $ar["host"];
-		$arParams["PORT"] = $ar["port"] > 0? intval($ar["port"]): 80;
-		$arParams["PATH"] = $ar["path"];
-		$arParams["QUERY_STR"] = $ar["query"];
+		if (isset($parsedUrl["scheme"]))
+			$arParams["SITE"] = $parsedUrl["scheme"]."://".$parsedUrl["host"];
+		else
+			$arParams["SITE"] = $parsedUrl["host"];
+		
+		if (isset($parsedUrl["port"]))
+			$arParams["PORT"] = $parsedUrl["port"];
+		else
+			$arParams["PORT"] = ($parsedUrl["scheme"] == "https"? 443 : 80);
+
+		$arParams["PATH"] = $parsedUrl["path"];
+		$arParams["QUERY_STR"] = $parsedUrl["query"];
 	}
 }
 else
@@ -51,9 +59,15 @@ if($this->StartResultCache())
 {
 	$arResult = CIBlockRSS::GetNewsEx($arParams["SITE"], $arParams["PORT"], $arParams["PATH"], $arParams["QUERY_STR"], $arParams["OUT_CHANNEL"]);
 	$arResult = CIBlockRSS::FormatArray($arResult, $arParams["OUT_CHANNEL"]);
-	if($arParams["NUM_NEWS"]>0)
-		while(count($arResult["item"])>$arParams["NUM_NEWS"])
+	if (
+		$arParams["NUM_NEWS"]>0
+		&& !empty($arResult["item"])
+		&& is_array($arResult["item"])
+	)
+	{
+		while (count($arResult["item"]) > $arParams["NUM_NEWS"])
 			array_pop($arResult["item"]);
+	}
 
 	if($arParams["PROCESS"] == "QUOTE")
 		array_walk_recursive($arResult, create_function('&$val, $key', '$val=htmlspecialcharsex($val);'));
@@ -62,4 +76,3 @@ if($this->StartResultCache())
 
 	$this->IncludeComponentTemplate();
 }
-?>

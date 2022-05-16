@@ -1,24 +1,57 @@
 <?
-use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\Localization\Loc,
+	Bitrix\Main\Type\Date,
+	Bitrix\Iblock;
 
 Loc::loadMessages(__FILE__);
 
 class CIBlockPropertyDateTime
 {
+	const USER_TYPE = 'DateTime';
+
+	public static function GetUserTypeDescription()
+	{
+		return array(
+			"PROPERTY_TYPE" => Iblock\PropertyTable::TYPE_STRING,
+			"USER_TYPE" => self::USER_TYPE,
+			"DESCRIPTION" => Loc::getMessage("IBLOCK_PROP_DATETIME_DESC"),
+			//optional handlers
+			"GetPublicViewHTML" => array(__CLASS__, "GetPublicViewHTML"),
+			"GetPublicEditHTML" => array(__CLASS__, "GetPublicEditHTML"),
+			"GetAdminListViewHTML" => array(__CLASS__, "GetAdminListViewHTML"),
+			"GetPropertyFieldHtml" => array(__CLASS__, "GetPropertyFieldHtml"),
+			"CheckFields" => array(__CLASS__, "CheckFields"),
+			"ConvertToDB" => array(__CLASS__, "ConvertToDB"),
+			"ConvertFromDB" => array(__CLASS__, "ConvertFromDB"),
+			"GetSettingsHTML" => array(__CLASS__, "GetSettingsHTML"),
+			"GetAdminFilterHTML" => array(__CLASS__, "GetAdminFilterHTML"),
+			"GetPublicFilterHTML" => array(__CLASS__, "GetPublicFilterHTML"),
+			"AddFilterFields" => array(__CLASS__, "AddFilterFields"),
+			"GetUIFilterProperty" => array(__CLASS__, "GetUIFilterProperty")
+		);
+	}
+
 	public static function AddFilterFields($arProperty, $strHTMLControlName, &$arFilter, &$filtered)
 	{
 		$filtered = false;
 
+		$from = "";
 		$from_name = $strHTMLControlName["VALUE"].'_from';
-		if (isset($_REQUEST[$from_name]))
+		if (isset($strHTMLControlName["FILTER_ID"]))
+		{
+			$filterOption = new \Bitrix\Main\UI\Filter\Options($strHTMLControlName["FILTER_ID"]);
+			$filterData = $filterOption->getFilter();
+			$from = !empty($filterData[$from_name]) ? $filterData[$from_name] : "";
+		}
+		elseif (isset($_REQUEST[$from_name]))
+		{
 			$from = $_REQUEST[$from_name];
-		elseif (
-			isset($strHTMLControlName["GRID_ID"])
-			&& isset($_SESSION["main.interface.grid"][$strHTMLControlName["GRID_ID"]]["filter"][$from_name])
-		)
+		}
+		elseif(isset($strHTMLControlName["GRID_ID"]) &&
+			isset($_SESSION["main.interface.grid"][$strHTMLControlName["GRID_ID"]]["filter"][$from_name]))
+		{
 			$from = $_SESSION["main.interface.grid"][$strHTMLControlName["GRID_ID"]]["filter"][$from_name];
-		else
-			$from = "";
+		}
 
 		if($from)
 		{
@@ -35,16 +68,33 @@ class CIBlockPropertyDateTime
 			}
 		}
 
+		$to = "";
 		$to_name = $strHTMLControlName["VALUE"].'_to';
-		if (isset($_REQUEST[$to_name]))
+		if (isset($strHTMLControlName["FILTER_ID"]))
+		{
+			$filterOption = new \Bitrix\Main\UI\Filter\Options($strHTMLControlName["FILTER_ID"]);
+			$filterData = $filterOption->getFilter();
+			$to = !empty($filterData[$to_name]) ? $filterData[$to_name] : "";
+			if($to)
+			{
+				$dateFormat = Date::convertFormatToPhp(CSite::getDateFormat());
+				$dateParse = date_parse_from_format($dateFormat, $to);
+				if(!strlen($dateParse["hour"]) && !strlen($dateParse["minute"]) && !strlen($dateParse["second"]))
+				{
+					$timeFormat = Date::convertFormatToPhp(CSite::getTimeFormat());
+					$to .= " ".date($timeFormat, mktime(23, 59, 59, 0, 0, 0));
+				}
+			}
+		}
+		elseif (isset($_REQUEST[$to_name]))
+		{
 			$to = $_REQUEST[$to_name];
-		elseif (
-			isset($strHTMLControlName["GRID_ID"])
-			&& isset($_SESSION["main.interface.grid"][$strHTMLControlName["GRID_ID"]]["filter"][$to_name])
-		)
+		}
+		elseif(isset($strHTMLControlName["GRID_ID"]) &&
+			isset($_SESSION["main.interface.grid"][$strHTMLControlName["GRID_ID"]]["filter"][$to_name]))
+		{
 			$to = $_SESSION["main.interface.grid"][$strHTMLControlName["GRID_ID"]]["filter"][$to_name];
-		else
-			$to = "";
+		}
 
 		if($to)
 		{
@@ -146,7 +196,7 @@ class CIBlockPropertyDateTime
 				elseif ($strHTMLControlName["MODE"] == "ELEMENT_TEMPLATE")
 					return $value["VALUE"];
 			}
-			return str_replace(" ", "&nbsp;", htmlspecialcharsex($value["VALUE"]));
+			return str_replace(" ", "&nbsp;", htmlspecialcharsEx($value["VALUE"]));
 		}
 
 		return '';
@@ -275,5 +325,25 @@ class CIBlockPropertyDateTime
 		);
 
 		return '';
+	}
+
+	/**
+	 * @param array $property
+	 * @param array $strHTMLControlName
+	 * @param array &$fields
+	 * @return void
+	 */
+	public static function GetUIFilterProperty($property, $strHTMLControlName, &$fields)
+	{
+		$fields["type"] = "date";
+		$fields["time"] = true;
+		$fields["filterable"] = "";
+		$fields["operators"] = array(
+			"default" => "=",
+			"exact" => "=",
+			"range" => "><",
+			"more" => ">",
+			"less" => "<"
+		);
 	}
 }

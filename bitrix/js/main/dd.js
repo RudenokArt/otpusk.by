@@ -55,7 +55,7 @@ jsDD = {
 	{
 		jsDD.arObjects = [];
 		jsDD.arDestinations = [];
-		arDestinationsPriority = [];
+		jsDD.arDestinationsPriority = [];
 		jsDD.bStarted = false;
 		jsDD.current_node = null;
 		jsDD.current_dest_index = false;
@@ -77,7 +77,9 @@ jsDD = {
 
 	registerObject: function (obNode)
 	{
-		obNode.onmousedown = jsDD.startDrag;
+		BX.bind(obNode, 'mousedown', jsDD.startDrag);
+		BX.Event.bind(obNode, 'touchstart', jsDD.startDrag, { passive: true });
+
 		obNode.__bxddid = jsDD.arObjects.length;
 
 		jsDD.arObjects[obNode.__bxddid] = obNode;
@@ -91,7 +93,8 @@ jsDD = {
 
 		delete jsDD.arObjects[obNode.__bxddid];
 		delete obNode.__bxddid;
-		delete obNode.onmousedown;
+		BX.unbind(obNode, 'mousedown', jsDD.startDrag);
+		BX.unbind(obNode, 'touchstart', jsDD.startDrag);
 	},
 	registerDest: function (obDest, priority)
 	{
@@ -342,20 +345,28 @@ jsDD = {
 		jsDD.start_y = e.clientY + jsDD.wndSize.scrollTop;
 
 		BX.bind(document, "mouseup", jsDD.stopDrag);
+		BX.bind(document, "touchend", jsDD.stopDrag);
 		BX.bind(document, "mousemove", jsDD.drag);
+		BX.bind(document, "touchmove", jsDD.drag);
 		BX.bind(window, 'scroll', jsDD._onscroll);
 
 		if(document.body.setCapture)
 			document.body.setCapture();
-
-		jsDD.denySelection();
 
 		if (!jsDD.bDisableDestRefresh)
 			jsDD.refreshDestArea();
 
 		jsDD.setContainersPos();
 
-		return BX.PreventDefault(e);
+		if(e.type !== "touchstart")
+		{
+			jsDD.denySelection();
+			return BX.PreventDefault(e);
+		}
+		else
+		{
+			return true;
+		}
 	},
 
 	start: function()
@@ -398,16 +409,18 @@ jsDD = {
 		jsDD.x = e.clientX + jsDD.wndSize.scrollLeft;
 		jsDD.y = e.clientY + jsDD.wndSize.scrollTop;
 
-		var delta = 5;
-		if(jsDD.x >= jsDD.start_x-delta && jsDD.x <= jsDD.start_x+delta && jsDD.y >= jsDD.start_y-delta && jsDD.y <= jsDD.start_y+delta)
-			return true;
-
 		if (!jsDD.bStarted)
+		{
+			var delta = 5;
+			if(jsDD.x >= jsDD.start_x-delta && jsDD.x <= jsDD.start_x+delta && jsDD.y >= jsDD.start_y-delta && jsDD.y <= jsDD.start_y+delta)
+				return true;
+
 			jsDD.start();
+		}
 
 		if (jsDD.current_node.onbxdrag)
 		{
-			jsDD.current_node.onbxdrag(jsDD.x, jsDD.y);
+			jsDD.current_node.onbxdrag(jsDD.x, jsDD.y, e);
 		}
 
 		var containersScroll = jsDD.getContainersScrollPos(jsDD.x, jsDD.y);
@@ -454,7 +467,7 @@ jsDD = {
 			}
 
 			if (null != jsDD.current_node.onbxdragstop)
-				jsDD.current_node.onbxdragstop(jsDD.x, jsDD.y);
+				jsDD.current_node.onbxdragstop(jsDD.x, jsDD.y, e);
 
 			var containersScroll = jsDD.getContainersScrollPos(jsDD.x, jsDD.y);
 			var dest_index = jsDD.searchDest(jsDD.x+containersScroll.left, jsDD.y+containersScroll.top);
@@ -516,8 +529,10 @@ jsDD = {
 
 		BX.unbind(window, 'scroll', jsDD._onscroll);
 		BX.unbind(document, "mousemove", jsDD.drag);
+		BX.unbind(document, "touchmove", jsDD.drag);
 		BX.unbind(document, "keypress", jsDD._checkEsc);
 		BX.unbind(document, "mouseup", jsDD.stopDrag);
+		BX.unbind(document, "touchend", jsDD.stopDrag);
 
 		jsDD.allowSelection();
 		document.body.style.cursor = '';
@@ -545,7 +560,7 @@ jsDD = {
 		{
 			if (jsDD.arDestinationsPriority[p] && BX.type.isArray(jsDD.arDestinationsPriority[p]))
 			{
-				for (p1 = 0, len1 = jsDD.arDestinationsPriority[p].length; p1 < len; p1++)
+				for (p1 = 0, len1 = jsDD.arDestinationsPriority[p].length; p1 < len1; p1++)
 				{
 					i = jsDD.arDestinationsPriority[p][p1];
 					if (jsDD.arDestinations[i] && !jsDD.arDestinations[i].__bxdddisabled)
@@ -570,7 +585,7 @@ jsDD = {
 
 	allowSelection: function()
 	{
-		document.onmousedown = null;
+		document.onmousedown = document.ontouchstart = null;
 		var b = document.body;
 		b.ondrag = null;
 		b.onselectstart = null;
@@ -586,7 +601,7 @@ jsDD = {
 
 	denySelection: function()
 	{
-		document.onmousedown = BX.False;
+		document.onmousedown = document.ontouchstart = BX.False;
 		var b = document.body;
 		b.ondrag = BX.False;
 		b.onselectstart = BX.False;

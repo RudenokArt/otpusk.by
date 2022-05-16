@@ -105,4 +105,11 @@ $MESS["main_profile_decode_err"] = "Ошибка при дешифровании
 $MESS["USER_EDIT_DATE_REGISTER"] = "Дата регистрации:";
 $MESS["MAIN_USER_EDIT_EXT"] = "Внешний код:";
 $MESS["USER_EDIT_TITLE"] = "Обращение:";
+$MESS["user_edit_lang_not_set"] = "(не установлен)";
+$MESS["user_edit_lang"] = "Язык для уведомлений:";
+$MESS["MAIN_ADMIN_AUTH"] = "Авторизоваться";
+$MESS["MAIN_ADMIN_AUTH_TITLE"] = "Авторизоваться под данным пользователем";
+$MESS["MAIN_USER_EDIT_HISTORY"] = "История";
+$MESS["MAIN_USER_EDIT_HISTORY_TITLE"] = "История изменения профиля пользователя";
+$MESS["main_user_edit_phone_number"] = "Номер телефона для регистрации:";
 ?>

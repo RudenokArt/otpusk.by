@@ -56,13 +56,24 @@ class CBPAbsenceActivity
 		if (is_array($name))
 			$name = implode(', ', $name);
 
+		$activeFrom = $this->AbsenceFrom;
+		$activeTo = $this->AbsenceTo;
+		$enableTimeZone = false;
+
+		//if $activeFrom and $activeTo without Time, turn off TimeZone
+		if (strlen($activeFrom) <=10 && strlen($activeTo) <=10 && CTimeZone::Enabled())
+		{
+			CTimeZone::Disable();
+			$enableTimeZone = true;
+		}
+
 		foreach ($arAbsenceUser as $absenceUser)
 		{
 			$arFields = Array(
 				"ACTIVE" => "Y",
 				"IBLOCK_ID" => $absenceIblockId,
-				'ACTIVE_FROM' => $this->AbsenceFrom,
-				'ACTIVE_TO' => $this->AbsenceTo,
+				'ACTIVE_FROM' => $activeFrom,
+				'ACTIVE_TO' => $activeTo,
 				"NAME" => $name,
 				"PREVIEW_TEXT" => $this->AbsenceDesrc,
 				"PREVIEW_TEXT_TYPE" => "text",
@@ -78,6 +89,9 @@ class CBPAbsenceActivity
 			$el->Add($arFields);
 		}
 
+		if ($enableTimeZone)
+			CTimeZone::Enable();
+
 		return CBPActivityExecutionStatus::Closed;
 	}
 
@@ -85,9 +99,9 @@ class CBPAbsenceActivity
 	{
 		$arErrors = array();
 
-		if (!array_key_exists("AbsenceUser", $arTestProperties) || count($arTestProperties["AbsenceUser"]) <= 0)
+		if (!array_key_exists("AbsenceUser", $arTestProperties) || empty($arTestProperties["AbsenceUser"]))
 			$arErrors[] = array("code" => "NotExist", "parameter" => "AbsenceUser", "message" => GetMessage("BPSNMA_EMPTY_ABSENCEUSER"));
-		if (!array_key_exists("AbsenceName", $arTestProperties) || count($arTestProperties["AbsenceName"]) <= 0)
+		if (!array_key_exists("AbsenceName", $arTestProperties) || empty($arTestProperties["AbsenceName"]))
 			$arErrors[] = array("code" => "NotExist", "parameter" => "AbsenceName", "message" => GetMessage("BPSNMA_EMPTY_ABSENCENAME"));
 		if (!array_key_exists("AbsenceFrom", $arTestProperties) || strlen($arTestProperties["AbsenceFrom"]) <= 0)
 			$arErrors[] = array("code" => "NotExist", "parameter" => "AbsenceFrom", "message" => GetMessage("BPSNMA_EMPTY_ABSENCEFROM"));

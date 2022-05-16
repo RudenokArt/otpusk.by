@@ -70,18 +70,62 @@ class CMailDomainRegistrar
 
 	public static function createDomain($user, $password, $domain, $params, &$error)
 	{
-		$domain = CharsetConverter::ConvertCharset($domain, SITE_CHARSET, 'UTF-8');
+		$params = array_merge(
+			$params,
+			array(
+				'period' => 1,
+				'nss' => array(
+					'ns0' => 'ns1.reg.ru.',
+					'ns1' => 'ns2.reg.ru.',
+				),
+			)
+		);
 
-		$result = CMailRegru::createDomain($user, $password, $domain, array(
-			'period'       => 1,
-			'enduser_ip'   => $params['ip'],
-			'profile_type' => $params['profile_type'],
-			'profile_name' => $params['profile_name'],
-			'nss'          => array(
-				'ns0' => 'ns1.reg.ru.',
-				'ns1' => 'ns2.reg.ru.'
-			),
-		), $error);
+		if (array_key_exists('ip', $params))
+		{
+			$params['enduser_ip'] = $params['ip'];
+		}
+
+		$domain = \Bitrix\Main\Text\Encoding::convertEncoding($domain, SITE_CHARSET, 'UTF-8');
+		$params = \Bitrix\Main\Text\Encoding::convertEncoding($params, SITE_CHARSET, 'UTF-8');
+
+		$result = CMailRegru::createDomain($user, $password, $domain, $params, $error);
+
+		if ($result !== false)
+		{
+			if (isset($result['dname']) && strtolower($result['dname']) == strtolower($domain))
+				return true;
+			else
+				$error = 'unknown';
+		}
+
+		$error = self::getErrorCode($result['error_code']);
+		return null;
+	}
+
+	public static function checkDomain($user, $password, $domain, &$error)
+	{
+		$domain = CharsetConverter::convertCharset($domain, SITE_CHARSET, 'UTF-8');
+
+		$result = CMailRegru::checkDomainInfo($user, $password, $domain, $error);
+
+		if ($result !== false)
+		{
+			if (isset($result['dname']) && strtolower($result['dname']) == strtolower($domain))
+				return $result;
+			else
+				$error = 'unknown';
+		}
+
+		$error = self::getErrorCode($result['error_code']);
+		return null;
+	}
+
+	public static function renewDomain($user, $password, $domain, &$error)
+	{
+		$domain = CharsetConverter::convertCharset($domain, SITE_CHARSET, 'UTF-8');
+
+		$result = CMailRegru::renewDomain($user, $password, $domain, array('period' => 1), $error);
 
 		if ($result !== false)
 		{
@@ -134,6 +178,32 @@ class CMailDomainRegistrar
 			{
 				$error = 'unknown';
 			}
+		}
+
+		$error = self::getErrorCode($result['error_code']);
+		return null;
+	}
+
+	public static function getDomainsList($user, $password, $filter = array(), &$error)
+	{
+		$result = CMailRegru::getDomainsList($user, $password, $error);
+
+		if ($result !== false)
+		{
+			$list = array();
+			foreach ($result as $domain)
+			{
+				if (!empty($domain['dname']))
+				{
+					$list[$domain['dname']] = array(
+						'creation_date'   => $domain['creation_date'],
+						'expiration_date' => $domain['expiration_date'],
+						'status'          => $domain['state'],
+					);
+				}
+			}
+
+			return $list;
 		}
 
 		$error = self::getErrorCode($result['error_code']);

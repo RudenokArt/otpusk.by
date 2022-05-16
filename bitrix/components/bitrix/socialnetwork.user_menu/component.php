@@ -16,7 +16,6 @@ if ($arParams["ID"] <= 0)
 
 $arParams["PAGE_ID"] = Trim($arParams["PAGE_ID"]);
 
-
 if(strLen($arParams["USER_VAR"])<=0)
 	$arParams["USER_VAR"] = "user_id";
 if(strLen($arParams["PAGE_VAR"])<=0)
@@ -132,21 +131,17 @@ else
 		$arResult["User"] = false;
 	}
 
+	if (!CSocNetUser::CanProfileView($USER->GetID(), $arResult["User"], SITE_ID, \Bitrix\Socialnetwork\ComponentHelper::getUrlContext()))
+	{
+		$arResult["User"] = false;
+	}
+
 	if (!is_array($arResult["User"]))
 	{
 		$arResult["FatalError"] = GetMessage("SONET_P_USER_NO_USER");
 	}
 	else
 	{
-		$arResult["User"]["IS_EXTRANET"] = (
-			IsModuleInstalled('extranet')
-			&& (
-				empty($arResult["User"]["UF_DEPARTMENT"])
-				|| empty($arResult["User"]["UF_DEPARTMENT"][0])
-			)
-				? "Y"
-				: "N"
-		);
 		$arResult["CurrentUserPerms"] = CSocNetUserPerms::InitUserPerms($GLOBALS["USER"]->GetID(), $arResult["User"]["ID"], CSocNetUser::IsCurrentUserModuleAdmin());
 
 		if (
@@ -156,7 +151,51 @@ else
 		{
 			$arResult["CurrentUserPerms"]["Operations"]["viewfriends"] = false;
 		}
-		$arResult["Urls"]["Edit"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_EDIT"], array("user_id" => $arResult["User"]["ID"]));
+
+		$arResult["User"]["TYPE"] = '';
+
+		$arResult["User"]["IS_EXTRANET"] = (
+			IsModuleInstalled('extranet')
+			&& (
+				empty($arResult["User"]["UF_DEPARTMENT"])
+				|| empty($arResult["User"]["UF_DEPARTMENT"][0])
+			)
+				? "Y"
+				: "N"
+		);
+		if (
+			$arResult["User"]["EXTERNAL_AUTH_ID"] == 'email'
+			&& IsModuleInstalled('mail')
+		)
+		{
+			$arResult["User"]["TYPE"] = 'email';
+			$arResult["CurrentUserPerms"]["Operations"]["viewgroups"] = false;
+		}
+		elseif (
+			$arResult["User"]["EXTERNAL_AUTH_ID"] == 'replica'
+			&& IsModuleInstalled('socialservices')
+		)
+		{
+			$arResult["User"]["TYPE"] = 'replica';
+		}
+		elseif (
+			($arResult["User"]["EXTERNAL_AUTH_ID"] == 'bot' && IsModuleInstalled('im')) ||
+			($arResult["User"]["EXTERNAL_AUTH_ID"] == 'imconnector' && IsModuleInstalled('imconnector'))
+		)
+		{
+			$arResult["User"]["TYPE"] = $arResult["User"]["EXTERNAL_AUTH_ID"] == 'bot'? 'bot': 'imconnector';
+			$arResult["CurrentUserPerms"]["Operations"]["viewgroups"] = false;
+			$arResult["CurrentUserPerms"]["Operations"]["modifyuser_main"] = false;
+			$arResult["CurrentUserPerms"]["Operations"]["modifyuser"] = false;
+		}
+		elseif ($arResult["User"]["IS_EXTRANET"] == "Y")
+		{
+			$arResult["User"]["TYPE"] = 'extranet';
+		}
+
+		$arContext = \Bitrix\Socialnetwork\ComponentHelper::getUrlContext();
+
+		$arResult["Urls"]["Edit"] = \Bitrix\Socialnetwork\ComponentHelper::addContextToUrl(CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_EDIT"], array("user_id" => $arResult["User"]["ID"])), $arContext);
 		$arResult["Urls"]["Friends"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_FRIENDS"], array("user_id" => $arResult["User"]["ID"]));
 		$arResult["Urls"]["FriendsAdd"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_FRIENDS_ADD"], array("user_id" => $arResult["User"]["ID"]));
 		$arResult["Urls"]["FriendsDelete"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_FRIENDS_DELETE"], array("user_id" => $arResult["User"]["ID"]));
@@ -165,28 +204,22 @@ else
 		$arResult["Urls"]["GroupsAdd"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_GROUPS_ADD"], array("user_id" => $arResult["User"]["ID"]));
 		$arResult["Urls"]["MessageForm"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_MESSAGE_FORM"], array("user_id" => $arResult["User"]["ID"]));
 		$arResult["Urls"]["Log"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_LOG"], array());
-		$arResult["Urls"]["Main"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER"], array("user_id" => $arResult["User"]["ID"]));
+		$arResult["Urls"]["Main"] = \Bitrix\Socialnetwork\ComponentHelper::addContextToUrl(CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER"], array("user_id" => $arResult["User"]["ID"])), $arContext);
 		$arResult["Urls"]["MessagesInput"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_MESSAGES_INPUT"], array());
-
 		$arResult["Urls"]["Blog"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_BLOG"], array("user_id" => $arResult["User"]["ID"]));
 		$arResult["Urls"]["Microblog"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_MICROBLOG"], array("user_id" => $arResult["User"]["ID"]));
-
 		$arResult["Urls"]["Photo"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_PHOTO"], array("user_id" => $arResult["User"]["ID"]));
-
 		$arResult["Urls"]["Forum"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_FORUM"], array("user_id" => $arResult["User"]["ID"]));
-
 		$arResult["Urls"]["Calendar"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_CALENDAR"], array("user_id" => $arResult["User"]["ID"]));
-
 		$arResult["Urls"]["Tasks"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_TASKS"], array("user_id" => $arResult["User"]["ID"]));
-
-		$arResult["Urls"]["Files"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_FILES"], 
-			array("user_id" => $arResult["User"]["ID"], "path" => ""));
+		$arResult["Urls"]["Files"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_FILES"], array("user_id" => $arResult["User"]["ID"], "path" => ""));
 
 		$arResult["Urls"]["content_search"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_CONTENT_SEARCH"], array("user_id" => $arResult["User"]["ID"]));
 
+		$arExternalAuthId = \Bitrix\Socialnetwork\ComponentHelper::checkPredefinedAuthIdList(array('replica', 'bot', 'email', 'imconnector'));
 		$arResult["ActiveFeatures"] = (
 			isset($arResult["User"]["EXTERNAL_AUTH_ID"])
-			&& $arResult["User"]["EXTERNAL_AUTH_ID"] == 'replica'
+			&& in_array($arResult["User"]["EXTERNAL_AUTH_ID"], $arExternalAuthId)
 				? array()
 				: CSocNetFeatures::GetActiveFeaturesNames(SONET_ENTITY_USER, $arResult["User"]["ID"])
 		);
@@ -223,13 +256,13 @@ else
 		$arResult["CanView"]["forum"] = (array_key_exists("forum", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($GLOBALS["USER"]->GetID(), SONET_ENTITY_USER, $arResult["User"]["ID"], "forum", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
 		$arResult["CanView"]["content_search"] = (array_key_exists("search", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($GLOBALS["USER"]->GetID(), SONET_ENTITY_USER, $arResult["User"]["ID"], "search", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
 
-		$arResult["Title"]["blog"] = ((array_key_exists("blog", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["blog"]) > 0) ? $arResult["ActiveFeatures"]["blog"] : GetMessage("SONET_UM_BLOG"));
+		$arResult["Title"]["blog"] = ((array_key_exists("blog", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["blog"]) > 0) ? $arResult["ActiveFeatures"]["blog"] : GetMessage("SONET_UM_STREAM"));
 		$arResult["Title"]["microblog"] = ((array_key_exists("microblog", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["microblog"]) > 0) ? $arResult["ActiveFeatures"]["microblog"] : GetMessage("SONET_UM_MICROBLOG"));
 		$arResult["Title"]["photo"] = ((array_key_exists("photo", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["photo"]) > 0) ? $arResult["ActiveFeatures"]["photo"] : GetMessage("SONET_UM_PHOTO"));
 		$arResult["Title"]["forum"] = ((array_key_exists("forum", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["forum"]) > 0) ? $arResult["ActiveFeatures"]["forum"] : GetMessage("SONET_UM_FORUM"));
 		$arResult["Title"]["calendar"] = ((array_key_exists("calendar", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["calendar"]) > 0) ? $arResult["ActiveFeatures"]["calendar"] : GetMessage("SONET_UM_CALENDAR"));
 		$arResult["Title"]["tasks"] = ((array_key_exists("tasks", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["tasks"]) > 0) ? $arResult["ActiveFeatures"]["tasks"] : GetMessage("SONET_UM_TASKS"));
-		$arResult["Title"]["files"] = ((array_key_exists("files", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["files"]) > 0) ? $arResult["ActiveFeatures"]["files"] : GetMessage("SONET_UM_FILES"));
+		$arResult["Title"]["files"] = ((array_key_exists("files", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["files"]) > 0) ? $arResult["ActiveFeatures"]["files"] : GetMessage("SONET_UM_DISK"));
 		$arResult["Title"]["content_search"] = ((array_key_exists("search", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["search"]) > 0) ? $arResult["ActiveFeatures"]["search"] : GetMessage("SONET_UM_SEARCH"));
 
 		$a = array_keys($arResult["Urls"]);
@@ -241,8 +274,10 @@ else
 		$events = GetModuleEvents("socialnetwork", "OnFillSocNetMenu");
 		while ($arEvent = $events->Fetch())
 		{
-			ExecuteModuleEventEx($arEvent, array(&$arResult));
+			ExecuteModuleEventEx($arEvent, array(&$arResult, $arParams));
 		}
+
+		$externalAuthIdPerms = \Bitrix\Socialnetwork\Util::getPermissionsByExternalAuthId($arResult["User"]["EXTERNAL_AUTH_ID"]);
 
 		$arResult["CAN_MESSAGE"] = (
 			($GLOBALS["USER"]->GetID() != $arResult["User"]["ID"]) 
@@ -251,6 +286,7 @@ else
 				IsModuleInstalled("im") 
 				|| $arResult["CurrentUserPerms"]["Operations"]["message"]
 			)
+			&& $externalAuthIdPerms['message']
 		);
 
 		$arResult["CAN_MESSAGE_HISTORY"] = (
@@ -262,6 +298,7 @@ else
 					&& ($arResult["User"]["ACTIVE"] != "N")
 				)
 			)
+			&& $externalAuthIdPerms['message']
 		);
 
 		$arResult["CAN_VIDEO_CALL"] = (

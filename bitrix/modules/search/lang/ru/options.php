@@ -8,6 +8,7 @@ $MESS["SEARCH_OPTIONS_REINDEX"] = "Переиндексация сайта";
 $MESS["SEARCH_OPTIONS_SITEMAP_TITLE"] = "Нажмите чтобы перейти на форму создания Google sitemap";
 $MESS["SEARCH_OPTIONS_REINDEX_TITLE"] = "Нажмите чтобы вручную переиндексировать сайт";
 $MESS["SEARCH_OPTIONS_MAX_RESULT_SIZE"] = "Максимальное количество документов в результатах поиска:";
+$MESS["SEARCH_OPTIONS_MAX_BODY_SIZE"] = "Максимальный объем текста документа для подсветки результата (0 - не ограничивать)";
 $MESS["SEARCH_OPTIONS_REINDEX_MAX_SIZE"] = "Максимальный размер индексируемого документа в килобайтах:";
 $MESS["SEARCH_OPTIONS_PAGE_PROPERTY"] = "Код свойства страницы в котором хранятся теги:";
 $MESS["SEARCH_OPTIONS_USE_TF_CACHE"] = "Использовать быстрый поиск (с ухудшенным ранжированием):";
@@ -33,4 +34,7 @@ $MESS["SEARCH_OPTIONS_FULL_TEXT_ENGINE_SPHINX"] = "Sphinx";
 $MESS["SEARCH_OPTIONS_SPHINX_CONNECTION"] = "Строка подключения для управления индексом (протокол MySql):";
 $MESS["SEARCH_OPTIONS_SPHINX_INDEX_NAME"] = "Идентификатор индекса:";
 $MESS["SEARCH_OPTIONS_SPHINX_ERROR"] = "Ошибка подключения к серверу Sphinx:";
+$MESS["SEARCH_OPTIONS_FULL_TEXT_ENGINE_MYSQL"] = "Полнотекстовый поиск MySql";
+$MESS["SEARCH_OPTIONS_MYSQL_ERROR"] = "Ошибка включения полнотекстового поиска:";
+$MESS["SEARCH_OPTIONS_MYSQL_NOTE"] = "Если при включении индекса вы увидите ошибку с кодом 1214, то нужно обновить MySql до версии >=5.6.4.";
 ?>

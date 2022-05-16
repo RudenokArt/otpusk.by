@@ -1,9 +1,21 @@
-<?if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
+<?
+if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
+
+use Bitrix\Main\UI\FileInputUtility;
+use Bitrix\Socialnetwork\LogCommentTable;
+
+global $USER_FIELD_MANAGER;
+
 if (!CModule::IncludeModule("forum"))
 	return 0;
+
 $this->IncludeComponentLang("action.php");
 $action = strtoupper($arParams["ACTION"]);
 $action = ($action == "SUPPORT" ? "FORUM_MESSAGE2SUPPORT" : $action);
+
+$post = $this->request->getPostList()->toArray();
+if ($post["AJAX_POST"] == "Y")
+	CUtil::decodeURIComponent($post);
 
 if (strLen($action) <= 0)
 {
@@ -20,10 +32,10 @@ elseif ($_REQUEST["MESSAGE_MODE"] == "VIEW")
 	$arResult["VIEW"] = "Y";
 	$bVarsFromForm = true;
 /************** Preview message ************************************/
-	$arAllow["SMILES"] = ($_POST["USE_SMILES"]!="Y" ? "N" : "Y" );
+	$arAllow["SMILES"] = ($post["USE_SMILES"]!="Y" ? "N" : "Y" );
 
-	$arResult["POST_MESSAGE_VIEW"] = $_POST["POST_MESSAGE"];
-	$arResult["MESSAGE_VIEW"]["AUTHOR_NAME"] = ($USER->IsAuthorized() || empty($_POST["AUTHOR_NAME"]) ? $arResult["USER"]["SHOW_NAME"] : trim($_POST["AUTHOR_NAME"]));
+	$arResult["POST_MESSAGE_VIEW"] = $post["POST_MESSAGE"];
+	$arResult["MESSAGE_VIEW"]["AUTHOR_NAME"] = ($USER->IsAuthorized() || empty($post["AUTHOR_NAME"]) ? $arResult["USER"]["SHOW_NAME"] : trim($post["AUTHOR_NAME"]));
 	$arResult["MESSAGE_VIEW"]["TEXT"] = $arResult["POST_MESSAGE_VIEW"];
 	$arFields = array(
 		"FORUM_ID" => intVal($arParams["FID"]), 
@@ -66,7 +78,7 @@ elseif ($_REQUEST["MESSAGE_MODE"] == "VIEW")
 	$arFilesExists = array_keys($arFilesExists);
 	sort($arFilesExists);
 	$arResult["MESSAGE_VIEW"]["FILES"] = $_REQUEST["FILES"] = $arFilesExists;
-	$arResult["MESSAGE_VIEW"]["TEXT"] = $arResult["POST_MESSAGE_VIEW"] = $parser->convert($_POST["POST_MESSAGE"], $arAllow, "html", $arResult["MESSAGE_VIEW"]["FILES"]);
+	$arResult["MESSAGE_VIEW"]["TEXT"] = $arResult["POST_MESSAGE_VIEW"] = $parser->convert($post["POST_MESSAGE"], $arAllow, "html", $arResult["MESSAGE_VIEW"]["FILES"]);
 	$arResult["MESSAGE_VIEW"]["FILES_PARSED"] = $parser->arFilesIDParsed;
 }
 else
@@ -102,13 +114,13 @@ else
 			$arFields = array(
 				"FID" => $arParams["FID"],
 				"TID" => $arParams["TID"],
-				"POST_MESSAGE" => $_POST["POST_MESSAGE"],
-				"AUTHOR_NAME" => $_POST["AUTHOR_NAME"],
-				"AUTHOR_EMAIL" => $_POST["AUTHOR_EMAIL"],
-				"USE_SMILES" => $_POST["USE_SMILES"],
+				"POST_MESSAGE" => $post["POST_MESSAGE"],
+				"AUTHOR_NAME" => $post["AUTHOR_NAME"],
+				"AUTHOR_EMAIL" => $post["AUTHOR_EMAIL"],
+				"USE_SMILES" => $post["USE_SMILES"],
 				"ATTACH_IMG" => $_FILES["ATTACH_IMG"],
-				"captcha_word" =>  $_POST["captcha_word"],
-				"captcha_code" => $_POST["captcha_code"],
+				"captcha_word" =>  $post["captcha_word"],
+				"captcha_code" => $post["captcha_code"],
 				"NAME_TEMPLATE" => $arParams["NAME_TEMPLATE"]);
 				if (!empty($_FILES["ATTACH_IMG"]))
 				{
@@ -421,7 +433,7 @@ else
 						CSocNetLogRights::SetForSonet($log_id, ($arParams["MODE"] == "GROUP" ? SONET_ENTITY_GROUP : SONET_ENTITY_USER), ($arParams["MODE"] == "GROUP" ? $arParams["SOCNET_GROUP_ID"] : $arParams["USER_ID"]), "forum", "view");
 					}
 				}
-				
+
 				if (intval($log_id) > 0)
 				{
 					$arFieldsForSocnet = array(
@@ -439,15 +451,34 @@ else
 						"RATING_ENTITY_ID" => intval($arParams["MID"])
 					);
 
+					$userFieldsList = $USER_FIELD_MANAGER->GetUserFields("SONET_COMMENT", 0, LANGUAGE_ID);
+					$controlId = false;
+					if (
+						!empty($userFieldsList['UF_SONET_COM_FILE'])
+						&& !empty($userFieldsList['UF_SONET_COM_FILE']['ID'])
+					)
+					{
+						$controlId = LogCommentTable::getUfId().'-'.$userFieldsList['UF_SONET_COM_FILE']['ID'].'-UF_SONET_COM_FILE';
+						FileInputUtility::instance()->registerControl($controlId, $controlId);
+					}
+
 					$ufFileID = array();
 					$dbAddedMessageFiles = CForumFiles::GetList(array("ID" => "ASC"), array("MESSAGE_ID" => $arParams["MID"]));
 					while ($arAddedMessageFiles = $dbAddedMessageFiles->Fetch())
+					{
 						$ufFileID[] = $arAddedMessageFiles["FILE_ID"];
+						if ($controlId)
+						{
+							FileInputUtility::instance()->registerFile($controlId, $arAddedMessageFiles["FILE_ID"]);
+						}
+					}
 
 					if (count($ufFileID) > 0)
+					{
 						$arFieldsForSocnet["UF_SONET_COM_FILE"] = $ufFileID;
+					}
 
-					$ufDocID = $GLOBALS["USER_FIELD_MANAGER"]->GetUserFieldValue("FORUM_MESSAGE", "UF_FORUM_MESSAGE_DOC", $arParams["MID"], LANGUAGE_ID);
+					$ufDocID = $USER_FIELD_MANAGER->GetUserFieldValue("FORUM_MESSAGE", "UF_FORUM_MESSAGE_DOC", $arParams["MID"], LANGUAGE_ID);
 					if ($ufDocID)
 						$arFieldsForSocnet["UF_SONET_COM_DOC"] = $ufDocID;
 
@@ -524,7 +555,7 @@ else
 								else
 									unset($arFieldsForSocnet["UF_SONET_COM_FILE"]);
 
-								$ufDocID = $GLOBALS["USER_FIELD_MANAGER"]->GetUserFieldValue("FORUM_MESSAGE", "UF_FORUM_MESSAGE_DOC", $arComment["ID"], LANGUAGE_ID);
+								$ufDocID = $USER_FIELD_MANAGER->GetUserFieldValue("FORUM_MESSAGE", "UF_FORUM_MESSAGE_DOC", $arComment["ID"], LANGUAGE_ID);
 								if ($ufDocID)
 									$arFieldsForSocnet["UF_SONET_COM_DOC"] = $ufDocID;
 								else

@@ -1087,8 +1087,8 @@ class CZip implements IBXArchive
 		$arHeader['external']          = (is_file($filename) ? 0xFE49FFE0 : 0x41FF0010);
 		$arHeader['extra']             = '';
 		$arHeader['extra_len']         = 0;
-		$arHeader['filename']          = CharsetConverter::ConvertCharset($filename, $this->fileSystemEncoding, "cp866");
-		$arHeader['filename_len']      = self::$bMbstring ? mb_strlen(CharsetConverter::ConvertCharset($filename, $this->fileSystemEncoding, "cp866"), "latin1") : strlen(CharsetConverter::ConvertCharset($filename, $this->fileSystemEncoding, "cp866"));
+		$arHeader['filename']          = \Bitrix\Main\Text\Encoding::convertEncoding($filename, $this->fileSystemEncoding, "cp866");
+		$arHeader['filename_len']      = self::$bMbstring ? mb_strlen(\Bitrix\Main\Text\Encoding::convertEncoding($filename, $this->fileSystemEncoding, "cp866"), "latin1") : strlen(\Bitrix\Main\Text\Encoding::convertEncoding($filename, $this->fileSystemEncoding, "cp866"));
 		$arHeader['flag']              = 0;
 		$arHeader['index']             = -1;
 		$arHeader['internal']          = 0;
@@ -1096,7 +1096,7 @@ class CZip implements IBXArchive
 		$arHeader['offset']            = 0;
 		$arHeader['size']              = filesize($filename);
 		$arHeader['status']            = 'ok';
-		$arHeader['stored_filename']   = CharsetConverter::ConvertCharset($storedFilename, $this->fileSystemEncoding, "cp866");
+		$arHeader['stored_filename']   = \Bitrix\Main\Text\Encoding::convertEncoding($storedFilename, $this->fileSystemEncoding, "cp866");
 		$arHeader['version']           = 20;
 		$arHeader['version_extracted'] = 10;
 
@@ -1573,8 +1573,8 @@ class CZip implements IBXArchive
 			return $res;
 		//to be checked: file header should be coherent with $arEntry info
 
-		$arEntry["filename"] = CharsetConverter::ConvertCharset($arEntry["filename"], "cp866", $this->fileSystemEncoding);
-		$arEntry["stored_filename"] = CharsetConverter::ConvertCharset($arEntry["stored_filename"], "cp866", $this->fileSystemEncoding);
+		$arEntry["filename"] = \Bitrix\Main\Text\Encoding::convertEncoding($arEntry["filename"], "cp866", $this->fileSystemEncoding);
+		$arEntry["stored_filename"] = \Bitrix\Main\Text\Encoding::convertEncoding($arEntry["stored_filename"], "cp866", $this->fileSystemEncoding);
 
 		//protecting against ../ etc in file path
 		//only absolute path should be in the $arEntry
@@ -2023,10 +2023,10 @@ class CZip implements IBXArchive
 			{
 				//reading 1 byte
 				$byte = @fread($this->zipfile, 1);
-
+				//0x03000000504b0506 -> 0x504b0506
+				$bytes = ($bytes << (8*(PHP_INT_SIZE - 3))) >> (8*(PHP_INT_SIZE - 4));
 				//adding the byte
-				$bytes = ($bytes << 8) | ord($byte);
-
+				$bytes = $bytes | ord($byte);
 				//compare bytes
 				if ($bytes == 0x504b0506)
 				{

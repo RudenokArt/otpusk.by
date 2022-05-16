@@ -7,10 +7,9 @@
  */
 namespace Bitrix\Main;
 
-use Bitrix\Main\Entity;
 use Bitrix\Main\IO;
 
-class SiteTable extends Entity\DataManager
+class SiteTable extends ORM\Data\DataManager
 {
 	private static $documentRootCache = array();
 
@@ -39,12 +38,6 @@ class SiteTable extends Entity\DataManager
 		}
 
 		return self::$documentRootCache[$siteId];
-	}
-
-
-	public static function getFilePath()
-	{
-		return __FILE__;
 	}
 
 	public static function getTableName()

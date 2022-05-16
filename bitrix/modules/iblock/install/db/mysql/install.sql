@@ -15,16 +15,17 @@ create table if not exists b_iblock_type_lang
 	LID CHAR(2) not null,
 	NAME VARCHAR(100) not null,
 	SECTION_NAME VARCHAR(100),
-	ELEMENT_NAME VARCHAR(100) not null
+	ELEMENT_NAME VARCHAR(100)
 );
 
 create table if not exists b_iblock
 (
 	ID int(11) not null auto_increment,
-	TIMESTAMP_X timestamp not null,
+	TIMESTAMP_X timestamp not null default current_timestamp on update current_timestamp,
 	IBLOCK_TYPE_ID varchar(50) not null REFERENCES b_iblock_type(ID),
 	LID char(2) not null REFERENCES b_lang(LID),
 	CODE varchar(50) null,
+	API_CODE varchar(50) null,
 	NAME varchar(255) not null,
 	ACTIVE char(1) not null DEFAULT 'Y',
 	SORT int(11) not null DEFAULT 500,
@@ -62,7 +63,8 @@ create table if not exists b_iblock
 	ELEMENTS_NAME varchar(100) null,
 	ELEMENT_NAME varchar(100) null,
 	PRIMARY KEY(ID),
-	INDEX ix_iblock (IBLOCK_TYPE_ID, LID, ACTIVE)
+	INDEX ix_iblock (IBLOCK_TYPE_ID, LID, ACTIVE),
+	UNIQUE INDEX ix_iblock_api_code (API_CODE)
 );
 
 create table if not exists b_iblock_site
@@ -92,7 +94,7 @@ create table if not exists b_iblock_fields
 create table if not exists b_iblock_property
 (
 	ID int(11) not null auto_increment,
-	TIMESTAMP_X timestamp not null,
+	TIMESTAMP_X timestamp not null default current_timestamp on update current_timestamp,
 	IBLOCK_ID int(11) not null REFERENCES b_iblock(ID),
 	NAME varchar(255) not null,
 	ACTIVE char(1) not null default 'Y',
@@ -123,11 +125,21 @@ create table if not exists b_iblock_property
 	index ix_iblock_property_2(CODE)
 );
 
+create table if not exists b_iblock_property_feature
+(
+	ID int not null auto_increment,
+	PROPERTY_ID int not null,
+	MODULE_ID varchar(50) not null,
+	FEATURE_ID varchar(100) not null,
+	IS_ENABLED char(1) not null default 'N',
+	PRIMARY KEY (ID),
+	unique index ix_iblock_property_feature (PROPERTY_ID, MODULE_ID, FEATURE_ID)
+);
 
 create table if not exists b_iblock_section
 (
 	ID int(11) not null auto_increment,
-	TIMESTAMP_X timestamp not null,
+	TIMESTAMP_X timestamp not null default current_timestamp on update current_timestamp,
 	MODIFIED_BY int(18),
 	DATE_CREATE datetime,
 	CREATED_BY int(18),
@@ -317,7 +329,7 @@ create table if not exists b_iblock_cache
 (
 	CACHE_KEY varchar(35) not null,
 	CACHE longtext not null,
-	CACHE_DATE datetime not null default '0000-00-00 00:00:00',
+	CACHE_DATE datetime not null,
 	primary key (CACHE_KEY)
 );
 
@@ -342,7 +354,7 @@ create table if not exists b_iblock_offers_tmp
 	ID int(11) unsigned not null auto_increment,
 	PRODUCT_IBLOCK_ID int(11) unsigned not null,
 	OFFERS_IBLOCK_ID int(11) unsigned not null,
-	TIMESTAMP_X timestamp not null default current_timestamp,
+	TIMESTAMP_X timestamp not null default current_timestamp on update current_timestamp,
 	PRIMARY KEY (ID)
 );
 

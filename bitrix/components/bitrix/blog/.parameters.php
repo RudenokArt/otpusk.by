@@ -43,7 +43,8 @@ $arComponentParameters = array(
 	"GROUPS" => Array(
 		"COMMENT" => array("NAME" => GetMessage("BLOG_COMMENT_SETTINGS")),
 		),
-	"PARAMETERS" => array( 
+	"PARAMETERS" => array(
+		"USER_CONSENT" => array(),
 		"VARIABLE_ALIASES" => Array(
 			"blog" => Array(
 					"NAME" => GetMessage("BC_BLOG_VAR"),
@@ -67,7 +68,7 @@ $arComponentParameters = array(
 					),
 			),
 		"SEF_MODE" => Array(
-			"index" => array(
+			"index	" => array(
 				"NAME" => GetMessage("BC_SEF_PATH_INDEX"),
 				"DEFAULT" => "index.php",
 				"VARIABLES" => array(),
@@ -226,6 +227,25 @@ $arComponentParameters = array(
 				"DEFAULT" => 25,
 				"PARENT" => "COMMENT",
 			),
+		"COMMENTS_LIST_VIEW" => Array(
+			"NAME" => GetMessage("BC_COMMENTS_LIST_VIEW"),
+			"TYPE" => "CHECKBOX",
+			"MULTIPLE" => "N",
+			"VALUE" => "Y",
+			//Match comments view: list or tree. For existing components - use tree, for new - use list
+			"DEFAULT" => (isset($arCurrentValues) && $arCurrentValues["COMMENTS_LIST_VIEW"] === null) ? "N" : "Y",
+			"PARENT" => "COMMENT",
+			"REFRESH" => "Y",
+		),
+		"AJAX_PAGINATION" => array(
+			"NAME" => GetMessage("BPC_AJAX_PAGINATION"),
+			"TYPE" => "CHECKBOX",
+			"MULTIPLE" => "N",
+			"VALUE" => "Y",
+			"DEFAULT" => "N",
+			"PARENT" => "COMMENT",
+			"HIDDEN" => ($arCurrentValues["COMMENTS_LIST_VIEW"] == "Y") ? "Y" : "N",
+		),
 		"MESSAGE_LENGTH" => Array(
 				"NAME" => GetMessage("BC_MESSAGE_LENTH"),
 				"TYPE" => "STRING",
@@ -343,15 +363,15 @@ $arComponentParameters = array(
 				"PARENT" => "VISUAL",
 			),
 		"IMAGE_MAX_WIDTH" => Array(
-				"NAME" => GetMessage("BPC_IMAGE_MAX_WIDTH"),
+				"NAME" => GetMessage("BPC_IMAGE_MAX_WIDTH").' ('.GetMessage("BPC_IMAGE_MAX_SIZES_TEXT").' '.COption::GetOptionString('blog', 'image_max_width').')',
 				"TYPE" => "STRING",
-				"DEFAULT" => 800,
+				"DEFAULT" => COption::GetOptionString('blog', 'image_max_width'),
 				"PARENT" => "VISUAL",
 			),		
 		"IMAGE_MAX_HEIGHT" => Array(
-				"NAME" => GetMessage("BPC_IMAGE_MAX_HEIGHT"),
+				"NAME" => GetMessage("BPC_IMAGE_MAX_HEIGHT").' ('.GetMessage("BPC_IMAGE_MAX_SIZES_TEXT").' '.COption::GetOptionString('blog', 'image_max_height').')',
 				"TYPE" => "STRING",
-				"DEFAULT" => 800,
+				"DEFAULT" => COption::GetOptionString('blog', 'image_max_height'),
 				"PARENT" => "VISUAL",
 			),
 		"EDITOR_RESIZABLE" => Array(
@@ -371,13 +391,7 @@ $arComponentParameters = array(
 				"TYPE" => "CHECKBOX",
 				"DEFAULT" => "N",
 				"PARENT" => "VISUAL",
-			),		
-		"AJAX_POST" => Array(
-			"NAME" => GetMessage("BPC_AJAX_POST"),
-			"TYPE" => "CHECKBOX",
-			"DEFAULT" =>"",
-			"PARENT" => "COMMENT",
-			),		
+			),
 		"COMMENT_EDITOR_RESIZABLE" => Array(
 				"NAME" => GetMessage("BPC_COMMENT_EDITOR_RESIZABLE"),
 				"TYPE" => "CHECKBOX",

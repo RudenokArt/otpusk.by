@@ -97,39 +97,42 @@ function GetVoteDataByID($VOTE_ID, &$arChannel, &$arVote, &$arQuestions, &$arAns
 			}
 			$event_id = intval($arAddParams["bRestoreVotedData"] == "Y" && !!$_SESSION["VOTE"]["VOTES"][$VOTE_ID] ?
 				$_SESSION["VOTE"]["VOTES"][$VOTE_ID] : 0);
-			$db_res = CVoteEvent::GetUserAnswerStat($VOTE_ID,
-				array("bGetMemoStat" => "N", "bGetEventResults" => $event_id));
-			if ($db_res && ($res = $db_res->Fetch()))
+			if ($event_id > 0)
 			{
-				do
+				$db_res = CVoteEvent::GetUserAnswerStat($VOTE_ID,
+					array("bGetMemoStat" => "N", "bGetEventResults" => $event_id));
+				if ($db_res && ($res = $db_res->Fetch()))
 				{
-					if (isset($arQuestions[$res["QUESTION_ID"]]) && is_array($arQuestions[$res["QUESTION_ID"]]["ANSWERS"][$res["ANSWER_ID"]]) && is_array($res))
+					do
 					{
-						$arQuestions[$res["QUESTION_ID"]]["ANSWERS"][$res["ANSWER_ID"]] += $res;
-						if ($event_id > 0 && !empty($res["RESTORED_ANSWER_ID"]))
+						if (isset($arQuestions[$res["QUESTION_ID"]]) && is_array($arQuestions[$res["QUESTION_ID"]]["ANSWERS"][$res["ANSWER_ID"]]) && is_array($res))
 						{
-							switch ($arQuestions[$res["QUESTION_ID"]]["ANSWERS"][$res["ANSWER_ID"]]["FIELD_TYPE"]):
-								case 0: // radio
-								case 2: // dropdown list
-									$fieldName = ($arQuestions[$res["QUESTION_ID"]]["ANSWERS"][$res["ANSWER_ID"]]["FIELD_TYPE"] == 0 ?
-										"vote_radio_" : "vote_dropdown_").$res["QUESTION_ID"];
-									$_REQUEST[$fieldName] = $res["RESTORED_ANSWER_ID"];
-									break;
-								case 1: // checkbox
-								case 3: // multiselect list
-									$fieldName = ($arQuestions[$res["QUESTION_ID"]]["ANSWERS"][$res["ANSWER_ID"]]["FIELD_TYPE"] == 1 ?
-										"vote_checkbox_" : "vote_multiselect_").$res["QUESTION_ID"];
-									$_REQUEST[$fieldName] = (is_array($_REQUEST[$fieldName]) ? $_REQUEST[$fieldName] : array());
-									$_REQUEST[$fieldName][] = $res["ANSWER_ID"];
-									break;
-								case 4: // field
-								case 5: // text
-									// do not restored
-									break;
-							endswitch;
+							$arQuestions[$res["QUESTION_ID"]]["ANSWERS"][$res["ANSWER_ID"]] += $res;
+							if ($event_id > 0 && !empty($res["RESTORED_ANSWER_ID"]))
+							{
+								switch ($arQuestions[$res["QUESTION_ID"]]["ANSWERS"][$res["ANSWER_ID"]]["FIELD_TYPE"]):
+									case 0: // radio
+									case 2: // dropdown list
+										$fieldName = ($arQuestions[$res["QUESTION_ID"]]["ANSWERS"][$res["ANSWER_ID"]]["FIELD_TYPE"] == 0 ?
+												"vote_radio_" : "vote_dropdown_").$res["QUESTION_ID"];
+										$_REQUEST[$fieldName] = $res["RESTORED_ANSWER_ID"];
+										break;
+									case 1: // checkbox
+									case 3: // multiselect list
+										$fieldName = ($arQuestions[$res["QUESTION_ID"]]["ANSWERS"][$res["ANSWER_ID"]]["FIELD_TYPE"] == 1 ?
+												"vote_checkbox_" : "vote_multiselect_").$res["QUESTION_ID"];
+										$_REQUEST[$fieldName] = (is_array($_REQUEST[$fieldName]) ? $_REQUEST[$fieldName] : array());
+										$_REQUEST[$fieldName][] = $res["ANSWER_ID"];
+										break;
+									case 4: // field
+									case 5: // text
+										// do not restored
+										break;
+								endswitch;
+							}
 						}
-					}
-				} while ($res = $db_res->Fetch());
+					} while ($res = $db_res->Fetch());
+				}
 			}
 		}
 
@@ -157,7 +160,7 @@ function GetVoteDataByID($VOTE_ID, &$arChannel, &$arVote, &$arQuestions, &$arAns
 	if ($arAddParams["bGetMemoStat"] == "Y" && $GLOBALS["VOTE_CACHE_VOTING"][$VOTE_ID]["QA"]["GA"] == "N")
 	{
 		$db_res = CVoteEvent::GetUserAnswerStat($VOTE_ID, array("bGetMemoStat" => "Y"));
-		while($res = $db_res->GetNext(true, false))
+		while ($res = $db_res->GetNext(true, false))
 		{
 			$arGroupAnswers[$res['ANSWER_ID']][] = $res;
 		}
@@ -224,7 +227,9 @@ function GetVoteList($GROUP_SID = "", $params = array(), $site_id = SITE_ID)
 	$params = (is_array($params) ? $params : array());
 	if (array_key_exists("order", $params))
 		$strSqlOrder = $params["order"];
-	$arFilter["SITE"] = (array_key_exists("SITE_ID", $params)  ? $params["SITE_ID"] : $site_id);
+	$arFilter["SITE"] = (array_key_exists("SITE_ID", $params)  ? $params["SITE_ID"] : (
+		array_key_exists("siteId", $params)  ? $params["siteId"] : $site_id
+	));
 
 	if (is_array($GROUP_SID) && !empty($GROUP_SID))
 	{
@@ -246,23 +251,9 @@ function GetVoteList($GROUP_SID = "", $params = array(), $site_id = SITE_ID)
 }
 
 // return true if user already vote on this vote
-function IsUserVoted($PUBLIC_VOTE_ID)
+function IsUserVoted($voteId)
 {
-	global $USER, $APPLICATION;
-	$PUBLIC_VOTE_ID = intval($PUBLIC_VOTE_ID);
-
-	if ($PUBLIC_VOTE_ID <= 0)
-		return false;
-
-	$res = CVote::GetByID($PUBLIC_VOTE_ID);
-	if($res && ($arVote = $res->GetNext(true, false)))
-	{
-		$VOTE_USER_ID = intval($APPLICATION->get_cookie("VOTE_USER_ID"));
-		$res = CVote::UserAlreadyVote($arVote["ID"], $VOTE_USER_ID, $arVote["UNIQUE_TYPE"], $arVote["KEEP_IP_SEC"], $USER->GetID());
-		return ($res != false);
-	}
-
-	return false;
+	return \Bitrix\Vote\User::getCurrent()->isVotedFor($voteId);
 }
 
 // return random unvoted vote id for user whith check permissions

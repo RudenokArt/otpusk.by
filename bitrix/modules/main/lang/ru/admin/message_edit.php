@@ -54,4 +54,8 @@ $MESS ['ATTACHMENT_PRESET_LIST_DELETE'] = "Удалить";
 $MESS ['ATTACHMENT_DYNAMIC'] = "Из полей почтового события";
 $MESS ['AVAILABLE_FIELDS_ATTACHMENT'] = "Доступные изображения из вложения:";
 $MESS ['MSG_SITE_TEMPLATE_ID'] = "Тема оформления:";
+$MESS["main_mess_edit_lang"] = "Язык:";
+$MESS["main_mess_edit_lang_not_set"] = "(не установлен)";
+$MESS["main_mess_edit_fields"] = "Поля письма";
+$MESS["main_message_edit_html_note"] = "Для шаблонов типа HTML доступны закодированные поля с префиксом &quot;HTML_&quot;, например, #HTML_LAST_NAME#. Рекомендуется использовать такие поля для писем в формате HTML.";
 ?>

@@ -1,9 +1,25 @@
 <?
 if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
+/** @var CBitrixComponent $this */
+/** @var array $arParams */
+/** @var array $arResult */
+/** @var string $componentPath */
+/** @var string $componentName */
+/** @var string $componentTemplate */
+/** @global CDatabase $DB */
+/** @global CUser $USER */
+/** @global CMain $APPLICATION */
+/** @global CCacheManager $CACHE_MANAGER */
+
+global $CACHE_MANAGER;
+
+use Bitrix\Socialnetwork\Livefeed;
+use Bitrix\Main\Loader;
+use Bitrix\Main\ModuleManager;
 
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/components/bitrix/socialnetwork.log.entry/include.php");
 
-if (!CModule::IncludeModule("socialnetwork"))
+if (!Loader::includeModule("socialnetwork"))
 {
 	ShowError(GetMessage("SONET_MODULE_NOT_INSTALL"));
 	return;
@@ -39,6 +55,18 @@ if (empty($arParams["COMMENT_PROPERTY"]))
 	$arParams["COMMENT_PROPERTY"] = array("UF_SONET_COM_FILE");
 	if (IsModuleInstalled("webdav") || IsModuleInstalled("disk"))
 		$arParams["COMMENT_PROPERTY"][] = "UF_SONET_COM_DOC";
+
+	$arParams["COMMENT_PROPERTY"][] = "UF_SONET_COM_URL_PRV";
+}
+
+if (empty($arParams["PATH_TO_LOG_TAG"]))
+{
+	$folderUsers = COption::GetOptionString("socialnetwork", "user_page", false, SITE_ID);
+	$arParams["PATH_TO_LOG_TAG"] = $folderUsers."log/?TAG=#tag#";
+	if (SITE_TEMPLATE_ID == 'bitrix24')
+	{
+		$arParams["PATH_TO_LOG_TAG"] .= "&apply_filter=Y";
+	}
 }
 
 CSocNetLogComponent::processDateTimeFormatParams($arParams);
@@ -56,19 +84,92 @@ $arResult["COUNTER_TYPE"] = $arParams["COUNTER_TYPE"];
 $arResult["AJAX_CALL"] = $arParams["AJAX_CALL"];
 $arResult["bReload"] = $arParams["bReload"];
 $arResult["bGetComments"] = $arParams["bGetComments"];
+$arResult["bIntranetInstalled"] = ModuleManager::isModuleInstalled("intranet");
+
+$arResult["bPublicPage"] = (isset($arParams["PUB"]) && $arParams["PUB"] == "Y");
+
+$arResult["bTasksInstalled"] = Loader::includeModule("tasks");
+$arResult["bTasksAvailable"] = (
+	!$arResult["bPublicPage"]
+	&& $arResult["bTasksInstalled"]
+	&& (
+		!Loader::includeModule('bitrix24')
+		|| CBitrix24BusinessTools::isToolAvailable($USER->getId(), "tasks")
+	)
+	&& CSocNetFeaturesPerms::CurrentUserCanPerformOperation(SONET_ENTITY_USER, $USER->getId(), "tasks", "create_tasks")
+);
 
 $arResult["Event"] = false;
 $arCurrentUserSubscribe = array("TRANSPORT" => array());
 
 $arEvent = __SLEGetLogRecord($arParams["LOG_ID"], $arParams, $arCurrentUserSubscribe, $current_page_date);
-
 if ($arEvent)
 {
+	$contentId = Livefeed\Provider::getContentId($arEvent['EVENT']);
+
+	$arResult["canGetCommentContent"] = false;
+	$arResult["POST_CONTENT_TYPE_ID"] = false;
+	$arResult["COMMENT_CONTENT_TYPE_ID"] = false;
+
+	if (
+		!empty($contentId['ENTITY_TYPE'])
+		&& ($postProvider = \Bitrix\Socialnetwork\Livefeed\Provider::getProvider($contentId['ENTITY_TYPE']))
+	)
+	{
+		$postProviderClassName = get_class($postProvider);
+		$reflectionClass = new ReflectionClass($postProviderClassName);
+		$arResult["canGetPostContent"] = ($reflectionClass->getMethod('initSourceFields')->class == $postProviderClassName);
+		if ($arResult["canGetPostContent"])
+		{
+			$arResult["POST_CONTENT_TYPE_ID"] = $postProvider->getContentTypeId();
+			$arResult["POST_CONTENT_ID"] = $contentId['ENTITY_ID'];
+		}
+
+		if ($commentProvider = $postProvider->getCommentProvider())
+		{
+			$commentProviderClassName = get_class($commentProvider);
+			$reflectionClass = new ReflectionClass($commentProviderClassName);
+
+			$arResult["canGetCommentContent"] = (
+//				false &&
+				$reflectionClass->getMethod('initSourceFields')->class == $commentProviderClassName
+			);
+			if ($arResult["canGetCommentContent"])
+			{
+				$arResult["COMMENT_CONTENT_TYPE_ID"] = $commentProvider->getContentTypeId();
+			}
+
+			$commentProvider->setLogEventId($arEvent['EVENT']['EVENT_ID']);
+			$suffix = $commentProvider->getSuffix();
+			if (!empty($suffix))
+			{
+				$arParams['COMMENT_ENTITY_SUFFIX'] = $suffix;
+			}
+		}
+	}
+
 	if (
 		isset($arEvent["HAS_COMMENTS"])
 		&& $arEvent["HAS_COMMENTS"] == "Y"
 	)
 	{
+		$commentEvent = CSocNetLogTools::FindLogCommentEventByLogEventID($arEvent["EVENT"]["EVENT_ID"]);
+		if (
+			!empty($commentEvent)
+			&& isset($commentEvent["METHOD_GET_URL"])
+			&& is_callable($commentEvent["METHOD_GET_URL"])
+		)
+		{
+			$arResult["COMMENT_URL"] = call_user_func_array($commentEvent["METHOD_GET_URL"], array(array(
+				"ENTRY_ID" => $arEvent["EVENT"]["SOURCE_ID"],
+				"ENTRY_USER_ID" => $arEvent["EVENT"]["USER_ID"]
+			)));
+		}
+		else
+		{
+			$arResult["COMMENT_URL"] = false;
+		}
+
 		$cache_time = 31536000;
 
 		if ($arParams["COMMENT_ID"] <= 0)
@@ -108,6 +209,25 @@ if ($arEvent)
 		{
 			$arCacheVars = $cache->GetVars();
 			$arCommentsFullList = $arCacheVars["COMMENTS_FULL_LIST"];
+
+			if (!empty($arCacheVars["Assets"]))
+			{
+				if (!empty($arCacheVars["Assets"]["CSS"]))
+				{
+					foreach($arCacheVars["Assets"]["CSS"] as $cssFile)
+					{
+						\Bitrix\Main\Page\Asset::getInstance()->addCss($cssFile);
+					}
+				}
+
+				if (!empty($arCacheVars["Assets"]["JS"]))
+				{
+					foreach($arCacheVars["Assets"]["JS"] as $jsFile)
+					{
+						\Bitrix\Main\Page\Asset::getInstance()->addJs($jsFile);
+					}
+				}
+			}
 		}
 		else
 		{
@@ -120,7 +240,7 @@ if ($arEvent)
 
 			if (defined("BX_COMP_MANAGED_CACHE"))
 			{
-				$GLOBALS["CACHE_MANAGER"]->StartTagCache($cache_path);
+				$CACHE_MANAGER->startTagCache($cache_path);
 			}
 
 			$arFilter = array(
@@ -129,23 +249,39 @@ if ($arEvent)
 
 			if ($arParams["COMMENT_ID"] > 0)
 			{
-				$arFilter[">=ID"] = $arParams["COMMENT_ID"];
+				$logCommentId = $arParams["COMMENT_ID"];
+				if (!empty($commentEvent))
+				{
+					$rsLogComment = CSocNetLogComments::getList(
+						array(),
+						array(
+							"EVENT_ID" => $commentEvent['EVENT_ID'],
+							"SOURCE_ID" => $arParams["COMMENT_ID"]
+						),
+						false,
+						false,
+						array('ID')
+					);
+
+					if ($arLogComment = $rsLogComment->Fetch())
+					{
+						$logCommentId = $arLogComment["ID"];
+					}
+				}
+
+				$arFilter[">=ID"] = $logCommentId;
 			}
 
 			$arSelect = array(
-				"ID", "LOG_ID", "SOURCE_ID", "ENTITY_TYPE", "ENTITY_ID", "USER_ID", "EVENT_ID", "LOG_DATE", "MESSAGE", "TEXT_MESSAGE", "URL", "MODULE_ID",
+				"ID", "LOG_ID", "SOURCE_ID", "ENTITY_TYPE", "ENTITY_ID", "USER_ID", "EVENT_ID", "LOG_DATE", "MESSAGE", "LOG_DATE_TS", "TEXT_MESSAGE", "URL", "MODULE_ID",
 				"GROUP_NAME", "GROUP_OWNER_ID", "GROUP_VISIBLE", "GROUP_OPENED", "GROUP_IMAGE_ID",
 				"USER_NAME", "USER_LAST_NAME", "USER_SECOND_NAME", "USER_LOGIN", "USER_PERSONAL_PHOTO", "USER_PERSONAL_GENDER",
-				"CREATED_BY_NAME", "CREATED_BY_LAST_NAME", "CREATED_BY_SECOND_NAME", "CREATED_BY_LOGIN", "CREATED_BY_PERSONAL_PHOTO", "CREATED_BY_PERSONAL_GENDER",
+				"CREATED_BY_NAME", "CREATED_BY_LAST_NAME", "CREATED_BY_SECOND_NAME", "CREATED_BY_LOGIN", "CREATED_BY_PERSONAL_PHOTO", "CREATED_BY_PERSONAL_GENDER", "CREATED_BY_EXTERNAL_AUTH_ID",
+				"SHARE_DEST",
 				"LOG_SITE_ID", "LOG_SOURCE_ID",
 				"RATING_TYPE_ID", "RATING_ENTITY_ID",
 				"UF_*"
 			);
-
-			if ($GLOBALS["DB"]->type == "MYSQL")
-			{
-				$arSelect[] = "LOG_DATE_TS";
-			}
 
 			$arListParams = array(
 				"USE_SUBSCRIBE" => "N",
@@ -159,7 +295,12 @@ if ($arEvent)
 					: false
 			);
 
-			$dbComments = CSocNetLogComments::GetList(
+			$arAssets = array(
+				"CSS" => array(),
+				"JS" => array()
+			);
+
+			$dbComments = CSocNetLogComments::getList(
 				array("LOG_DATE" => "DESC"), // revert then
 				$arFilter,
 				false,
@@ -168,35 +309,85 @@ if ($arEvent)
 				$arListParams
 			);
 
-			while($arComments = $dbComments->GetNext())
+			if (
+				!empty($arEvent["EVENT_FORMATTED"])
+				&& !empty($arEvent["EVENT_FORMATTED"]["DESTINATION"])
+				&& is_array($arEvent["EVENT_FORMATTED"]["DESTINATION"])
+			)
+			{
+				foreach($arEvent["EVENT_FORMATTED"]["DESTINATION"] as $destination)
+				{
+					if (!empty($destination["CRM_USER_ID"]))
+					{
+						$arParams["ENTRY_HAS_CRM_USER"] = true;
+						break;
+					}
+				}
+			}
+
+			$commentsList = $commentSourceIdList = array();
+			while($arComment = $dbComments->getNext())
 			{
 				if (defined("BX_COMP_MANAGED_CACHE"))
 				{
-					$GLOBALS["CACHE_MANAGER"]->RegisterTag("USER_NAME_".intval($arComments["USER_ID"]));
+					$CACHE_MANAGER->registerTag("USER_NAME_".intval($arComment["USER_ID"]));
 				}
 
-				$arComments["UF"] = $arUFMeta;
+				$arComment["UF"] = $arUFMeta;
 				foreach($arUFMeta as $field_name => $arUF)
 				{
-					if (array_key_exists($field_name, $arComments))
+					if (array_key_exists($field_name, $arComment))
 					{
-						$arComments["UF"][$field_name]["VALUE"] = $arComments[$field_name];
-						$arComments["UF"][$field_name]["ENTITY_VALUE_ID"] = $arComments["ID"];
+						$arComment["UF"][$field_name]["VALUE"] = $arComment[$field_name];
+						$arComment["UF"][$field_name]["ENTITY_VALUE_ID"] = $arComment["ID"];
 					}
 				}
+				$commentsList[] = $arComment;
+				if (intval($arComment['SOURCE_ID']) > 0)
+				{
+					$commentSourceIdList[] = intval($arComment['SOURCE_ID']);
+				}
+			}
 
-				$arCommentsFullList[] = __SLEGetLogCommentRecord($arComments, $arParams, $arCurrentUserSubscribe);
+			if (
+				!empty($commentSourceIdList)
+				&& !empty($commentProvider)
+			)
+			{
+				$sourceAdditonalData = $commentProvider->getAdditionalData(array(
+					'id' => $commentSourceIdList
+				));
+
+				if (!empty($sourceAdditonalData))
+				{
+					foreach($commentsList as $key => $comment)
+					{
+						if (
+							!empty($comment['SOURCE_ID'])
+							&& isset($sourceAdditonalData[$comment['SOURCE_ID']])
+						)
+						{
+							$commentsList[$key]['ADDITIONAL_DATA'] = $sourceAdditonalData[$comment['SOURCE_ID']];
+						}
+					}
+				}
+			}
+
+			foreach($commentsList as $arComment)
+			{
+				$arCommentsFullList[] = __SLEGetLogCommentRecord($arComment, $arParams, $arAssets);
 			}
 
 			if (is_object($cache))
 			{
 				$arCacheData = Array(
-					"COMMENTS_FULL_LIST" => $arCommentsFullList
+					"COMMENTS_FULL_LIST" => $arCommentsFullList,
+					"Assets" => $arAssets
 				);
 				$cache->EndDataCache($arCacheData);
 				if(defined("BX_COMP_MANAGED_CACHE"))
 				{
-					$GLOBALS["CACHE_MANAGER"]->EndTagCache();
+					$CACHE_MANAGER->endTagCache();
 				}
 			}
 		}
@@ -204,11 +395,42 @@ if ($arEvent)
 		$arCommentsFullListCut = array();
 		$arCommentID = array();
 
+		$handlerManager = new Bitrix\Socialnetwork\CommentAux\HandlerManager();
+
 		foreach ($arCommentsFullList as $key => $arCommentTmp)
 		{
 			if ($key === 0)
 			{
 				$rating_entity_type = $arCommentTmp["EVENT"]["RATING_TYPE_ID"];
+			}
+
+			if (
+				isset($arCommentTmp['EVENT_FORMATTED'])
+				&& isset($arCommentTmp['EVENT_FORMATTED']['MESSAGE'])
+				&& ($handler = $handlerManager->getHandlerByPostText($arCommentTmp['EVENT_FORMATTED']['MESSAGE']))
+			)
+			{
+				if ($handler->checkRecalcNeeded($arCommentTmp['EVENT'], array(
+					'bPublicPage' => $arResult["bPublicPage"]
+				)))
+				{
+					$commentAuxFields = $arCommentTmp['EVENT'];
+					$params = $handler->getParamsFromFields($commentAuxFields);
+					if (!empty($params))
+					{
+						$handler->setParams($params);
+					}
+
+					$handler->setOptions(array(
+						'mobile' => false,
+						'bPublicPage' => (isset($arParams["bPublicPage"]) && $arParams["bPublicPage"]),
+						'cache' => false,
+						'suffix' => (!empty($arParams['COMMENT_ENTITY_SUFFIX']) ? $arParams['COMMENT_ENTITY_SUFFIX'] : ''),
+						'logId' => $arParams["LOG_ID"],
+					));
+					$arCommentTmp['EVENT_FORMATTED']['FULL_MESSAGE_CUT']  = $handler->getText();
+					$arCommentTmp["AUX"] = $handler->getType();
+				}
 			}
 
 			if (
@@ -231,14 +453,21 @@ if ($arEvent)
 
 				if (
 					$arParams["COMMENT_ID"] <= 0
-					&& ($key >= $arParams["COMMENTS_IN_EVENT"])
 					&& (
-						intval($arResult["LAST_LOG_TS"]) <= 0
-						|| $event_date_log_ts <= $arResult["LAST_LOG_TS"]
+						(
+							$event_date_log_ts > $arResult["LAST_LOG_TS"]
+							&& $key >= $nTopCount
+						) // new comments, no more than 20
+						|| (
+							(
+								$event_date_log_ts <= $arResult["LAST_LOG_TS"]
+								|| $arResult["LAST_LOG_TS"] <= 0
+							)
+							&& $key >= $arParams["COMMENTS_IN_EVENT"]
+						) // old comments, no more than 3
 					)
 				)
 				{
-					//
 				}
 				else
 				{
@@ -251,7 +480,8 @@ if ($arEvent)
 
 		$arCommentRights = CSocNetLogComponent::getCommentRights(array(
 			"EVENT_ID" => $arEvent["EVENT"]["EVENT_ID"],
-			"SOURCE_ID" => $arEvent["EVENT"]["SOURCE_ID"]
+			"SOURCE_ID" => $arEvent["EVENT"]["SOURCE_ID"],
+			"USER_ID" => $USER->getId()
 		));
 		$arResult["COMMENT_RIGHTS_EDIT"] = $arCommentRights["COMMENT_RIGHTS_EDIT"];
 		$arResult["COMMENT_RIGHTS_DELETE"] = $arCommentRights["COMMENT_RIGHTS_DELETE"];
@@ -267,6 +497,60 @@ if ($arEvent)
 			$arResult["RATING_COMMENTS"] = CRatings::GetRatingVoteResult($rating_entity_type, $arCommentID);
 		}
 	}
+
+	$liveFeedEntity = Livefeed\Provider::init(array(
+		'ENTITY_TYPE' => $contentId['ENTITY_TYPE'],
+		'ENTITY_ID' => $contentId['ENTITY_ID'],
+		'LOG_ID' => $arEvent["EVENT"]["ID"]
+	));
+
+	if (
+		(
+			isset($arParams["FROM_LOG"])
+			&& $arParams["FROM_LOG"] == 'N'
+		)
+		&& !empty($arEvent["EVENT"])
+		&& $contentId
+	)
+	{
+		if ($liveFeedEntity)
+		{
+			$liveFeedEntity->setContentView();
+		}
+	}
+
+	if (
+		$liveFeedEntity
+		&& $contentId
+	)
+	{
+		$arResult["CONTENT_ID"] = (!empty($arParams["CONTENT_ID"]) ? $arParams["CONTENT_ID"] : $contentId['ENTITY_TYPE'].'-'.intval($contentId['ENTITY_ID']));
+
+		if (isset($arParams["CONTENT_VIEW_CNT"]))
+		{
+			$arResult["CONTENT_VIEW_CNT"] = intval($arParams["CONTENT_VIEW_CNT"]);
+		}
+		else
+		{
+			if (
+				($contentViewData = \Bitrix\Socialnetwork\Item\UserContentView::getViewData(array(
+					'contentId' => array($arResult["CONTENT_ID"])
+				)))
+				&& !empty($contentViewData[$arResult["CONTENT_ID"]])
+			)
+			{
+				$arResult["CONTENT_VIEW_CNT"] = intval($contentViewData[$arResult["CONTENT_ID"]]["CNT"]);
+			}
+			else
+			{
+				$arResult["CONTENT_VIEW_CNT"] = 0;
+			}
+		}
+	}
+}
+else
+{
+	return;
 }
 
 $arResult["Event"] = $arEvent;

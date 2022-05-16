@@ -1,0 +1,6 @@
+<?
+$sSectionName = "Авиакассы";
+$arDirProperties = Array(
+
+);
+?>

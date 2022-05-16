@@ -9,6 +9,15 @@ class CMailYandex2
 	{
 	}
 
+	public static function getImapData()
+	{
+		return array(
+			'server' => 'imap.yandex.ru',
+			'port'   => 993,
+			'secure' => true,
+		);
+	}
+
 	/**
 	 * https://pddimp.yandex.ru/api2/admin/domain/register
 	 *
@@ -106,7 +115,7 @@ class CMailYandex2
 	 */
 	public static function deleteDomain($token, $domain, &$error)
 	{
-		$result = self::post('https://pddimp.yandex.ru/api2/domain/delete', array(
+		$result = self::post('https://pddimp.yandex.ru/api2/admin/domain/delete', array(
 			'token'  => $token,
 			'domain' => $domain
 		));
@@ -450,6 +459,11 @@ class CMailYandex2
 	{
 		$http = new \Bitrix\Main\Web\HttpClient();
 
+		if (!empty($data['token']))
+		{
+			$http->setHeader('PddToken', $data['token']);
+		}
+
 		$response = $http->post($url, $data);
 		$result   = json_decode($response, true);
 
@@ -459,6 +473,11 @@ class CMailYandex2
 	private static function get($url, $data)
 	{
 		$http = new \Bitrix\Main\Web\HttpClient();
+
+		if (!empty($data['token']))
+		{
+			$http->setHeader('PddToken', $data['token']);
+		}
 
 		$response = $http->get($url.'?'.http_build_query($data));
 		$result   = json_decode($response, true);

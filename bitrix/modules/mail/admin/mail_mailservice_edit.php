@@ -30,13 +30,13 @@ if ($ms)
 	$str_SITE_ID    = $ms['SITE_ID'];
 	$str_ACTIVE     = $ms['ACTIVE'];
 	$str_TYPE       = $ms['SERVICE_TYPE'];
-	$str_NAME       = $ms['NAME'];
-	$str_SERVER     = $ms['SERVER'];
+	$str_NAME       = htmlspecialcharsbx($ms['NAME']);
+	$str_SERVER     = htmlspecialcharsbx($ms['SERVER']);
 	$str_PORT       = $ms['PORT'];
 	$str_ENCRYPTION = $ms['ENCRYPTION'];
-	$str_LINK       = $ms['LINK'];
+	$str_LINK       = htmlspecialcharsbx($ms['LINK']);
 	$str_ICON       = $ms['ICON'];
-	$str_TOKEN      = $ms['TOKEN'];
+	$str_TOKEN      = htmlspecialcharsbx($ms['TOKEN']);
 	$str_SORT       = $ms['SORT'];
 }
 else
@@ -46,6 +46,7 @@ else
 
 if ($REQUEST_METHOD == "POST" && (strlen($save) > 0 || strlen($apply) > 0) && $MOD_RIGHT == "W" && check_bitrix_sessid())
 {
+	$ICON = $_FILES['ICON'];
 	$ICON['old_file'] = $str_ICON;
 	$ICON['del'] = $remove_icon;
 
@@ -156,9 +157,9 @@ $tabControl = new CAdminTabControl("tabControl", $aTabs);
 		<td width="60%">
 			<select name="SITE_ID">
 				<? $result = Bitrix\Main\SiteTable::getList(array('filter' => array('ACTIVE' => 'Y'), 'order' => array('SORT' => 'ASC'))); ?>
-				<? while (($site = $result->fetch()) !== false) { ?>
-					?><option value="<?=$site['LID']; ?>"<? if ($str_SITE_ID == $site['LID']) { ?> selected="selected"<? } ?>><?=$site['NAME']; ?></option>
-				<? } ?>
+				<? while (($site = $result->fetch()) !== false): ?>
+					<option value="<?=$site['LID'] ?>" <? if ($str_SITE_ID == $site['LID']) echo 'selected'; ?>><?=htmlspecialcharsbx($site['NAME']) ?></option>
+				<? endwhile ?>
 			</select>
 		</td>
 	</tr>

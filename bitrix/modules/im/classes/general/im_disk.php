@@ -58,7 +58,7 @@ class CIMDisk
 		return $storageModel;
 	}
 
-	public static function UploadFileRegister($chatId, $files)
+	public static function UploadFileRegister($chatId, $files, $text = '', $linesSilentMode = false)
 	{
 		if (intval($chatId) <= 0)
 			return false;
@@ -113,16 +113,31 @@ class CIMDisk
 		$ar = Array(
 			"TO_CHAT_ID" => $chatId,
 			"FROM_USER_ID" => self::GetUserId(),
-			"MESSAGE_TYPE" => $arChat['chat'][$chatId]['messageType'],
+			"MESSAGE_TYPE" => $arChat['chat'][$chatId]['message_type'],
+			"SILENT_CONNECTOR" => $linesSilentMode?'Y':'N',
 			"PARAMS" => Array(
 				'FILE_ID' => $messageFileId
 			)
 		);
+
+		$text = trim($text);
+		if ($text)
+		{
+			$ar['MESSAGE'] = $text;
+		}
 		$messageId = CIMMessage::Add($ar);
 		if ($messageId)
 		{
 			$result['MESSAGE_ID'] = $messageId;
 		}
+		else
+		{
+			if ($e = $GLOBALS["APPLICATION"]->GetException())
+			{
+				$result['MESSAGE_ERROR'] = $e->GetString();
+			}
+		}
+
 		return $result;
 	}
 
@@ -130,56 +145,118 @@ class CIMDisk
 	{
 		$post = \Bitrix\Main\Context::getCurrent()->getRequest()->getPostList()->toArray();
 		$post['PARAMS'] = CUtil::JsObjectToPhp($post['REG_PARAMS']);
+		$post['MESSAGE_HIDDEN'] = $post['REG_MESSAGE_HIDDEN'] == 'Y'? 'Y': 'N';
+		$text = '';
 
-		$chatId = intval($post['REG_CHAT_ID']);
+		if ($post['PARAMS']['TEXT'])
+		{
+			$text = trim(str_replace(Array('[BR]', '[br]'), "\n", $post['PARAMS']['TEXT']));
+			$text = preg_replace("/\[DISK\=([0-9]+)\]/i", "", $text);
+			$text = \Bitrix\Im\Text::parse($text);
+		}
+
+//		$chatId = intval($post['REG_CHAT_ID']);
+		$chatId = intval($post['CHAT_ID']);
 		if (intval($chatId) <= 0)
 		{
-			$error = GetMessage('IM_DISK_ERR_UPLOAD');
+			$error = GetMessage('IM_DISK_ERR_UPLOAD').' (E100)';
+			return false;
+		}
+
+		$chat = \Bitrix\Im\Chat::getById($chatId);
+		if (!$chat)
+		{
+			$error = GetMessage('IM_DISK_ERR_UPLOAD').' (E101)';
 			return false;
 		}
 
 		$chatRelation = CIMChat::GetRelationById($chatId);
 		if (!$chatRelation[self::GetUserId()])
 		{
-			$error = GetMessage('IM_DISK_ERR_UPLOAD');
+			$error = GetMessage('IM_DISK_ERR_UPLOAD').' (E102)';
+			return false;
+		}
+
+		if ($chat['ENTITY_TYPE'] === 'ANNOUNCEMENT' && $chatRelation[self::GetUserId()]['MANAGER'] !== 'Y')
+		{
+			$error = GetMessage('IM_DISK_ERR_UPLOAD').' (E103)';
 			return false;
 		}
 
 		$folderModel = self::GetFolderModel($chatId);
 		if (!$folderModel)
 		{
-			$error = GetMessage('IM_DISK_ERR_UPLOAD');
-			return false;
-		}
-
-		$fileId = $post['PARAMS'][$file["id"]];
-		if (!$fileId)
-		{
-			$error = GetMessage('IM_DISK_ERR_UPLOAD');
+			$error = GetMessage('IM_DISK_ERR_UPLOAD').' (E104)';
 			return false;
 		}
 
 		if (!$file["files"]["default"])
 		{
-			$error = GetMessage('IM_DISK_ERR_UPLOAD');
+			$error = GetMessage('IM_DISK_ERR_UPLOAD').' (E106)';
 			return false;
 		}
 
-		/** @var $fileModel \Bitrix\Disk\File */
-		$fileModel = \Bitrix\Disk\File::getById($fileId);
-		if (!$fileModel || $fileModel->getParentId() != $folderModel->getId())
+		$fileModel = $folderModel->uploadFile(
+			$file['files']['default'],
+			[
+				'NAME' => $file['name'],
+				'CREATED_BY' => self::GetUserId()
+			],
+			[],
+			true
+		);
+
+		if (!$fileModel || !$fileModel->getId())
 		{
-			$error = GetMessage('IM_DISK_ERR_UPLOAD');
+			$error = GetMessage('IM_DISK_ERR_UPLOAD').' (E107)';
 			return false;
 		}
-		$resultUpdate = $fileModel->uploadVersion($file["files"]["default"], self::GetUserId());
-		if (!$resultUpdate)
+
+		$fileTmpId = $file["id"];
+		$messageTmpId = $file["regTmpMessageId"];
+		$isMessageHidden = $file["regHiddenMessageId"] === 'Y';
+
+		if (!$fileTmpId || !$messageTmpId)
+		{
+			$error = "exemplarId Is not defined";
+			return false;
+		}
+		$uploadRealResult = self::UploadFileFromDisk(
+			$chatId,
+			['upload'.$fileModel->getId()],
+			$text,
+			[
+				'LINES_SILENT_MODE' => $isMessageHidden,
+				'TEMPLATE_ID' => $messageTmpId,
+				'FILE_TEMPLATE_ID' => $fileTmpId
+			]
+		);
+
+		//		$fileId = $post['PARAMS'][$file["id"]];
+		//		if (!$fileId)
+		//		{
+		//			$error = GetMessage('IM_DISK_ERR_UPLOAD').' (E105)';
+		//			return false;
+		//		}
+
+		//		/** @var $fileModel \Bitrix\Disk\File */
+		//		$fileModel = \Bitrix\Disk\File::getById($fileId);
+		//		if (!$fileModel || $fileModel->getParentId() != $folderModel->getId())
+		//		{
+		//			$error = GetMessage('IM_DISK_ERR_UPLOAD').' (E107)';
+		//
+		//			return false;
+		//		}
+
+		/*$lastVersion = $fileModel->getLastVersion();
+		$newVersion = $fileModel->uploadVersion($file["files"]["default"], self::GetUserId());
+		if (!$newVersion)
 		{
 			$errors = $fileModel->getErrors();
 			$message = '';
 			foreach ($errors as $errorCode)
 			{
-				$message = $message.' '.$errorCode->getMessage();
+				$message = $message.' '.$errorCode->getMessage().' (C'.$errorCode->getCode().')';
 			}
 			$message = trim($message);
 			if (strlen($message) > 0)
@@ -189,11 +266,20 @@ class CIMDisk
 			return false;
 		}
 
+		if ($lastVersion && $lastVersion->getId() != $newVersion->getId())
+		{
+			//we have to delete previous version because it is version of blank file, and it is unnecessary and
+			//it hurts our reports of disk space.
+			$lastVersion->delete(self::GetUserId());
+		}
+
 		$messageId = intval($post['REG_MESSAGE_ID']);
+		$messageHidden = $post['MESSAGE_HIDDEN'];
 
 		$file['fileId'] = $fileId;
 		$file['fileTmpId'] = $file["id"];
 		$file['fileMessageId'] = $messageId;
+		$file['fileMessageHidden'] = $messageHidden;
 		$file['fileChatId'] = $chatId;
 		$file['fileParams'] = self::GetFileParams($chatId, $fileModel);
 
@@ -208,29 +294,39 @@ class CIMDisk
 			\Bitrix\Disk\Driver::getInstance()->getRecentlyUsedManager()->push($relation['USER_ID'], $fileId);
 		}
 
+		$orm = \Bitrix\Im\Model\ChatTable::getById($chatId);
+		$chat = $orm->fetch();
+
 		if (CModule::IncludeModule('pull'))
 		{
-			foreach ($chatRelation as $relation)
+			$pullMessage = Array(
+				'module_id' => 'im',
+				'command' => 'fileUpload',
+				'params' => Array(
+					'fileChatId' => $file['fileChatId'],
+					'fileId' => $file['fileId'],
+					'fileTmpId' => $file["id"],
+					'fileMessageId' => $file["fileMessageId"],
+					'fileMessageHidden' => $file['fileMessageHidden'],
+					'fileParams' => $file['fileParams'],
+				),
+				'extra' => \Bitrix\Im\Common::getPullExtra()
+			);
+			\Bitrix\Pull\Event::add(array_keys($chatRelation), $pullMessage);
+
+			if ($chat['TYPE'] == IM_MESSAGE_OPEN || $chat['TYPE'] == IM_MESSAGE_OPEN_LINE)
 			{
-				CPullStack::AddByUser($relation['USER_ID'], Array(
-					'module_id' => 'im',
-					'command' => 'fileUpload',
-					'params' => Array(
-						'fileChatId' => $file['fileChatId'],
-						'fileId' => $file['fileId'],
-						'fileTmpId' => $file["id"],
-						'fileMessageId' => $file["fileMessageId"],
-						'fileParams' => $file['fileParams'],
-					)
-				));
+				CPullWatch::AddToStack('IM_PUBLIC_'.$chat['ID'], $pullMessage);
 			}
 		}
 
 		$arFiles[$fileId] = $file['fileParams'];
 		$file['fileMessageOut'] = CIMMessenger::GetFormatFilesMessageOut($arFiles);
 
-		CIMMessage::UpdateMessageOut($messageId, $file['fileMessageOut']);
+		CIMMessage::UpdateMessageOut($messageId, $file['fileMessageOut']);*/
 
+
+		/*
 		foreach(GetModuleEvents("im", "OnAfterFileUpload", true) as $arEvent)
 		{
 			ExecuteModuleEventEx($arEvent, array(Array(
@@ -238,9 +334,90 @@ class CIMDisk
 				'FILE_ID' => $file['fileId'],
 				'MESSAGE_ID' => $file['fileMessageId'],
 				'MESSAGE_OUT' => $file['fileMessageOut'],
+				'MESSAGE_HIDDEN' => $file['fileMessageHidden'],
 				'FILE' => $file['fileParams'],
 			)));
 		}
+		*/
+		if (CModule::IncludeModule('imopenlines'))
+		{
+			if ($chat['ENTITY_TYPE'] == 'LINES' && $post['REG_MESSAGE_HIDDEN'] == 'N')
+			{
+				list($connectorId, $lineId, $connectorChatId) = explode("|", $chat['ENTITY_ID']);
+				if ($connectorId == 'livechat')
+				{
+					$uploadResult = self::UploadFileFromDisk(
+						$connectorChatId,
+						['disk'.$fileModel->getId()],
+						$text,
+						['LINES_SILENT_MODE' => false],
+						true
+					);
+					if ($uploadResult['MESSAGE_ID'] && $uploadRealResult['MESSAGE_ID'])
+					{
+						\Bitrix\Im\Model\MessageParamTable::add(
+							[
+								"MESSAGE_ID" => $uploadRealResult['MESSAGE_ID'],
+								"PARAM_NAME" => 'CONNECTOR_MID',
+								"PARAM_VALUE" => $uploadResult['MESSAGE_ID']
+							]
+						);
+						\Bitrix\Im\Model\MessageParamTable::add(
+							[
+								"MESSAGE_ID" => $uploadResult['MESSAGE_ID'],
+								"PARAM_NAME" => 'CONNECTOR_MID',
+								"PARAM_VALUE" => $uploadRealResult['MESSAGE_ID']
+							]
+						);
+
+						$event = new \Bitrix\Main\Event("imopenlines", "OnLivechatUploadFile", Array('FILES' => Array($file['fileId'])));
+						$event->send();
+					}
+				}
+			}
+			else if ($chat['ENTITY_TYPE'] == 'LIVECHAT' && $post['REG_MESSAGE_HIDDEN'] == 'N')
+			{
+				list($lineId, $userId) = explode("|", $chat['ENTITY_ID']);
+
+				$session = new \Bitrix\Imopenlines\Session();
+				$result = $session->load(Array(
+					'USER_CODE' => 'livechat|'.$lineId.'|'.$chat['ID'].'|'.$userId
+				));
+				if ($result)
+				{
+					$uploadResult = self::UploadFileFromDisk(
+						$session->getData('CHAT_ID'),
+						Array('disk'.$fileModel->getId()),
+						$text,
+						['LINES_SILENT_MODE' => false],
+						true
+					);
+					if ($uploadResult['MESSAGE_ID'] && $uploadRealResult['MESSAGE_ID'])
+					{
+						\Bitrix\Im\Model\MessageParamTable::add(
+							[
+								"MESSAGE_ID" => $uploadRealResult['MESSAGE_ID'],
+								"PARAM_NAME" => 'CONNECTOR_MID',
+								"PARAM_VALUE" => $uploadResult['MESSAGE_ID']
+							]
+						);
+						\Bitrix\Im\Model\MessageParamTable::add(
+							[
+								"MESSAGE_ID" => $uploadResult['MESSAGE_ID'],
+								"PARAM_NAME" => 'CONNECTOR_MID',
+								"PARAM_VALUE" => $uploadRealResult['MESSAGE_ID']
+							]
+						);
+
+						$event = new \Bitrix\Main\Event("imopenlines", "OnLivechatUploadFile", Array('FILES' => $uploadResult['DISK_ID']));
+						$event->send();
+					}
+				}
+			}
+		}
+
+		$file['fileParams'] = self::GetFileParams($chatId, $fileModel);
+		$file['fileParams']['date'] = date('c', $file['fileParams']['date']->getTimestamp());
 
 		return true;
 	}
@@ -252,11 +429,15 @@ class CIMDisk
 
 		$chatRelation = CIMChat::GetRelationById($chatId);
 		if (!$chatRelation[self::GetUserId()])
+		{
 			return false;
+		}
 
 		$folderModel = self::GetFolderModel($chatId);
 		if (!$folderModel)
+		{
 			return false;
+		}
 
 		$result['CHAT_ID'] = $chatId;
 		$result['FILE_ID'] = Array();
@@ -292,17 +473,23 @@ class CIMDisk
 
 		if (CModule::IncludeModule('pull'))
 		{
-			foreach ($chatRelation as $relation)
+			$pullMessage = Array(
+				'module_id' => 'im',
+				'command' => 'fileUnRegister',
+				'params' => Array(
+					'chatId' => $result['CHAT_ID'],
+					'files' => $result['FILE_ID'],
+					'messages' => $result['MESSAGE_ID'],
+				),
+				'extra' => \Bitrix\Im\Common::getPullExtra()
+			);
+			\Bitrix\Pull\Event::add(array_keys($chatRelation), $pullMessage);
+
+			$orm = \Bitrix\Im\Model\ChatTable::getById($result['CHAT_ID']);
+			$chat = $orm->fetch();
+			if ($chat['TYPE'] == IM_MESSAGE_OPEN || $chat['TYPE'] == IM_MESSAGE_OPEN_LINE)
 			{
-				CPullStack::AddByUser($relation['USER_ID'], Array(
-					'module_id' => 'im',
-					'command' => 'fileUnRegister',
-					'params' => Array(
-						'chatId' => $result['CHAT_ID'],
-						'files' => $result['FILE_ID'],
-						'messages' => $result['MESSAGE_ID'],
-					)
-				));
+				CPullWatch::AddToStack('IM_PUBLIC_'.$chat['ID'], $pullMessage);
 			}
 		}
 
@@ -353,40 +540,87 @@ class CIMDisk
 
 		if (CModule::IncludeModule('pull'))
 		{
-			foreach ($chatRelation as $relation)
+			$pullMessage = Array(
+				'module_id' => 'im',
+				'command' => 'fileDelete',
+				'params' => Array(
+					'chatId' => $chatId,
+					'fileId' => $fileId
+				),
+				'extra' => \Bitrix\Im\Common::getPullExtra()
+			);
+			\Bitrix\Pull\Event::add(array_keys($chatRelation), $pullMessage);
+
+			$orm = \Bitrix\Im\Model\ChatTable::getById($chatId);
+			$chat = $orm->fetch();
+			if ($chat['TYPE'] == IM_MESSAGE_OPEN || $chat['TYPE'] == IM_MESSAGE_OPEN_LINE)
 			{
-				CPullStack::AddByUser($relation['USER_ID'], Array(
-					'module_id' => 'im',
-					'command' => 'fileDelete',
-					'params' => Array(
-						'chatId' => $chatId,
-						'fileId' => $fileId
-					)
-				));
+				CPullWatch::AddToStack('IM_PUBLIC_'.$chat['ID'], $pullMessage);
 			}
 		}
 
 		return true;
 	}
 
-	public static function UploadFileFromDisk($chatId, $files)
+	/**
+	 * @param $chatId
+	 * @param $files
+	 * @param string $text
+	 * @param array $options
+	 * @param bool $robot
+	 * @return bool
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\LoaderException
+	 * @throws \Bitrix\Main\ObjectException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function UploadFileFromDisk($chatId, $files, $text = '', $options = [], $robot = false)
 	{
 		if (intval($chatId) <= 0)
 			return false;
 
-		$chatRelation = CIMChat::GetRelationById($chatId);
-		if (!$chatRelation[self::GetUserId()])
+		$orm = \Bitrix\Im\Model\ChatTable::getList([
+			'filter'=>[
+				'=ID' => $chatId
+			]
+		]);
+		$chat = $orm->fetch();
+		if (!$chat)
 			return false;
 
+		$linesSilentMode = $options['LINES_SILENT_MODE'] === true;
+		$templateId = strlen($options['TEMPLATE_ID']) > 0? $options['TEMPLATE_ID']: '';
+		$fileTemplateId = strlen($options['FILE_TEMPLATE_ID']) > 0? $options['FILE_TEMPLATE_ID']: '';
+
+		$chatRelation = CIMChat::GetRelationById($chatId);
+		if ($chat['ENTITY_TYPE'] != 'LIVECHAT')
+		{
+			if (!$chatRelation[self::GetUserId()])
+				return false;
+		}
+
+		if ($chat['ENTITY_TYPE'] === 'ANNOUNCEMENT' && $chatRelation[self::GetUserId()]['MANAGER'] !== 'Y')
+		{
+			return false;
+		}
+
 		$result['FILES'] = Array();
-		$messageFileId = Array();
+		$result['DISK_ID'] = Array();
 		foreach ($files as $fileId)
 		{
-			$newFile = self::SaveFromLocalDisk($chatId, substr($fileId, 4));
+			if (substr($fileId, 0, 6) == 'upload')
+			{
+				$newFile = self::IncreaseFileVersionDisk($chatId, substr($fileId, 6));
+			}
+			else
+			{
+				$newFile = self::SaveFromLocalDisk($chatId, substr($fileId, 4));
+			}
 			if ($newFile)
 			{
 				$result['FILES'][$fileId] = self::GetFileParams($chatId, $newFile);
-				$messageFileId[] = $newFile->getId();
+				$result['DISK_ID'][] = $newFile->getId();
 
 				foreach ($chatRelation as $relation)
 				{
@@ -404,28 +638,129 @@ class CIMDisk
 				$result['FILES'][$fileId]['id'] = 0;
 			}
 		}
-		if (empty($messageFileId))
+		if (empty($result['DISK_ID']))
 		{
 			return false;
 		}
 
 		$result['MESSAGE_ID'] = 0;
-		$arChat = CIMChat::GetChatData(Array('ID' => $chatId));
-		$ar = Array(
+		$ar = [
 			"TO_CHAT_ID" => $chatId,
 			"FROM_USER_ID" => self::GetUserId(),
-			"MESSAGE_TYPE" => $arChat['chat'][$chatId]['messageType'],
-			"PARAMS" => Array(
-				'FILE_ID' => $messageFileId
-			)
-		);
+			"MESSAGE_TYPE" => $chat['TYPE'],
+			"PARAMS" => [
+				'FILE_ID' => $result['DISK_ID']
+			],
+			"SILENT_CONNECTOR" => $linesSilentMode?'Y':'N',
+			"SKIP_USER_CHECK" => $chat['ENTITY_TYPE'] == 'LIVECHAT',
+			"TEMPLATE_ID" => $templateId,
+			"FILE_TEMPLATE_ID" => $fileTemplateId,
+		];
+
+		if ($chat['ENTITY_TYPE'] == 'LIVECHAT')
+		{
+			list($lineId) = explode("|", $chat['ENTITY_ID']);
+			$ar["EXTRA_PARAMS"] = [
+				"CONTEXT" => "LIVECHAT",
+				"LINE_ID" => $lineId
+			];
+		}
+
+		$text = trim($text);
+		if ($text)
+		{
+			$ar["MESSAGE"] = $text;
+		}
+
 		$messageId = CIMMessage::Add($ar);
 		if ($messageId)
 		{
 			$result['MESSAGE_ID'] = $messageId;
 		}
 
+		if (!$robot && !$linesSilentMode)
+		{
+			if ($chat['ENTITY_TYPE'] == 'LIVECHAT' && CModule::IncludeModule('imopenlines'))
+			{
+				list($lineId, $userId) = explode("|", $chat['ENTITY_ID']);
+
+				$session = new \Bitrix\Imopenlines\Session();
+				if ($session->load([
+					'USER_CODE' => 'livechat|'.$lineId.'|'.$chat['ID'].'|'.$userId,
+					'DEFERRED_JOIN' => 'Y',
+				]))
+				{
+					if ($session->isNowCreated())
+					{
+						\Bitrix\ImOpenLines\Connector::saveCustomData($session->getData('CHAT_ID'), $_SESSION['LIVECHAT']['CUSTOM_DATA']);
+
+						$session->joinUser();
+
+						$messageParams = [
+							'IMOL_SID' => $session->getData('ID'),
+							"IMOL_FORM" => "welcome",
+							"TYPE" => "lines",
+							"COMPONENT_ID" => "bx-imopenlines-message",
+						];
+						\CIMMessageParam::Set($messageId, $messageParams);
+						\CIMMessageParam::SendPull($messageId, array_keys($messageParams));
+					}
+					$session->getData('CHAT_ID');
+				}
+			}
+		}
+
 		return $result;
+	}
+
+	public static function UploadFileFromMain($chatId, $files)
+	{
+		if (intval($chatId) <= 0)
+			return false;
+
+		$chatRelation = CIMChat::GetRelationById($chatId);
+		if (!$chatRelation)
+			return false;
+
+		$folderModel = self::GetFolderModel($chatId);
+		if (!$folderModel)
+			return false;
+
+		$result['FILE_ID'] = Array();
+		$messageFileId = Array();
+		foreach ($files as $fileId)
+		{
+			$res = \CFile::GetByID($fileId);
+			$file = $res->Fetch();
+			if(!$file)
+			{
+				continue;
+			}
+
+			if(empty($file['ORIGINAL_NAME']))
+				$fileName = $file['FILE_NAME'];
+			else
+				$fileName = $file['ORIGINAL_NAME'];
+
+			$fileName = \Bitrix\Disk\Ui\Text::correctFilename($fileName);
+			$newFile = $folderModel->addFile(array(
+				'NAME' => $fileName,
+				'FILE_ID' => $fileId,
+				'SIZE' => $file['FILE_SIZE'],
+				'CREATED_BY' => \Bitrix\Disk\SystemUser::SYSTEM_USER_ID,
+			), Array(), true);
+			if ($newFile)
+			{
+				$newFile->increaseGlobalContentVersion();
+				$messageFileId[] = $newFile->getId();
+			}
+		}
+		if (empty($messageFileId))
+		{
+			return false;
+		}
+
+		return !empty($messageFileId)? $messageFileId: false;
 	}
 
 	public static function SaveToLocalDisk($fileId)
@@ -450,8 +785,38 @@ class CIMDisk
 			return false;
 
 		$newFileModel = $fileModel->copyTo($folderModel, self::GetUserId(), true);
+		if (!$newFileModel)
+			return false;
 
-		return $newFileModel;
+		return [
+			'FILE' => $newFileModel,
+			'FOLDER' => $folderModel,
+		];
+	}
+
+	public static function IncreaseFileVersionDisk($chatId, $fileId)
+	{
+		if (!self::Enabled())
+			return false;
+
+		if (intval($fileId) <= 0)
+			return false;
+
+		if (intval($chatId) <= 0)
+			return false;
+
+		$fileModel = \Bitrix\Disk\File::getById($fileId, array('STORAGE'));
+		if (!$fileModel)
+			return false;
+
+		$storageModel = $fileModel->getStorage();
+
+		if(!$fileModel->canRead($storageModel->getCurrentUserSecurityContext()))
+			return false;
+
+		$fileModel->increaseGlobalContentVersion();
+
+		return $fileModel;
 	}
 
 	public static function SaveFromLocalDisk($chatId, $fileId)
@@ -495,7 +860,7 @@ class CIMDisk
 		if ($chatId <= 0)
 			return false;
 
-		$chat = IM\ChatTable::getById($chatId)->fetch();
+		$chat = IM\Model\ChatTable::getById($chatId)->fetch();
 		if (!$chat)
 			return false;
 
@@ -503,10 +868,14 @@ class CIMDisk
 		$chatRelation = CIMChat::GetRelationById($chatId);
 		foreach ($chatRelation as $relation)
 		{
+			if ($relation["EXTERNAL_AUTH_ID"] == 'imconnector')
+			{
+				unset($chatRelation[$relation["USER_ID"]]);
+				continue;
+			}
 			if ($relation['USER_ID'] == self::GetUserId())
 			{
 				$relationError = false;
-				break;
 			}
 		}
 		if ($relationError)
@@ -515,6 +884,12 @@ class CIMDisk
 			return false;
 		}
 
+		if ($chat['ENTITY_TYPE'] === 'ANNOUNCEMENT' && $chatRelation[self::GetUserId()]['MANAGER'] !== 'Y')
+		{
+			return false;
+		}
+
+		$file["files"]["default"]["MODULE_ID"] = "im";
 		$fileId = CFile::saveFile($file["files"]["default"], self::MODULE_ID);
 		if ($fileId > 0)
 		{
@@ -522,7 +897,7 @@ class CIMDisk
 			{
 				CFile::DeLete($chat['AVATAR']);
 			}
-			IM\ChatTable::update($chatId, Array('AVATAR' => $fileId));
+			IM\Model\ChatTable::update($chatId, Array('AVATAR' => $fileId));
 
 			$file['chatId'] = $chatId;
 			$file['chatAvatar'] = CIMChat::GetAvatarImage($fileId);
@@ -538,22 +913,95 @@ class CIMDisk
 
 			if (CModule::IncludeModule('pull'))
 			{
-				foreach ($chatRelation as $relation)
+				$pullMessage = Array(
+					'module_id' => 'im',
+					'command' => 'chatAvatar',
+					'params' => Array(
+						'chatId' => $chatId,
+						'avatar' => $file['chatAvatar'],
+					),
+					'extra' => \Bitrix\Im\Common::getPullExtra()
+				);
+				\Bitrix\Pull\Event::add(array_keys($chatRelation), $pullMessage);
+				if ($chat['TYPE'] == IM_MESSAGE_OPEN  || $chat['TYPE'] == IM_MESSAGE_OPEN_LINE)
 				{
-					CPullStack::AddByUser($relation['USER_ID'], Array(
-						'module_id' => 'im',
-						'command' => 'chatAvatar',
-						'params' => Array(
-							'chatId' => $chatId,
-							'chatAvatar' => $file['chatAvatar'],
-						),
-					));
+					CPullWatch::AddToStack('IM_PUBLIC_'.$chat['ID'], $pullMessage);
 				}
 			}
 		}
 		else
 		{
 			return false;
+		}
+
+		return true;
+	}
+
+	public static function UpdateAvatarId($chatId, $fileId, $userId = null)
+	{
+		$chatId = intval($chatId);
+		$fileId = intval($fileId);
+		if ($chatId <= 0 || $fileId <= 0)
+			return false;
+
+		$chat = IM\Model\ChatTable::getById($chatId)->fetch();
+		if (!$chat || in_array($chat['TYPE'], Array(IM_MESSAGE_PRIVATE, IM_MESSAGE_SYSTEM)))
+			return false;
+
+		$relationError = true;
+		$chatRelation = CIMChat::GetRelationById($chatId);
+		foreach ($chatRelation as $relation)
+		{
+			if ($relation["EXTERNAL_AUTH_ID"] == 'imconnector')
+			{
+				unset($chatRelation[$relation["USER_ID"]]);
+				continue;
+			}
+			if ($relation['USER_ID'] == self::GetUserId())
+			{
+				$relationError = false;
+			}
+		}
+		if ($relationError)
+		{
+			return false;
+		}
+
+		if ($chat['AVATAR'] > 0)
+		{
+			CFile::DeLete($chat['AVATAR']);
+		}
+		IM\Model\ChatTable::update($chatId, Array('AVATAR' => $fileId));
+
+		$file['chatId'] = $chatId;
+		$file['chatAvatar'] = CIMChat::GetAvatarImage($fileId);
+
+		if ($chat["ENTITY_TYPE"] != 'CALL')
+		{
+			CIMChat::AddSystemMessage(Array(
+				'CHAT_ID' => $chatId,
+				'USER_ID' => \Bitrix\Im\Common::getUserId($userId),
+				'MESSAGE_CODE' => 'IM_DISK_AVATAR_CHANGE_'
+			));
+		}
+
+		if (CModule::IncludeModule('pull'))
+		{
+			$pullMessage = Array(
+				'module_id' => 'im',
+				'command' => 'chatAvatar',
+				'params' => Array(
+					'chatId' => $chatId,
+					'avatar' => $file['chatAvatar'],
+				),
+				'extra' => \Bitrix\Im\Common::getPullExtra()
+			);
+			\Bitrix\Pull\Event::add(array_keys($chatRelation), $pullMessage);
+
+			if ($chat['TYPE'] == IM_MESSAGE_OPEN || $chat['TYPE'] == IM_MESSAGE_OPEN_LINE)
+			{
+				CPullWatch::AddToStack('IM_PUBLIC_'.$chat['ID'], $pullMessage);
+			}
 		}
 
 		return true;
@@ -690,8 +1138,8 @@ class CIMDisk
 		$result = \Bitrix\Disk\Internals\ObjectTable::getList(array(
 			'select' => array('MAX_ID'),
 			'filter' => array(
-				'PARENT_ID' => $folderModel->getId(),
-				'TYPE' => \Bitrix\Disk\Internals\ObjectTable::TYPE_FILE
+				'=PARENT_ID' => $folderModel->getId(),
+				'=TYPE' => \Bitrix\Disk\Internals\ObjectTable::TYPE_FILE
 			),
 			'runtime' => array(
 				'MAX_ID' => array(
@@ -706,7 +1154,7 @@ class CIMDisk
 		return intval($maxId);
 	}
 
-	public static function GetFiles($chatId, $fileId = false)
+	public static function GetFiles($chatId, $fileId = false, $checkPermission = true)
 	{
 		$fileArray = Array();
 		if (!self::Enabled())
@@ -715,7 +1163,7 @@ class CIMDisk
 		if (intval($chatId) <= 0)
 			return $fileArray;
 
-		if ($fileId === false)
+		if ($fileId === false || $fileId === null)
 		{
 			if (!is_array($fileId))
 			{
@@ -730,7 +1178,6 @@ class CIMDisk
 		{
 			return $fileArray;
 		}
-
 		$folderModel = self::GetFolderModel($chatId);
 		if (!$folderModel)
 		{
@@ -745,10 +1192,14 @@ class CIMDisk
 			$filter['ID'] = array_values($fileId);
 		}
 
-		/*
-		 * See details \Bitrix\Im\Disk\ProxyType\Im::getSecurityContextByUser
-		 */
-		$securityContext = new \Bitrix\Disk\Security\DiskSecurityContext(self::GetUserId());
+		if ($checkPermission)
+		{
+			$securityContext = new \Bitrix\Disk\Security\DiskSecurityContext(self::GetUserId());
+		}
+		else
+		{
+			$securityContext = \Bitrix\Disk\Driver::getInstance()->getFakeSecurityContext();
+		}
 
 		$parameters = Array(
 			'filter' => $filter,
@@ -757,7 +1208,6 @@ class CIMDisk
 		$parameters = \Bitrix\Disk\Driver::getInstance()->getRightsManager()->addRightsCheck($securityContext, $parameters, array('ID', 'CREATED_BY'));
 
 		$fileCollection = \Bitrix\Disk\File::getModelList($parameters);
-
 		foreach ($fileCollection as $fileModel)
 		{
 			$fileArray[$fileModel->getId()] = self::GetFileParams($chatId, $fileModel);
@@ -783,22 +1233,87 @@ class CIMDisk
 			return false;
 		}
 
+		if ($fileModel->getId() <= 0)
+		{
+			return false;
+		}
+
+		/** @var \Bitrix\Disk\File $fileModel */
+		$contentType = 'file';
+		$imageParams = false;
+		if (\Bitrix\Disk\TypeFile::isImage($fileModel->getName()))
+		{
+			$contentType = 'image';
+			$params = $fileModel->getFile();
+			$imageParams = Array(
+				'width' => (int)$params['WIDTH'],
+				'height' => (int)$params['HEIGHT'],
+			);
+		}
+		else if (\Bitrix\Disk\TypeFile::isVideo($fileModel->getName()))
+		{
+			$contentType = 'video';
+			$params = $fileModel->getView()->getPreviewData();
+			$imageParams = Array(
+				'width' => (int)$params['WIDTH'],
+				'height' => (int)$params['HEIGHT'],
+			);
+		}
+		else if (\Bitrix\Disk\TypeFile::isAudio($fileModel->getName()))
+		{
+			$contentType = 'audio';
+		}
+
 		$fileData = Array(
-			'id' => $fileModel->getId(),
-			'chatId' => intval($chatId),
-			'date' => $fileModel->getCreateTime()->getTimestamp(),
-			'type' => \Bitrix\Disk\TypeFile::isImage($fileModel->getName())? 'image': 'file',
-			'preview' => '',
+			'id' => (int)$fileModel->getId(),
+			'chatId' => (int)$chatId,
+			'date' => $fileModel->getCreateTime(),
+			'type' => $contentType,
 			'name' => $fileModel->getName(),
-			'size' => $fileModel->getSize(),
+			'extension' => strtolower($fileModel->getExtension()),
+			'size' => (int)$fileModel->getSize(),
+			'image' => $imageParams,
 			'status' => $fileModel->getGlobalContentVersion() > 1? 'done': 'upload',
 			'progress' => $fileModel->getGlobalContentVersion() > 1? 100: -1,
-			'authorId' => $fileModel->getCreatedBy(),
-			'authorName' => CUser::FormatName(CSite::GetNameFormat(false), $fileModel->getCreateUser(), true, false),
+			'authorId' => (int)$fileModel->getCreatedBy(),
+			'authorName' => \Bitrix\Im\User::formatFullNameFromDatabase($fileModel->getCreateUser()),
 			'urlPreview' => self::GetPublicPath(self::PATH_TYPE_PREVIEW, $fileModel),
 			'urlShow' => self::GetPublicPath(self::PATH_TYPE_SHOW, $fileModel),
 			'urlDownload' => self::GetPublicPath(self::PATH_TYPE_DOWNLOAD, $fileModel),
 		);
+
+		try
+		{
+			$viewerType = Bitrix\Main\UI\Viewer\ItemAttributes::buildByFileId($fileModel->getFileId(), $fileData['urlDownload'])
+				->setGroupBy($chatId)
+				->setTitle($fileModel->getName())
+				->addAction([
+					'type' => 'download',
+				])
+				->addAction([
+					'type' => 'copyToMe',
+					'text' => GetMessage('IM_DISK_ACTION_SAVE_TO_OWN_FILES'),
+					'action' => 'BXIM.disk.saveToDiskAction',
+					'params' => [
+						'fileId' => $fileModel->getId(),
+					],
+					'extension' => 'disk.viewer.actions',
+					'buttonIconClass' => 'ui-btn-icon-cloud',
+				]);
+			;
+			if ($viewerType->getViewerType() !== \Bitrix\Main\UI\Viewer\Renderer\Renderer::JS_TYPE_UNKNOWN)
+			{
+				$fileData['viewerAttrs'] = $viewerType->toDataSet();
+			}
+			else
+			{
+				$fileData['viewerAttrs'] = null;
+			}
+		}
+		catch (\Bitrix\Main\ArgumentException $exception)
+		{
+			$fileData['viewerAttrs'] = null;
+		}
 
 		return $fileData;
 	}
@@ -824,12 +1339,12 @@ class CIMDisk
 
 		$folderModel = false;
 
-		$result = IM\ChatTable::getById($chatId);
+		$result = IM\Model\ChatTable::getById($chatId);
 		if (!$chat = $result->fetch())
 			return false;
 
 		$folderId = intval($chat['DISK_FOLDER_ID']);
-		$chatType = intval($chat['TYPE']);
+		$chatType = $chat['TYPE'];
 		if ($folderId > 0)
 		{
 			$folderModel = \Bitrix\Disk\Folder::getById($folderId);
@@ -896,9 +1411,9 @@ class CIMDisk
 				}
 			}
 
-			$folderModel = $storageModel->addFolder(array('NAME' => 'chat'.$chatId, 'CREATED_BY' => self::GetUserId()), $accessCodes);
+			$folderModel = $storageModel->addFolder(array('NAME' => 'chat'.$chatId, 'CREATED_BY' => self::GetUserId()), $accessCodes, true);
 			if ($folderModel)
-				IM\ChatTable::update($chatId, Array('DISK_FOLDER_ID' => $folderModel->getId()));
+				IM\Model\ChatTable::update($chatId, Array('DISK_FOLDER_ID' => $folderModel->getId()));
 		}
 
 		return $folderModel;
@@ -910,7 +1425,7 @@ class CIMDisk
 		if (!$folderModel)
 			return false;
 
-		$result = IM\ChatTable::getById($chatId);
+		$result = IM\Model\ChatTable::getById($chatId);
 		if (!$chat = $result->fetch())
 			return false;
 
@@ -929,7 +1444,7 @@ class CIMDisk
 			if ($chat['TYPE'] == IM_MESSAGE_OPEN)
 			{
 				$users = CIMContactList::GetUserData(array(
-					'ID' => $userIds,
+					'ID' => array_values($userIds),
 					'DEPARTMENT' => 'N',
 					'SHOW_ONLINE' => 'N',
 				));
@@ -955,6 +1470,7 @@ class CIMDisk
 					$accessCodes[] = array(
 						'ACCESS_CODE' => 'U'.$userId,
 						'TASK_ID' => $fullAccessTaskId,
+						'NEGATIVE' => 0
 					);
 				}
 			}
@@ -969,7 +1485,7 @@ class CIMDisk
 			if ($chat['TYPE'] == IM_MESSAGE_OPEN)
 			{
 				$users = CIMContactList::GetUserData(array(
-					'ID' => $userIds,
+					'ID' => array_values($userIds),
 					'DEPARTMENT' => 'N',
 					'SHOW_ONLINE' => 'N',
 				));
@@ -1008,61 +1524,8 @@ class CIMDisk
 		{
 			return false;
 		}
-		$folderModel = \Bitrix\Disk\Folder::load(array(
-			'STORAGE_ID' => $storageModel->getId(),
-			'PARENT_ID' => $storageModel->getRootObjectId(),
-			'TYPE' => \Bitrix\Disk\Internals\ObjectTable::TYPE_FOLDER,
-			'CODE' => 'IM_SAVED',
-		));
-		if (!$folderModel)
-		{
-			$folderName = GetMessage(IsModuleInstalled('intranet')? 'IM_DISK_LOCAL_FOLDER_B24_TITLE': 'IM_DISK_LOCAL_FOLDER_TITLE');
-			$folderModel = $storageModel->addFolder(array(
-				'NAME' => $folderName,
-				'CREATED_BY' => self::GetUserId(),
-				'CODE' => 'IM_SAVED',
-			));
-			if (!$folderModel)
-			{
-				if ($storageModel->getErrorByCode(\Bitrix\Disk\Folder::ERROR_NON_UNIQUE_NAME))
-				{
-					$badFileModel = \Bitrix\Disk\File::load(array(
-                        'STORAGE_ID' => $storageModel->getId(),
-                        'TYPE' => \Bitrix\Disk\Internals\ObjectTable::TYPE_FILE,
-                        'NAME' => $folderName,
-                    ));
-                    if($badFileModel)
-                    {
-                        $badFileModel->delete(\Bitrix\Disk\SystemUser::SYSTEM_USER_ID);
 
-						$folderModel = $storageModel->addFolder(array(
-							'NAME' => $folderName,
-							'CREATED_BY' => self::GetUserId(),
-							'CODE' => 'IM_SAVED',
-						));
-                    }
-					else
-					{
-						$folderModel = \Bitrix\Disk\Folder::load(array(
-							'STORAGE_ID' => $storageModel->getId(),
-							'PARENT_ID' => $storageModel->getRootObjectId(),
-							'TYPE' => \Bitrix\Disk\Internals\ObjectTable::TYPE_FOLDER,
-							'NAME' => $folderName,
-						));
-						$folderModel->changeCode('IM_SAVED');
-					}
-				}
-				else
-				{
-					$folderModel = $storageModel->addFolder(array(
-						'NAME' => $folderName,
-						'CREATED_BY' => self::GetUserId(),
-						'CODE' => 'IM_SAVED',
-					), Array(), true);
-				}
-			}
-		}
-		return $folderModel;
+		return $storageModel->getFolderForSavedFiles();
 	}
 
 	public static function GetStorageId()
@@ -1089,36 +1552,136 @@ class CIMDisk
 		return true;
 	}
 
+	public static function GetLocalDiskFolderPath()
+	{
+		if (!self::Enabled())
+			return '';
+
+		$folderModel = self::GetLocalDiskMolel();
+		if (!$folderModel)
+			return '';
+
+		return \Bitrix\Disk\Driver::getInstance()->getUrlManager()->getUrlFocusController('openFolderList', array('folderId' => $folderModel->getId()));
+	}
+
+	public static function GetLocalDiskFilePath($fileId = 0)
+	{
+		if (!self::Enabled())
+			return '';
+
+		$fileId = intval($fileId);
+
+		return \Bitrix\Disk\Driver::getInstance()->getUrlManager()->getUrlFocusController('showObjectInGrid', array('objectId' => $fileId? $fileId: '_FILE_ID_'));
+	}
+
 	public static function GetPublicPath($type, \Bitrix\Disk\File $fileModel)
 	{
+		$result = '';
+
 		if (!in_array($type, Array(self::PATH_TYPE_DOWNLOAD, self::PATH_TYPE_SHOW, self::PATH_TYPE_PREVIEW)))
-			return '';
+			return $result;
 
 		if ($fileModel->getGlobalContentVersion() <= 1)
-			return '';
+			return $result;
 
-		$isShow = in_array($type, Array(self::PATH_TYPE_SHOW, self::PATH_TYPE_PREVIEW)) && \Bitrix\Disk\TypeFile::isImage($fileModel->getName());
-		$isPreview = $isShow && in_array($type, Array(self::PATH_TYPE_PREVIEW));
 
-		if ($type == self::PATH_TYPE_PREVIEW && !$isPreview)
-			return '';
+		$urlManager = \Bitrix\Main\Engine\UrlManager::getInstance();
 
-		$url = Array(
-			'default' => '/bitrix/components/bitrix/im.messenger/'.($isShow? 'show.file.php?': 'download.file.php?')
-		);
+		$isImage = \Bitrix\Disk\TypeFile::isImage($fileModel->getName());
+		$isVideo = \Bitrix\Disk\TypeFile::isVideo($fileModel->getName());
 
-		$url['desktop'] = '/desktop_app/'.($isShow? 'show.file.php?': 'download.file.php?');
-		if (IsModuleInstalled('mobile'))
+		if ($type == self::PATH_TYPE_SHOW)
 		{
-			$url['mobile'] = '/mobile/ajax.php?mobile_action=im_files&fileType='.($isShow? 'show&': 'download&');
+			if ($isImage)
+			{
+				$result = $urlManager->create('disk.api.file.showImage', [
+					'humanRE' => 1,
+					'fileId' => $fileModel->getId(),
+					'fileName' => $fileModel->getName()
+				])->getUri();
+			}
+			else
+			{
+				$result = $urlManager->create('disk.api.file.download', [
+					'humanRE' => 1,
+					'fileId' => $fileModel->getId(),
+					'fileName' => $fileModel->getName()
+				])->getUri();
+			}
+		}
+		else if ($type == self::PATH_TYPE_PREVIEW)
+		{
+			if (!($isImage || $isVideo))
+			{
+				return $result;
+			}
+
+			if ($fileModel->getView()->getPreviewData())
+			{
+				$linkType = 'disk.api.file.showPreview';
+				$fileName = 'preview.jpg';
+			}
+			else if ($isImage)
+			{
+				$linkType = 'disk.api.file.showImage';
+				$fileName = $fileModel->getName();
+			}
+			else
+			{
+				return $result;
+			}
+
+			$result = $urlManager->create($linkType, [
+				'humanRE' => 1,
+				'width' => 640,
+				'height' => 640,
+				'signature' => \Bitrix\Disk\Security\ParameterSigner::getImageSignature($fileModel->getId(), 640, 640),
+				'fileId' => $fileModel->getId(),
+				'fileName' => $fileName
+			])->getUri();
+		}
+		else if ($type == self::PATH_TYPE_DOWNLOAD)
+		{
+			$result = $urlManager->create('disk.api.file.download', [
+				'humanRE' => 1,
+				'fileId' => $fileModel->getId(),
+				'fileName' => $fileModel->getName()
+			])->getUri();
 		}
 
-		foreach ($url as $key => $value)
+		return $result;
+	}
+
+	//
+	public static function GetFileLink(\Bitrix\Disk\File $fileModel)
+	{
+		if (!\Bitrix\Main\Loader::includeModule('disk'))
 		{
-			$url[$key] = $value.'fileId='.$fileModel->getId().($isPreview? '&preview=Y': '').($isShow || $key == 'mobile'? '&fileName='.urlencode($fileModel->getName()): '');
+			return false;
 		}
 
-		return $url;
+		$fileId = $fileModel->getId();
+
+		$signer = new \Bitrix\Main\Security\Sign\Signer;
+		$signedValue = $signer->sign($fileId);
+
+		$urlManager = \Bitrix\Main\Engine\UrlManager::getInstance();
+		$host = $urlManager->getHostUrl();
+		$isImage = \Bitrix\Disk\TypeFile::isImage($fileModel->getName());
+
+		$link = $host.'/pub/im.file.php?FILE_ID='.$fileId.'&SIGN='.$signedValue;
+		if ($isImage)
+		{
+			$link .= '&img=y';
+		}
+
+		$shortLink = $host.\CBXShortUri::GetShortUri($link);
+		if ($isImage)
+		{
+			$shortLink .= '#img.'.$fileModel->getExtension();
+		}
+
+		return $shortLink;
 	}
 
 	public static function RemoveTmpFileAgent()
@@ -1134,6 +1697,7 @@ class CIMDisk
 		$fileModels = \Bitrix\Disk\File::getModelList(Array(
 			'filter' => Array(
 				'GLOBAL_CONTENT_VERSION' => 1,
+				'=TYPE' => \Bitrix\Disk\Internals\FileTable::TYPE,
 				'STORAGE_ID' => $storageModel->getId(),
 				'<CREATE_TIME' => $date
 			),
@@ -1146,11 +1710,33 @@ class CIMDisk
 
 		return "CIMDisk::RemoveTmpFileAgent();";
 	}
-	
+
 	public static function GetUserId()
 	{
 		global $USER;
-		return $USER->GetId();
+		return is_object($USER)? intval($USER->GetID()): 0;
+	}
+
+
+	public static function EnabledExternalLink()
+	{
+		if (!\Bitrix\Main\Loader::includeModule('disk'))
+			return false;
+
+		return \Bitrix\Disk\Configuration::isEnabledExternalLink();
+	}
+
+	public static function SetEnabledExternalLink($flag = true)
+	{
+		if (!\Bitrix\Main\Loader::includeModule('disk'))
+			return false;
+
+		if (!CIMMessenger::IsAdmin())
+			return false;
+
+		\Bitrix\Main\Config\Option::set('disk', 'disk_allow_use_external_link', $flag? 'Y': 'N');
+
+		return true;
 	}
 
 	public static function GetTopDepartmentCode()
@@ -1176,6 +1762,20 @@ class CIMDisk
 		}
 
 		return $code;
+	}
+
+	public static function OnAfterDeleteFile($fileId, $userId, $fileParams = Array())
+	{
+		if (!isset($fileParams['STORAGE_ID']) || $fileParams['STORAGE_ID'] != self::GetStorageId())
+		{
+			return true;
+		}
+
+		$messageId = \CIMMessageParam::GetMessageIdByParam('FILE_ID', $fileId);
+		\CIMMessageParam::DeleteByParam('FILE_ID', $fileId);
+		\CIMMessageParam::SendPull($messageId, Array('FILE_ID'));
+
+		return true;
 	}
 }
 ?>

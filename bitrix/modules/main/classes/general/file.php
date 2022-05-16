@@ -7,6 +7,7 @@
  */
 
 use Bitrix\Main\IO;
+use Bitrix\Main\UI\Viewer;
 
 IncludeModuleLangFile(__FILE__);
 
@@ -34,7 +35,7 @@ class CAllFile
 		return false;
 	}
 
-	public function checkForDb($arFields, $field)
+	public static function checkForDb($arFields, $field)
 	{
 		if(isset($arFields[$field]) && is_array($arFields[$field]))
 		{
@@ -54,7 +55,7 @@ class CAllFile
 		}
 	}
 
-	protected function transformName($name, $bForceMD5 = false, $bSkipExt = false)
+	protected static function transformName($name, $bForceMD5 = false, $bSkipExt = false)
 	{
 		//safe filename without path
 		$fileName = GetFileName($name);
@@ -67,7 +68,12 @@ class CAllFile
 			//transliteration
 			if(COption::GetOptionString("main", "translit_original_file_name", "N") == "Y")
 			{
-				$fileName = CUtil::translit($fileName, LANGUAGE_ID, array("max_len"=>1024, "safe_chars"=>".", "replace_space" => '-'));
+				$fileName = CUtil::translit($fileName, LANGUAGE_ID, array(
+					"max_len" => 1024,
+					"safe_chars" => ".",
+					"replace_space" => '-',
+					"change_case" => false,
+				));
 			}
 
 			//replace invalid characters
@@ -96,7 +102,7 @@ class CAllFile
 		return $fileName;
 	}
 
-	protected function validateFile($strFileName, $arFile)
+	protected static function validateFile($strFileName, $arFile)
 	{
 		if($strFileName == '')
 			return GetMessage("FILE_BAD_FILENAME");
@@ -126,7 +132,7 @@ class CAllFile
 		return "";
 	}
 
-	function SaveFile($arFile, $strSavePath, $bForceMD5=false, $bSkipExt=false)
+	public static function SaveFile($arFile, $strSavePath, $bForceMD5=false, $bSkipExt=false, $dirAdd='')
 	{
 		$strFileName = GetFileName($arFile["name"]);	/* filename.gif */
 
@@ -185,7 +191,7 @@ class CAllFile
 		$bExternalStorage = false;
 		foreach(GetModuleEvents("main", "OnFileSave", true) as $arEvent)
 		{
-			if(ExecuteModuleEventEx($arEvent, array(&$arFile, $strFileName, $strSavePath, $bForceMD5, $bSkipExt)))
+			if(ExecuteModuleEventEx($arEvent, array(&$arFile, $strFileName, $strSavePath, $bForceMD5, $bSkipExt, $dirAdd)))
 			{
 				$bExternalStorage = true;
 				break;
@@ -196,42 +202,49 @@ class CAllFile
 		{
 			$upload_dir = COption::GetOptionString("main", "upload_dir", "upload");
 			$io = CBXVirtualIo::GetInstance();
-			if($bForceMD5 != true && COption::GetOptionString("main", "save_original_file_name", "N")=="Y")
+			if($bForceMD5 != true && COption::GetOptionString("main", "save_original_file_name", "N") == "Y")
 			{
-				$dir_add = '';
-				$i=0;
-				while(true)
+				$dir_add = $dirAdd;
+				if($dir_add == '')
 				{
-					$dir_add = substr(md5(uniqid("", true)), 0, 3);
-					if(!$io->FileExists($_SERVER["DOCUMENT_ROOT"]."/".$upload_dir."/".$strSavePath."/".$dir_add."/".$strFileName))
+					$i = 0;
+					while(true)
 					{
-						break;
-					}
-					if($i >= 25)
-					{
-						$j=0;
-						while(true)
+						$dir_add = substr(md5(uniqid("", true)), 0, 3);
+						if(!$io->FileExists($_SERVER["DOCUMENT_ROOT"]."/".$upload_dir."/".$strSavePath."/".$dir_add."/".$strFileName))
 						{
-							$dir_add = substr(md5(mt_rand()), 0, 3)."/".substr(md5(mt_rand()), 0, 3);
-							if(!$io->FileExists($_SERVER["DOCUMENT_ROOT"]."/".$upload_dir."/".$strSavePath."/".$dir_add."/".$strFileName))
-							{
-								break;
-							}
-							if($j >= 25)
-							{
-								$dir_add = substr(md5(mt_rand()), 0, 3)."/".md5(mt_rand());
-								break;
-							}
-							$j++;
+							break;
 						}
-						break;
+						if($i >= 25)
+						{
+							$j = 0;
+							while(true)
+							{
+								$dir_add = substr(md5(mt_rand()), 0, 3)."/".substr(md5(mt_rand()), 0, 3);
+								if(!$io->FileExists($_SERVER["DOCUMENT_ROOT"]."/".$upload_dir."/".$strSavePath."/".$dir_add."/".$strFileName))
+								{
+									break;
+								}
+								if($j >= 25)
+								{
+									$dir_add = substr(md5(mt_rand()), 0, 3)."/".md5(mt_rand());
+									break;
+								}
+								$j++;
+							}
+							break;
+						}
+						$i++;
 					}
-					$i++;
 				}
 				if(substr($strSavePath, -1, 1) <> "/")
+				{
 					$strSavePath .= "/".$dir_add;
+				}
 				else
+				{
 					$strSavePath .= $dir_add."/";
+				}
 			}
 			else
 			{
@@ -239,9 +252,13 @@ class CAllFile
 				while(true)
 				{
 					if(substr($strSavePath, -1, 1) <> "/")
+					{
 						$strSavePath .= "/".substr($strFileName, 0, 3);
+					}
 					else
+					{
 						$strSavePath .= substr($strFileName, 0, 3)."/";
+					}
 
 					if(!$io->FileExists($_SERVER["DOCUMENT_ROOT"]."/".$upload_dir."/".$strSavePath."/".$strFileName))
 						break;
@@ -261,7 +278,7 @@ class CAllFile
 
 			if(is_set($arFile, "content"))
 			{
-				$f = fopen($strPhysicalFileNameX, "ab");
+				$f = fopen($strPhysicalFileNameX, "w");
 				if(!$f)
 					return false;
 				if(fwrite($f, $arFile["content"]) === false)
@@ -292,9 +309,9 @@ class CAllFile
 				$arFile["WIDTH"] = $imgArray[0];
 				$arFile["HEIGHT"] = $imgArray[1];
 
-				if($imgArray[2] == IMAGETYPE_JPEG)
+				if($imgArray[2] == IMAGETYPE_JPEG && empty($arFile['no_rotate']))
 				{
-					$exifData = CFile::ExtractImageExif($io->GetPhysicalName($strDbFileNameX));
+					$exifData = CFile::ExtractImageExif($strPhysicalFileNameX);
 					if ($exifData  && isset($exifData['Orientation']))
 					{
 						//swap width and height
@@ -310,8 +327,12 @@ class CAllFile
 							$jpgQuality = intval(COption::GetOptionString('main', 'image_resize_quality', '95'));
 							if($jpgQuality <= 0 || $jpgQuality > 100)
 								$jpgQuality = 95;
-							imagejpeg($properlyOriented, $io->GetPhysicalName($strDbFileNameX), $jpgQuality);
+
+							imagejpeg($properlyOriented, $strPhysicalFileNameX, $jpgQuality);
+							clearstatcache(true, $strPhysicalFileNameX);
 						}
+
+						$arFile['size'] = filesize($strPhysicalFileNameX);
 					}
 				}
 			}
@@ -325,7 +346,7 @@ class CAllFile
 		if($arFile["WIDTH"] == 0 || $arFile["HEIGHT"] == 0)
 		{
 			//mock image because we got false from CFile::GetImageSize()
-			if(strpos($arFile["type"], "image/") === 0)
+			if(strpos($arFile["type"], "image/") === 0 && $arFile["type"] <> 'image/svg+xml')
 			{
 				$arFile["type"] = "application/octet-stream";
 			}
@@ -361,92 +382,138 @@ class CAllFile
 		return $NEW_IMAGE_ID;
 	}
 
-	function DoInsert($arFields)
+	public static function DoInsert($arFields)
 	{
 		global $DB;
 		$strSql =
 			"INSERT INTO b_file(
-				HEIGHT,
-				WIDTH,
-				FILE_SIZE,
-				CONTENT_TYPE,
-				SUBDIR,
-				FILE_NAME,
-				MODULE_ID,
-				ORIGINAL_NAME,
-				DESCRIPTION,
-				HANDLER_ID,
-				EXTERNAL_ID
+				TIMESTAMP_X
+				,MODULE_ID
+				,HEIGHT
+				,WIDTH
+				,FILE_SIZE
+				,CONTENT_TYPE
+				,SUBDIR
+				,FILE_NAME
+				,ORIGINAL_NAME
+				,DESCRIPTION
+				,HANDLER_ID
+				,EXTERNAL_ID
 			) VALUES (
-				".intval($arFields["HEIGHT"]).",
-				".intval($arFields["WIDTH"]).",
-				".round(floatval($arFields["FILE_SIZE"])).",
-				'".$DB->ForSql($arFields["CONTENT_TYPE"], 255)."',
-				'".$DB->ForSql($arFields["SUBDIR"], 255)."',
-				'".$DB->ForSQL($arFields["FILE_NAME"], 255)."',
-				'".$DB->ForSQL($arFields["MODULE_ID"], 50)."',
-				'".$DB->ForSql($arFields["ORIGINAL_NAME"], 255)."',
-				'".$DB->ForSQL($arFields["DESCRIPTION"], 255)."',
-				".($arFields["HANDLER_ID"]? "'".$DB->ForSql($arFields["HANDLER_ID"], 50)."'": "null").",
-				".($arFields["EXTERNAL_ID"] != ""? "'".$DB->ForSql($arFields["EXTERNAL_ID"], 50)."'": "null").
-			")";
+				".$DB->GetNowFunction()."
+				,'".$DB->ForSQL($arFields["MODULE_ID"], 50)."'
+				,".intval($arFields["HEIGHT"])."
+				,".intval($arFields["WIDTH"])."
+				,".round(floatval($arFields["FILE_SIZE"]))."
+				,'".$DB->ForSql($arFields["CONTENT_TYPE"], 255)."'
+				,'".$DB->ForSql($arFields["SUBDIR"], 255)."'
+				,'".$DB->ForSQL($arFields["FILE_NAME"], 255)."'
+				,'".$DB->ForSql($arFields["ORIGINAL_NAME"], 255)."'
+				,'".$DB->ForSQL($arFields["DESCRIPTION"], 255)."'
+				,".($arFields["HANDLER_ID"]? "'".$DB->ForSql($arFields["HANDLER_ID"], 50)."'": "null")."
+				,".($arFields["EXTERNAL_ID"] != ""? "'".$DB->ForSql($arFields["EXTERNAL_ID"], 50)."'": "null")."
+			)";
 		$DB->Query($strSql);
-		return $DB->LastID();
+		$fileId = $DB->LastID();
+
+		$arFields["ID"] = $fileId;
+		foreach(GetModuleEvents("main", "OnAfterFileSave", true) as $arEvent)
+		{
+			ExecuteModuleEventEx($arEvent, array($arFields));
+		}
+
+		return $fileId;
 	}
 
-	function CleanCache($ID)
+	public static function CleanCache($ID)
 	{
-		global $CACHE_MANAGER;
-
-		$ID = intval($ID);
-		if (CACHED_b_file!==false)
+		if (CACHED_b_file !== false)
 		{
 			$bucket_size = intval(CACHED_b_file_bucket_size);
 			if ($bucket_size <= 0)
+			{
 				$bucket_size = 10;
+			}
+
 			$bucket = intval($ID/$bucket_size);
-			$CACHE_MANAGER->Clean("b_file0".$bucket, "b_file");
-			$CACHE_MANAGER->Clean("b_file1".$bucket, "b_file");
+			$cache = Bitrix\Main\Application::getInstance()->getManagedCache();
+			$cache->clean("b_file0".$bucket, "b_file");
+			$cache->clean("b_file1".$bucket, "b_file");
 		}
 	}
 
-	function GetFromCache($FILE_ID)
+	public static function GetFromCache($fileID)
 	{
-		global $CACHE_MANAGER, $DB;
+		$cache = Bitrix\Main\Application::getInstance()->getManagedCache();
 
 		$bucket_size = intval(CACHED_b_file_bucket_size);
-		if($bucket_size <= 0)
-			$bucket_size = 10;
-
-		$bucket = intval($FILE_ID/$bucket_size);
-		if($CACHE_MANAGER->Read(CACHED_b_file, $cache_id="b_file".intval(CMain::IsHTTPS()).$bucket, "b_file"))
+		if ($bucket_size <= 0)
 		{
-			$arFiles = $CACHE_MANAGER->Get($cache_id);
+			$bucket_size = 10;
+		}
+
+		$bucket = intval($fileID/$bucket_size);
+		$cache_id = "b_file".intval(CMain::IsHTTPS()).$bucket;
+
+		if($cache->read(CACHED_b_file, $cache_id, "b_file"))
+		{
+			$files = $cache->get($cache_id);
+			if (!isset($files[$fileID]))
+			{
+				if (!is_array($files))
+				{
+					$files = [];
+				}
+
+				if ($file = Bitrix\Main\FileTable::getById($fileID)->fetch())
+				{
+					$file["~src"] = '';
+					foreach (GetModuleEvents("main", "OnGetFileSRC", true) as $arEvent)
+					{
+						$file["~src"] = ExecuteModuleEventEx($arEvent, array($file));
+						if ($file["~src"])
+						{
+							break;
+						}
+					}
+
+					$files[$file["ID"]] = $file;
+					static::CleanCache($fileID);
+				}
+			}
 		}
 		else
 		{
-			$arFiles = array();
-			$rs = $DB->Query("
-				SELECT f.*,".$DB->DateToCharFunction("f.TIMESTAMP_X")." as TIMESTAMP_X FROM b_file f
-				WHERE f.ID between ".($bucket*$bucket_size)." AND ".(($bucket+1)*$bucket_size-1)
-			);
-			while($ar = $rs->Fetch())
+			$files = [];
+			$rs = Bitrix\Main\FileTable::getList([
+				'select' => ['*'],
+				'filter' => [
+					'>=ID' => ($bucket * $bucket_size),
+					'<=ID' => (($bucket+1) * $bucket_size-1),]
+			]);
+
+			while ($file = $rs->fetch())
 			{
-				$ar["~src"] = '';
-				foreach(GetModuleEvents("main", "OnGetFileSRC", true) as $arEvent)
+				$file["~src"] = '';
+				foreach (GetModuleEvents("main", "OnGetFileSRC", true) as $arEvent)
 				{
-					$ar["~src"] = ExecuteModuleEventEx($arEvent, array($ar));
-					if($ar["~src"])
+					$file["~src"] = ExecuteModuleEventEx($arEvent, array($file));
+					if ($file["~src"])
+					{
 						break;
+					}
 				}
-				$arFiles[$ar["ID"]] = $ar;
+
+				$files[$file["ID"]] = $file;
 			}
-			$CACHE_MANAGER->Set($cache_id, $arFiles);
+
+			$cache->setImmediate($cache_id, $files);
 		}
-		return $arFiles;
+
+		return $files;
 	}
 
-	function GetByID($FILE_ID)
+	public static function GetByID($FILE_ID)
 	{
 		global $DB;
 		$FILE_ID = intval($FILE_ID);
@@ -464,7 +531,7 @@ class CAllFile
 		return $z;
 	}
 
-	function GetList($arOrder = array(), $arFilter = array())
+	public static function GetList($arOrder = array(), $arFilter = array())
 	{
 		global $DB;
 		$arSqlSearch = array();
@@ -506,6 +573,7 @@ class CAllFile
 					case "FILE_NAME":
 					case "ORIGINAL_NAME":
 					case "CONTENT_TYPE":
+					case "HANDLER_ID":
 						if ($strOperation == "IN")
 							$arSqlSearch[] = "f.".$key." IN (".$val.")";
 						else
@@ -554,7 +622,7 @@ class CAllFile
 		return $res;
 	}
 
-	function GetFileSRC($arFile, $upload_dir = false, $external = true)
+	public static function GetFileSRC($arFile, $upload_dir = false, $external = true)
 	{
 		$src = '';
 		if($external)
@@ -582,7 +650,7 @@ class CAllFile
 		return $src;
 	}
 
-	function GetFileArray($FILE_ID, $upload_dir = false)
+	public static function GetFileArray($FILE_ID, $upload_dir = false)
 	{
 		if(!is_array($FILE_ID) && intval($FILE_ID) > 0)
 		{
@@ -617,13 +685,13 @@ class CAllFile
 		return false;
 	}
 
-	function ConvertFilesToPost($source, &$target, $field=false)
+	public static function ConvertFilesToPost($source, &$target, $field=false)
 	{
 		if($field === false)
 		{
 			foreach($source as $field => $sub_source)
 			{
-				CAllFile::ConvertFilesToPost($sub_source, $target, $field);
+				self::ConvertFilesToPost($sub_source, $target, $field);
 			}
 		}
 		else
@@ -633,14 +701,14 @@ class CAllFile
 				if(!array_key_exists($id, $target))
 					$target[$id] = array();
 				if(is_array($sub_source))
-					CAllFile::ConvertFilesToPost($sub_source, $target[$id], $field);
+					self::ConvertFilesToPost($sub_source, $target[$id], $field);
 				else
 					$target[$id][$field] = $sub_source;
 			}
 		}
 	}
 
-	function CopyFile($FILE_ID, $bRegister = true, $newPath = "")
+	public static function CopyFile($FILE_ID, $bRegister = true, $newPath = "")
 	{
 		global $DB;
 
@@ -699,21 +767,7 @@ class CAllFile
 			{
 				if($bRegister)
 				{
-					$arFields = array(
-						"TIMESTAMP_X" => $DB->GetNowFunction(),
-						"MODULE_ID" => "'".$DB->ForSql($zr["MODULE_ID"], 50)."'",
-						"HEIGHT" => intval($zr["HEIGHT"]),
-						"WIDTH" => intval($zr["WIDTH"]),
-						"FILE_SIZE" => intval($zr["FILE_SIZE"]),
-						"ORIGINAL_NAME" => "'".$DB->ForSql($zr["ORIGINAL_NAME"], 255)."'",
-						"DESCRIPTION" => "'".$DB->ForSql($zr["DESCRIPTION"], 255)."'",
-						"CONTENT_TYPE" => "'".$DB->ForSql($zr["CONTENT_TYPE"], 255)."'",
-						"SUBDIR" => "'".$DB->ForSql($zr["SUBDIR"], 255)."'",
-						"FILE_NAME" => "'".$DB->ForSql($zr["FILE_NAME"], 255)."'",
-						"HANDLER_ID" => $zr["HANDLER_ID"]? intval($zr["HANDLER_ID"]): "null",
-						"EXTERNAL_ID" => $zr["EXTERNAL_ID"] != ""? "'".$DB->ForSql($zr["EXTERNAL_ID"], 50)."'": "null",
-					);
-					$NEW_FILE_ID = $DB->Insert("b_file",$arFields, $err_mess.__LINE__);
+					$NEW_FILE_ID = CFile::DoInsert($zr);
 
 					if (COption::GetOptionInt("main", "disk_space") > 0)
 						CDiskQuota::updateDiskQuota("file", $zr["FILE_SIZE"], "copy");
@@ -738,22 +792,32 @@ class CAllFile
 		return 0;
 	}
 
-	function UpdateDesc($ID, $desc)
+	public static function UpdateDesc($ID, $desc)
 	{
 		global $DB;
-		$DB->Query("UPDATE b_file SET DESCRIPTION='".$DB->ForSql($desc, 255)."' WHERE ID=".intval($ID));
+		$DB->Query(
+			"UPDATE b_file SET 
+				DESCRIPTION = '".$DB->ForSql($desc, 255)."', 
+				TIMESTAMP_X = ".$DB->GetNowFunction()." 
+			WHERE ID=".intval($ID)
+		);
 		CFile::CleanCache($ID);
 	}
 
-	function UpdateExternalId($ID, $external_id)
+	public static function UpdateExternalId($ID, $external_id)
 	{
 		global $DB;
 		$external_id = trim($external_id);
-		$DB->Query("UPDATE b_file SET EXTERNAL_ID=".($external_id != ""? "'".$DB->ForSql($external_id, 50)."'": "null")." WHERE ID=".intval($ID));
+		$DB->Query(
+			"UPDATE b_file SET 
+				EXTERNAL_ID = ".($external_id != ""? "'".$DB->ForSql($external_id, 50)."'": "null").", 
+				TIMESTAMP_X = ".$DB->GetNowFunction()." 
+			WHERE ID=".intval($ID)
+		);
 		CFile::CleanCache($ID);
 	}
 
-	function InputFile($strFieldName, $int_field_size, $strImageID, $strImageStorePath=false, $int_max_file_size=0, $strFileType="IMAGE", $field_file="class=typefile", $description_size=0, $field_text="class=typeinput", $field_checkbox="", $bShowNotes = true, $bShowFilePath = true)
+	public static function InputFile($strFieldName, $int_field_size, $strImageID, $strImageStorePath=false, $int_max_file_size=0, $strFileType="IMAGE", $field_file="class=typefile", $description_size=0, $field_text="class=typeinput", $field_checkbox="", $bShowNotes = true, $bShowFilePath = true)
 	{
 		$strReturn1 = "";
 		if($int_max_file_size != 0)
@@ -836,24 +900,28 @@ class CAllFile
 		return round($size, $precision)." ".GetMessage("FILE_SIZE_".$a[$pos]);
 	}
 
-	function GetImageExtensions()
+	public static function GetImageExtensions()
 	{
 		return "jpg,bmp,jpeg,jpe,gif,png";
 	}
 
-	function GetFlashExtensions()
+	public static function GetFlashExtensions()
 	{
 		return "swf";
 	}
 
-	function IsImage($filename, $mime_type=false)
+	public static function IsImage($filename, $mime_type=false)
 	{
 		$ext = strtolower(GetFileExtension($filename));
 		if($ext <> '')
 		{
 			if(in_array($ext, explode(",", CFile::GetImageExtensions())))
+			{
 				if($mime_type === false || strpos($mime_type, "image/") === 0)
+				{
 					return true;
+				}
+			}
 		}
 		return false;
 	}
@@ -916,7 +984,7 @@ class CAllFile
 		return null;
 	}
 
-	function CheckFile($arFile, $intMaxSize=0, $mimeType=false, $strExt=false, $bForceMD5=false, $bSkipExt=false)
+	public static function CheckFile($arFile, $intMaxSize=0, $mimeType=false, $strExt=false, $bForceMD5=false, $bSkipExt=false)
 	{
 		if($arFile["name"] == "")
 		{
@@ -999,7 +1067,7 @@ class CAllFile
 		return GetMessage("FILE_BAD_TYPE")." (".strip_tags($strFileExt).")";
 	}
 
-	function ShowFile($iFileID, $max_file_size=0, $iMaxW=0, $iMaxH=0, $bPopup=false, $sParams=false, $sPopupTitle=false, $iSizeWHTTP=0, $iSizeHHTTP=0)
+	public static function ShowFile($iFileID, $max_file_size=0, $iMaxW=0, $iMaxH=0, $bPopup=false, $sParams=false, $sPopupTitle=false, $iSizeWHTTP=0, $iSizeHHTTP=0)
 	{
 		$strResult = "";
 
@@ -1023,13 +1091,13 @@ class CAllFile
 		return $strResult;
 	}
 
-	function DisableJSFunction($b=true)
+	public static function DisableJSFunction($b=true)
 	{
 		global $SHOWIMAGEFIRST;
 		$SHOWIMAGEFIRST = $b;
 	}
 
-	function OutputJSImgShw()
+	public static function OutputJSImgShw()
 	{
 		global $SHOWIMAGEFIRST;
 		if(!defined("ADMIN_SECTION") && $SHOWIMAGEFIRST!==true)
@@ -1084,7 +1152,7 @@ function ImgShw(ID, width, height, alt)
 		}
 	}
 
-	function _GetImgParams($strImage, $iSizeWHTTP=0, $iSizeHHTTP=0)
+	public static function _GetImgParams($strImage, $iSizeWHTTP=0, $iSizeHHTTP=0)
 	{
 		global $arCloudImageSizeCache;
 
@@ -1146,13 +1214,24 @@ function ImgShw(ID, width, height, alt)
 		);
 	}
 
-	function GetPath($img_id)
+	/**
+	 * Retuns the path from the root by a file ID.
+	 *
+	 * @param int $img_id File ID
+	 * @return string|null
+	 */
+	public static function GetPath($img_id)
 	{
-		$res = CFile::_GetImgParams($img_id);
-		return $res["SRC"];
+		$img_id = intval($img_id);
+		if($img_id > 0)
+		{
+			$res = CFile::_GetImgParams($img_id);
+			return $res["SRC"];
+		}
+		return null;
 	}
 
-	function ShowImage($strImage, $iMaxW=0, $iMaxH=0, $sParams=null, $strImageUrl="", $bPopup=false, $sPopupTitle=false, $iSizeWHTTP=0, $iSizeHHTTP=0, $strImageUrlTemplate="")
+	public static function ShowImage($strImage, $iMaxW=0, $iMaxH=0, $sParams=null, $strImageUrl="", $bPopup=false, $sPopupTitle=false, $iSizeWHTTP=0, $iSizeHHTTP=0, $strImageUrlTemplate="")
 	{
 		if(is_array($strImage))
 		{
@@ -1268,7 +1347,7 @@ function ImgShw(ID, width, height, alt)
 		return $bPopup? $strReturn : print_url($strImageUrl, $strReturn);
 	}
 
-	function Show2Images($strImage1, $strImage2, $iMaxW=0, $iMaxH=0, $sParams=false, $sPopupTitle=false, $iSizeWHTTP=0, $iSizeHHTTP=0)
+	public static function Show2Images($strImage1, $strImage2, $iMaxW=0, $iMaxH=0, $sParams=false, $sPopupTitle=false, $iSizeWHTTP=0, $iSizeHHTTP=0)
 	{
 		if(!($arImgParams = CFile::_GetImgParams($strImage1, $iSizeWHTTP, $iSizeHHTTP)))
 			return "";
@@ -1466,7 +1545,7 @@ function ImgShw(ID, width, height, alt)
 		return $arFile;
 	}
 
-	function GetTempName($dir_name = false, $file_name = '')
+	public static function GetTempName($dir_name = false, $file_name = '')
 	{
 		//accidentally $file_name can contain "?params"
 		if(($pos = strpos($file_name, "?")) !== false)
@@ -1476,15 +1555,16 @@ function ImgShw(ID, width, height, alt)
 		return CTempFile::GetFileName($file_name);
 	}
 
-	function ChangeSubDir($module_id, $old_subdir, $new_subdir)
+	public static function ChangeSubDir($module_id, $old_subdir, $new_subdir)
 	{
-		global $DB, $CACHE_MANAGER;
+		global $DB;
 
 		if ($old_subdir!=$new_subdir)
 		{
 			$strSql = "
-				UPDATE b_file
-				SET SUBDIR = REPLACE(SUBDIR,'".$DB->ForSQL($old_subdir)."','".$DB->ForSQL($new_subdir)."')
+				UPDATE b_file SET 
+					SUBDIR = REPLACE(SUBDIR,'".$DB->ForSQL($old_subdir)."','".$DB->ForSQL($new_subdir)."'),
+					TIMESTAMP_X = ".$DB->GetNowFunction()." 
 				WHERE MODULE_ID='".$DB->ForSQL($module_id)."'
 			";
 
@@ -1494,12 +1574,13 @@ function ImgShw(ID, width, height, alt)
 				$to = "/".COption::GetOptionString("main", "upload_dir", "upload")."/".$new_subdir;
 				CopyDirFiles($_SERVER["DOCUMENT_ROOT"].$from, $_SERVER["DOCUMENT_ROOT"].$to, true, true, true);
 				//Reset All b_file cache
-				$CACHE_MANAGER->CleanDir("b_file");
+				$cache = Bitrix\Main\Application::getInstance()->getManagedCache();
+				$cache->cleanDir("b_file");
 			}
 		}
 	}
 
-	function ResizeImage(&$arFile, $arSize, $resizeType = BX_RESIZE_IMAGE_PROPORTIONAL)
+	public static function ResizeImage(&$arFile, $arSize, $resizeType = BX_RESIZE_IMAGE_PROPORTIONAL)
 	{
 		$sourceFile = $arFile["tmp_name"];
 		$destinationFile = CTempFile::GetFileName(basename($sourceFile));
@@ -1519,7 +1600,7 @@ function ImgShw(ID, width, height, alt)
 		return false;
 	}
 
-	function ResizeImageDeleteCache($arFile)
+	public static function ResizeImageDeleteCache($arFile)
 	{
 		$temp_dir = CTempFile::GetAbsoluteRoot()."/";
 		if(strpos($arFile["tmp_name"], $temp_dir) === 0)
@@ -1527,7 +1608,7 @@ function ImgShw(ID, width, height, alt)
 				unlink($arFile["tmp_name"]);
 	}
 
-	function ResizeImageGet($file, $arSize, $resizeType = BX_RESIZE_IMAGE_PROPORTIONAL, $bInitSizes = false, $arFilters = false, $bImmediate = false, $jpgQuality = false)
+	public static function ResizeImageGet($file, $arSize, $resizeType = BX_RESIZE_IMAGE_PROPORTIONAL, $bInitSizes = false, $arFilters = false, $bImmediate = false, $jpgQuality = false)
 	{
 		if (!is_array($file) && intval($file) > 0)
 		{
@@ -1596,70 +1677,54 @@ function ImgShw(ID, width, height, alt)
 		}
 		elseif (!file_exists($io->GetPhysicalName($_SERVER["DOCUMENT_ROOT"].$cacheImageFileCheck)))
 		{
-			/****************************** QUOTA ******************************/
-			$bDiskQuota = true;
-			if (COption::GetOptionInt("main", "disk_space") > 0)
+			if(!is_array($arFilters))
+				$arFilters = array(
+					array("name" => "sharpen", "precision" => 15),
+				);
+
+			$sourceImageFile = $_SERVER["DOCUMENT_ROOT"].$imageFile;
+			$cacheImageFileTmp = $_SERVER["DOCUMENT_ROOT"].$cacheImageFile;
+			$bNeedResize = true;
+			$callbackData = null;
+
+			foreach(GetModuleEvents("main", "OnBeforeResizeImage", true) as $arEvent)
 			{
-				$quota = new CDiskQuota();
-				$bDiskQuota = $quota->checkDiskQuota($file);
+				if(ExecuteModuleEventEx($arEvent, array(
+					$file,
+					array($arSize, $resizeType, array(), false, $arFilters, $bImmediate),
+					&$callbackData,
+					&$bNeedResize,
+					&$sourceImageFile,
+					&$cacheImageFileTmp,
+				)))
+					break;
 			}
-			/****************************** QUOTA ******************************/
 
-			if ($bDiskQuota)
+			if ($bNeedResize && CFile::ResizeImageFile($sourceImageFile, $cacheImageFileTmp, $arSize, $resizeType, array(), $jpgQuality, $arFilters))
 			{
-				if(!is_array($arFilters))
-					$arFilters = array(
-						array("name" => "sharpen", "precision" => 15),
-					);
+				$cacheImageFile = substr($cacheImageFileTmp, strlen($_SERVER["DOCUMENT_ROOT"]));
 
-				$sourceImageFile = $_SERVER["DOCUMENT_ROOT"].$imageFile;
-				$cacheImageFileTmp = $_SERVER["DOCUMENT_ROOT"].$cacheImageFile;
-				$bNeedResize = true;
-				$callbackData = null;
-
-				foreach(GetModuleEvents("main", "OnBeforeResizeImage", true) as $arEvent)
-				{
-					if(ExecuteModuleEventEx($arEvent, array(
-						$file,
-						array($arSize, $resizeType, array(), false, $arFilters, $bImmediate),
-						&$callbackData,
-						&$bNeedResize,
-						&$sourceImageFile,
-						&$cacheImageFileTmp,
-					)))
-						break;
-				}
-
-				if ($bNeedResize && CFile::ResizeImageFile($sourceImageFile, $cacheImageFileTmp, $arSize, $resizeType, array(), $jpgQuality, $arFilters))
-				{
-					$cacheImageFile = substr($cacheImageFileTmp, strlen($_SERVER["DOCUMENT_ROOT"]));
-
-					/****************************** QUOTA ******************************/
-					if (COption::GetOptionInt("main", "disk_space") > 0)
-						CDiskQuota::updateDiskQuota("file", filesize($io->GetPhysicalName($cacheImageFileTmp)), "insert");
-					/****************************** QUOTA ******************************/
-				}
-				else
-				{
-					$cacheImageFile = $imageFile;
-				}
-
-				foreach(GetModuleEvents("main", "OnAfterResizeImage", true) as $arEvent)
-				{
-					if(ExecuteModuleEventEx($arEvent, array(
-						$file,
-						array($arSize, $resizeType, array(), false, $arFilters),
-						&$callbackData,
-						&$cacheImageFile,
-						&$cacheImageFileTmp,
-						&$arImageSize,
-					)))
-						break;
-				}
+				/****************************** QUOTA ******************************/
+				if (COption::GetOptionInt("main", "disk_space") > 0)
+					CDiskQuota::updateDiskQuota("file", filesize($io->GetPhysicalName($cacheImageFileTmp)), "insert");
+				/****************************** QUOTA ******************************/
 			}
 			else
 			{
 				$cacheImageFile = $imageFile;
+			}
+
+			foreach(GetModuleEvents("main", "OnAfterResizeImage", true) as $arEvent)
+			{
+				if(ExecuteModuleEventEx($arEvent, array(
+					$file,
+					array($arSize, $resizeType, array(), false, $arFilters),
+					&$callbackData,
+					&$cacheImageFile,
+					&$cacheImageFileTmp,
+					&$arImageSize,
+				)))
+					break;
 			}
 
 			$cacheImageFileCheck = $cacheImageFile;
@@ -1682,7 +1747,7 @@ function ImgShw(ID, width, height, alt)
 		return $cache[$cache_id];
 	}
 
-	function ResizeImageDelete($arImage)
+	public static function ResizeImageDelete($arImage)
 	{
 		$io = CBXVirtualIo::GetInstance();
 		$upload_dir = COption::GetOptionString("main", "upload_dir", "upload");
@@ -1718,8 +1783,9 @@ function ImgShw(ID, width, height, alt)
 		return $delete_size;
 	}
 
-	function ImageCreateFromBMP($filename)
+	public static function ImageCreateFromBMP($filename)
 	{
+		// https://ru.wikipedia.org/wiki/BMP
 		if(!$f1 = fopen($filename,"rb"))
 			return false;
 
@@ -1728,16 +1794,32 @@ function ImgShw(ID, width, height, alt)
 		if ($FILE['file_type'] != 19778)
 			return false;
 
-		//2 : read and parse BMP data
-		$BMP = unpack('Vheader_size/Vwidth/Vheight/vplanes/vbits_per_pixel'.
-			'/Vcompression/Vsize_bitmap/Vhoriz_resolution'.
-			'/Vvert_resolution/Vcolors_used/Vcolors_important', fread($f1,40));
+		$head = unpack('Vheader_size', fread($f1, 4));
+		if ($head['header_size'] == 12)
+		{
+			//2 : read and parse BMP data (CORE)
+			$BMP = unpack('vwidth/vheight/vplanes/vbits_per_pixel', fread($f1, 8));
+		}
+		else
+		{
+			//2 : read and parse BMP data (3 4 5)
+			$BMP = unpack('lwidth/lheight/vplanes/vbits_per_pixel'.
+				'/Vcompression/Vsize_bitmap/Vhoriz_resolution'.
+				'/Vvert_resolution/Vcolors_used/Vcolors_important', fread($f1, 36));
+		}
 
-		//DDoS protection
-		if($BMP['width'] > 65535)
-			$BMP['width'] = 65535;
-		if($BMP['height'] > 65535)
-			$BMP['height'] = 65535;
+		if($BMP['width'] < 0)
+			$BMP['width'] = 0;
+
+		if($BMP['height'] < 0)
+		{
+			$flip = true;
+			$BMP['height'] = -$BMP['height'];
+		}
+		else
+		{
+			$flip = false;
+		}
 
 		$BMP['colors'] = pow(2,$BMP['bits_per_pixel']);
 
@@ -1781,6 +1863,27 @@ function ImgShw(ID, width, height, alt)
 					$X++;
 				}
 				$Y--;
+				if($dPY > 0)
+					fread($f1, $dPY);
+				if (feof($f1))
+					break;
+			}
+		}
+		elseif($BMP['bits_per_pixel'] == 24 && $flip)
+		{
+			$dPY = $BMP['decal'];
+			$width = $BMP['width'];
+			$Y = 0;
+			while ($Y < $BMP['height'])
+			{
+				$X = 0;
+				while($X < $width)
+				{
+					$COLOR = unpack("V", fread($f1, 3).$VIDE);
+					imagesetpixel($res, $X, $Y, $COLOR[1]);
+					$X++;
+				}
+				$Y++;
 				if($dPY > 0)
 					fread($f1, $dPY);
 				if (feof($f1))
@@ -1950,7 +2053,7 @@ function ImgShw(ID, width, height, alt)
 		return $res;
 	}
 
-	function ScaleImage($sourceImageWidth, $sourceImageHeight, $arSize, $resizeType, &$bNeedCreatePicture, &$arSourceSize, &$arDestinationSize)
+	public static function ScaleImage($sourceImageWidth, $sourceImageHeight, $arSize, $resizeType, &$bNeedCreatePicture, &$arSourceSize, &$arDestinationSize)
 	{
 		if (!is_array($arSize))
 			$arSize = array();
@@ -2025,7 +2128,7 @@ function ImgShw(ID, width, height, alt)
 		}
 	}
 
-	function IsGD2()
+	public static function IsGD2()
 	{
 		static $bGD2 = false;
 		static $bGD2Initial = false;
@@ -2040,7 +2143,7 @@ function ImgShw(ID, width, height, alt)
 		return $bGD2;
 	}
 
-	function ResizeImageFile($sourceFile, &$destinationFile, $arSize, $resizeType = BX_RESIZE_IMAGE_PROPORTIONAL, $arWaterMark = array(), $jpgQuality=false, $arFilters=false)
+	public static function ResizeImageFile($sourceFile, &$destinationFile, $arSize, $resizeType = BX_RESIZE_IMAGE_PROPORTIONAL, $arWaterMark = array(), $jpgQuality=false, $arFilters=false)
 	{
 		$io = CBXVirtualIo::GetInstance();
 
@@ -2085,14 +2188,43 @@ function ImgShw(ID, width, height, alt)
 			}
 		}
 
+		$hLock = $io->OpenFile($sourceFile, "r+");
+		$useLock = defined("BX_FILE_USE_FLOCK");
+		if ($hLock)
+		{
+			if ($useLock)
+			{
+				flock($hLock, LOCK_EX);
+			}
+			if ($io->FileExists($destinationFile))
+			{
+				CFile::ScaleImage($arSourceFileSizeTmp[0], $arSourceFileSizeTmp[1], $arSize, $resizeType, $bNeedCreatePicture, $arSourceSize, $arDestinationSize);
+				$arDestinationSizeTmp = CFile::GetImageSize($destinationFile);
+				if (
+					is_array($arDestinationSizeTmp)
+					&& $arDestinationSizeTmp[0] == $arDestinationSize["width"]
+					&& $arDestinationSizeTmp[1] == $arDestinationSize["height"]
+				)
+				{
+					if ($useLock)
+					{
+						flock($hLock, LOCK_UN);
+					}
+					fclose($hLock);
+					return true;
+				}
+			}
+		}
+
 		if(CFile::isEnabledTrackingResizeImage())
 		{
 			header("X-Bitrix-Resize-Image: {$arSize["width"]}_{$arSize["height"]}_{$resizeType}");
 		}
+
 		if (class_exists("imagick") && function_exists('memory_get_usage'))
 		{
 			//When memory limit reached we'll try to use ImageMagic
-			$memoryNeeded = $arSourceFileSizeTmp[0] * $arSourceFileSizeTmp[1] * 4 * 2;
+			$memoryNeeded = $arSourceFileSizeTmp[0] * $arSourceFileSizeTmp[1] * 4 * 3;
 			$memoryLimit = CUtil::Unformat(ini_get('memory_limit'));
 			if ((memory_get_usage() + $memoryNeeded) > $memoryLimit)
 			{
@@ -2109,6 +2241,7 @@ function ImgShw(ID, width, height, alt)
 					$im = new Imagick();
 					try
 					{
+						$im->setOption('jpeg:size', $arDestinationSize["width"].'x'.$arDestinationSize["height"]);
 						$im->setSize($arDestinationSize["width"], $arDestinationSize["height"]);
 						$im->readImage($io->GetPhysicalName($sourceFile));
 						$im->setImageFileName($new_image);
@@ -2156,13 +2289,18 @@ function ImgShw(ID, width, height, alt)
 
 					if ($orientation > 1)
 					{
-						CFile::ImageHandleOrientation($orientation, $sourceImage);
+						$properlyOriented = CFile::ImageHandleOrientation($orientation, $sourceImage);
 
 						if($jpgQuality === false)
 							$jpgQuality = intval(COption::GetOptionString('main', 'image_resize_quality', '95'));
 						if($jpgQuality <= 0 || $jpgQuality > 100)
 							$jpgQuality = 95;
-						imagejpeg($sourceImage, $io->GetPhysicalName($destinationFile), $jpgQuality);
+
+						if ($properlyOriented)
+						{
+							imagejpeg($properlyOriented, $io->GetPhysicalName($destinationFile), $jpgQuality);
+							$sourceImage = $properlyOriented;
+						}
 					}
 					$bHasAlpha = false;
 					break;
@@ -2272,12 +2410,29 @@ function ImgShw(ID, width, height, alt)
 							break;
 					}
 					imagedestroy($picture);
+					@chmod($io->GetPhysicalName($destinationFile), BX_FILE_PERMISSIONS);
 				}
 			}
 
+			if ($hLock)
+			{
+				if ($useLock)
+				{
+					flock($hLock, LOCK_UN);
+				}
+				fclose($hLock);
+			}
 			return true;
 		}
 
+		if ($hLock)
+		{
+			if ($useLock)
+			{
+				flock($hLock, LOCK_UN);
+			}
+			fclose($hLock);
+		}
 		return false;
 	}
 
@@ -2329,7 +2484,7 @@ function ImgShw(ID, width, height, alt)
 		return null;
 	}
 
-	function imageconvolution($picture, $matrix, $div = 1, $offset = 0)
+	public static function imageconvolution($picture, $matrix, $div = 1, $offset = 0)
 	{
 		$sx = imagesx($picture);
 		$sy = imagesy($picture);
@@ -2379,7 +2534,7 @@ function ImgShw(ID, width, height, alt)
 		imagedestroy($backup);
 	}
 
-	function imageconvolution_fix($picture, $matrix, $div = 1, $offset = 0)
+	public static function imageconvolution_fix($picture, $matrix, $div = 1, $offset = 0)
 	{
 		$x = 0;
 		$y = 0;
@@ -2425,7 +2580,7 @@ function ImgShw(ID, width, height, alt)
 		imagesetpixel($picture, $x, $y, $new_pxl);
 	}
 
-	function ImageFlipHorizontal($picture)
+	public static function ImageFlipHorizontal($picture)
 	{
 		if (function_exists('imageflip'))
 		{
@@ -2448,10 +2603,48 @@ function ImgShw(ID, width, height, alt)
 		}
 	}
 
-	function ImageHandleOrientation($orientation, $sourceImage)
+	public static function ImageHandleOrientation($orientation, $sourceImage)
 	{
+		if ($orientation <= 1)
+		{
+			return false;
+		}
+
 		if (!is_resource($sourceImage))
 		{
+			if (class_exists("imagick"))
+			{
+				$im = new Imagick();
+				try
+				{
+					$im->readImage($sourceImage);
+
+					if ($orientation == 7 || $orientation == 8)
+						$sourceImage = $im->rotateImage(new ImagickPixel('#00000000'), 270);
+					elseif ($orientation == 3 || $orientation == 4)
+						$sourceImage = $im->rotateImage(new ImagickPixel('#00000000'), 180);
+					elseif ($orientation == 5 || $orientation == 6)
+						$sourceImage = $im->rotateImage(new ImagickPixel('#00000000'), 90);
+
+					if (
+						$orientation == 2 || $orientation == 7
+						|| $orientation == 4 || $orientation == 5
+					)
+					{
+						$im->flopImage();
+					}
+					$im->setImageOrientation(0);
+					$im->writeImage();
+					$im->destroy();
+					clearstatcache(true, $sourceImage);
+
+					return false;
+				}
+				catch (ImagickException $e)
+				{
+				}
+			}
+
 			$imgArray = CFile::GetImageSize($sourceImage, true, false);
 			if(is_array($imgArray) && $imgArray[2] == IMAGETYPE_JPEG)
 			{
@@ -2461,36 +2654,39 @@ function ImgShw(ID, width, height, alt)
 			{
 				return false;
 			}
-
 		}
-		if ($orientation > 1)
+
+		if ($orientation == 7 || $orientation == 8)
+			$sourceImage = imagerotate($sourceImage, 90, null);
+		elseif ($orientation == 3 || $orientation == 4)
+			$sourceImage = imagerotate($sourceImage, 180, null);
+		elseif ($orientation == 5 || $orientation == 6)
+			$sourceImage = imagerotate($sourceImage, 270, null);
+
+		if (
+			$orientation == 2 || $orientation == 7
+			|| $orientation == 4 || $orientation == 5
+		)
 		{
-			if ($orientation == 7 || $orientation == 8)
-				$sourceImage = imagerotate($sourceImage, 90, null);
-			elseif ($orientation == 3 || $orientation == 4)
-				$sourceImage = imagerotate($sourceImage, 180, null);
-			elseif ($orientation == 5 || $orientation == 6)
-				$sourceImage = imagerotate($sourceImage, 270, null);
-
-			if (
-				$orientation == 2 || $orientation == 7
-				|| $orientation == 4 || $orientation == 5
-			)
-			{
-				CFile::ImageFlipHorizontal($sourceImage);
-			}
-
-			return $sourceImage;
-		}
-		else
-		{
-			return false;
+			CFile::ImageFlipHorizontal($sourceImage);
 		}
 
+		return $sourceImage;
 	}
 
-	static function ViewByUser($arFile, $arOptions = array())
+	/**
+	 * @param int|array $arFile
+	 * @param array $arOptions
+	 * @return bool
+	 */
+	public static function ViewByUser($arFile, $arOptions = array())
 	{
+		$previewManager = new Viewer\PreviewManager();
+		if ($previewManager->isInternalRequest($arFile, $arOptions))
+		{
+			$previewManager->processViewByUserRequest($arFile, $arOptions);
+		}
+
 		/** @global CMain $APPLICATION */
 		global $APPLICATION;
 
@@ -2502,6 +2698,8 @@ function ImgShw(ID, width, height, alt)
 		$force_download = false;
 		$cache_time = 10800;
 		$fromClouds = false;
+		$filename = '';
+		$fromTemp = false;
 
 		if(is_array($arOptions))
 		{
@@ -2515,6 +2713,8 @@ function ImgShw(ID, width, height, alt)
 				$cache_time = intval($arOptions["cache_time"]);
 			if(isset($arOptions["attachment_name"]))
 				$attachment_name = $arOptions["attachment_name"];
+			if(isset($arOptions["fast_download"]))
+				$fastDownload = (bool)$arOptions["fast_download"];
 		}
 
 		if($cache_time < 0)
@@ -2528,26 +2728,28 @@ function ImgShw(ID, width, height, alt)
 			}
 			elseif(isset($arFile["tmp_name"]))
 			{
-				$filename = "/".ltrim(substr($arFile["tmp_name"], strlen($_SERVER["DOCUMENT_ROOT"])), "/");
+				if (strpos($arFile['tmp_name'], $_SERVER['DOCUMENT_ROOT']) === 0)
+				{
+					$filename = '/'. ltrim(substr($arFile['tmp_name'], strlen($_SERVER['DOCUMENT_ROOT'])), '/');
+				}
+				elseif (defined('BX_TEMPORARY_FILES_DIRECTORY') && strpos($arFile['tmp_name'], BX_TEMPORARY_FILES_DIRECTORY) === 0)
+				{
+					$fromTemp = true;
+					$tmpPath = COption::GetOptionString('main', 'bx_tmp_download', '/bx_tmp_download/');
+					$filename = $tmpPath.ltrim(substr($arFile['tmp_name'], strlen(BX_TEMPORARY_FILES_DIRECTORY)), '/'); //nonexistent path
+				}
 			}
 			else
 			{
 				$filename = static::GetFileSRC($arFile);
 			}
 		}
-		else
+		elseif (($arFile = static::GetFileArray($arFile)))
 		{
-			if(($arFile = static::GetFileArray($arFile)))
-			{
-				$filename = $arFile["SRC"];
-			}
-			else
-			{
-				$filename = '';
-			}
+			$filename = $arFile['SRC'];
 		}
 
-		if($filename == '')
+		if ($filename == '')
 		{
 			return false;
 		}
@@ -2603,8 +2805,18 @@ function ImgShw(ID, width, height, alt)
 		}
 
 		$src = null;
-		$file = new IO\File($_SERVER["DOCUMENT_ROOT"].$filename);
-		if(substr($filename, 0, 1) == "/")
+		$file = null;
+
+		if ((substr($filename, 0, 1) == '/') && !$fromTemp)
+		{
+			$file = new IO\File($_SERVER['DOCUMENT_ROOT']. $filename);
+		}
+		elseif (isset($arFile['tmp_name']))
+		{
+			$file = new IO\File($arFile['tmp_name']);
+		}
+
+		if ((substr($filename, 0, 1) == '/') && ($file instanceof IO\File))
 		{
 			try
 			{
@@ -2654,7 +2866,11 @@ function ImgShw(ID, width, height, alt)
 			}
 		}
 
-		if($arFile["tmp_name"] <> '')
+		if ($file instanceof IO\File)
+		{
+			$filetime = $file->getModificationTime();
+		}
+		elseif($arFile["tmp_name"] <> '')
 		{
 			$tmpFile = new IO\File($arFile["tmp_name"]);
 			$filetime = $tmpFile->getModificationTime();
@@ -2664,15 +2880,20 @@ function ImgShw(ID, width, height, alt)
 			$filetime = intval(MakeTimeStamp($arFile["TIMESTAMP_X"]));
 		}
 
+		$application = \Bitrix\Main\Application::getInstance();
+		$response = \Bitrix\Main\Context::getCurrent()->getResponse();
+
 		if($_SERVER["REQUEST_METHOD"] == "HEAD")
 		{
-			CHTTP::SetStatus("200 OK");
-			header("Accept-Ranges: bytes");
-			header("Content-Type: ".$content_type);
-			header("Content-Length: ".($size-$cur_pos+1));
+			$response->setStatus("200 OK")
+				->addHeader("Accept-Ranges", "bytes")
+				->addHeader("Content-Type", $content_type)
+				->addHeader("Content-Length", ($size-$cur_pos+1));
 
 			if($filetime > 0)
-				header("Last-Modified: ".date("r", $filetime));
+			{
+				$response->addHeader("Last-Modified", date("r", $filetime));
+			}
 		}
 		else
 		{
@@ -2683,11 +2904,14 @@ function ImgShw(ID, width, height, alt)
 				$ETag = md5($filename.$filesize.$filetime);
 				if(array_key_exists("HTTP_IF_NONE_MATCH", $_SERVER) && ($_SERVER['HTTP_IF_NONE_MATCH'] === $ETag))
 				{
-					CHTTP::SetStatus("304 Not Modified");
-					header("Cache-Control: private, max-age=".$cache_time.", pre-check=".$cache_time);
-					die();
+					$response->setStatus("304 Not Modified");
+					$response->addHeader("Cache-Control", "private, max-age=".$cache_time.", pre-check=".$cache_time);
+
+					$response->writeHeaders();
+					$application->terminate();
 				}
-				header("ETag: ".$ETag);
+
+				$response->addHeader("ETag", $ETag);
 
 				//Handle Last Modified
 				if($filetime > 0)
@@ -2695,15 +2919,22 @@ function ImgShw(ID, width, height, alt)
 					$lastModified = gmdate('D, d M Y H:i:s', $filetime).' GMT';
 					if(array_key_exists("HTTP_IF_MODIFIED_SINCE", $_SERVER) && ($_SERVER['HTTP_IF_MODIFIED_SINCE'] === $lastModified))
 					{
-						CHTTP::SetStatus("304 Not Modified");
-						header("Cache-Control: private, max-age=".$cache_time.", pre-check=".$cache_time);
-						die();
+						$response->setStatus("304 Not Modified");
+						$response->addHeader("Cache-Control", "private, max-age=".$cache_time.", pre-check=".$cache_time);
+
+						$response->writeHeaders();
+						$application->terminate();
 					}
 				}
 			}
 
 			$utfName = CHTTP::urnEncode($attachment_name, "UTF-8");
-			$translitName = CUtil::translit($attachment_name, LANGUAGE_ID, array("max_len"=>1024, "safe_chars"=>".", "replace_space" => '-'));
+			$translitName = CUtil::translit($attachment_name, LANGUAGE_ID, array(
+				"max_len" => 1024,
+				"safe_chars" => ".",
+				"replace_space" => '-',
+				"change_case" => false,
+			));
 
 			if($force_download)
 			{
@@ -2713,39 +2944,46 @@ function ImgShw(ID, width, height, alt)
 					ini_set('zlib.output_compression', 'Off');
 
 				if($cur_pos > 0)
-					CHTTP::SetStatus("206 Partial Content");
+				{
+					$response->setStatus("206 Partial Content");
+				}
 				else
-					CHTTP::SetStatus("200 OK");
+				{
+					$response->SetStatus("200 OK");
+				}
 
-				header("Content-Type: ".$content_type);
-				header("Content-Disposition: attachment; filename=\"".$translitName."\"; filename*=utf-8''".$utfName);
-				header("Content-Transfer-Encoding: binary");
-				header("Content-Length: ".($size-$cur_pos+1));
+				$response->addHeader("Content-Type", $content_type)
+					->addHeader("Content-Disposition", "attachment; filename=\"".$translitName."\"; filename*=utf-8''".$utfName)
+					->addHeader("Content-Transfer-Encoding", "binary")
+					->addHeader("Content-Length", ($size-$cur_pos+1));
+
 				if(is_resource($src))
 				{
-					header("Accept-Ranges: bytes");
-					header("Content-Range: bytes ".$cur_pos."-".$size."/".$filesize);
+					$response->addHeader("Accept-Ranges", "bytes");
+					$response->addHeader("Content-Range", "bytes ".$cur_pos."-".$size."/".$filesize);
 				}
 			}
 			else
 			{
-				header("Content-Type: ".$content_type);
-				header("Content-Disposition: inline; filename=\"".$translitName."\"; filename*=utf-8''".$utfName);
+				$response->addHeader("Content-Type", $content_type);
+				$response->addHeader("Content-Disposition", "inline; filename=\"".$translitName."\"; filename*=utf-8''".$utfName);
 			}
 
 			if($cache_time > 0)
 			{
-				header("Cache-Control: private, max-age=".$cache_time.", pre-check=".$cache_time);
+				$response->addHeader("Cache-Control", "private, max-age=".$cache_time.", pre-check=".$cache_time);
 				if($filetime > 0)
-					header('Last-Modified: '.$lastModified);
+				{
+					$response->addHeader('Last-Modified', $lastModified);
+				}
 			}
 			else
 			{
-				header("Cache-Control: no-cache, must-revalidate, post-check=0, pre-check=0");
+				$response->addHeader("Cache-Control", "no-cache, must-revalidate, post-check=0, pre-check=0");
 			}
 
-			header("Expires: 0");
-			header("Pragma: public");
+			$response->addHeader("Expires", "0");
+			$response->addHeader("Pragma", "public");
 
 			// Download from front-end
 			if($fastDownload)
@@ -2754,19 +2992,24 @@ function ImgShw(ID, width, height, alt)
 				{
 					$filename = preg_replace('~^(http[s]?)(\://)~i', '\\1.' , $filename);
 					$cloudUploadPath = COption::GetOptionString('main', 'bx_cloud_upload', '/upload/bx_cloud_upload/');
-					header('X-Accel-Redirect: '.$cloudUploadPath.$filename);
+					$response->addHeader('X-Accel-Redirect', $cloudUploadPath.$filename);
 				}
 				else
 				{
-					$filename = $APPLICATION->ConvertCharset($filename, SITE_CHARSET, "UTF-8");
-					header('X-Accel-Redirect: '.$filename);
+					$filename = CHTTP::urnEncode($filename, "UTF-8");
+					$response->addHeader('X-Accel-Redirect', $filename);
 				}
+				$response->writeHeaders();
+				$application->terminate();
 			}
 			else
 			{
 				session_write_close();
+				$response->writeHeaders();
+
 				if ($specialchars)
 				{
+					/** @var IO\File $file */
 					echo "<", "pre" ,">";
 					if(is_resource($src))
 					{
@@ -2776,6 +3019,7 @@ function ImgShw(ID, width, height, alt)
 					}
 					else
 					{
+						/** @var \Bitrix\Main\Web\HttpClient $src */
 						echo htmlspecialcharsbx($src->get($filename));
 					}
 					echo "<", "/pre", ">";
@@ -2784,6 +3028,7 @@ function ImgShw(ID, width, height, alt)
 				{
 					if(is_resource($src))
 					{
+						/** @var IO\File $file */
 						$file->seek($cur_pos);
 						while(!feof($src) && ($cur_pos <= $size))
 						{
@@ -2798,14 +3043,15 @@ function ImgShw(ID, width, height, alt)
 					else
 					{
 						$fp = fopen("php://output", "wb");
+						/** @var \Bitrix\Main\Web\HttpClient $src */
 						$src->setOutputStream($fp);
 						$src->get($filename);
 					}
 				}
+				$application->terminate();
 			}
 		}
-		CMain::FinalActions();
-		die();
+		return true;
 	}
 
 	// Params:
@@ -2813,7 +3059,7 @@ function ImgShw(ID, width, height, alt)
 	//	size - big|medium|small|real, for custom resizing can be used 'coefficient', real - only for images
 	// 	position - of the watermark on picture can be in one of two available notifications:
 	//		 tl|tc|tr|ml|mc|mr|bl|bc|br or topleft|topcenter|topright|centerleft|center|centerright|bottomleft|bottomcenter|bottomright
-	function Watermark(&$obj, $Params)
+	public static function Watermark(&$obj, $Params)
 	{
 		// Image sizes
 		$Params["width"] = intval(@imagesx($obj));
@@ -2892,7 +3138,7 @@ function ImgShw(ID, width, height, alt)
 		return $result;
 	}
 
-	function WatermarkText(&$obj, $Params = array())
+	public static function WatermarkText(&$obj, $Params = array())
 	{
 		/** @global CMain $APPLICATION */
 		global $APPLICATION;
@@ -2982,7 +3228,7 @@ function ImgShw(ID, width, height, alt)
 	// 	file - abs path to file
 	//	alpha_level - opacity
 	// 	position - of the watermark
-	function WatermarkImage(&$obj, $Params = array())
+	public static function WatermarkImage(&$obj, $Params = array())
 	{
 		$file = $Params['file'];
 
@@ -3116,7 +3362,7 @@ function ImgShw(ID, width, height, alt)
 		return true;
 	}
 
-	function ImageRotate($sourceFile, $angle)
+	public static function ImageRotate($sourceFile, $angle)
 	{
 		if (!file_exists($sourceFile) || !is_file($sourceFile))
 			return false;
@@ -3156,7 +3402,7 @@ function ImgShw(ID, width, height, alt)
 		return true;
 	}
 
-	function CreateImage($path, $type = false)
+	public static function CreateImage($path, $type = false)
 	{
 		$sourceImage = false;
 		if ($type === false)
@@ -3186,7 +3432,7 @@ function ImgShw(ID, width, height, alt)
 		return $sourceImage;
 	}
 
-	function ExtractImageExif($src)
+	public static function ExtractImageExif($src)
 	{
 		/** @global CMain $APPLICATION  */
 		global $APPLICATION;
@@ -3201,10 +3447,23 @@ function ImgShw(ID, width, height, alt)
 						$arr[strtolower($k)] = $APPLICATION->ConvertCharset($val, ini_get('exif.encode_unicode'), SITE_CHARSET);
 			}
 		}
+		elseif (class_exists("imagick"))
+		{
+			try
+			{
+				$im = new Imagick($src);
+				$arr['Orientation'] = $im->getImageOrientation();
+				$im->destroy();
+			}
+			catch (ImagickException $e)
+			{
+				$new_image = "";
+			}
+		}
 		return $arr;
 	}
 
-	function ExtractImageIPTC($src)
+	public static function ExtractImageIPTC($src)
 	{
 /* Not implemented yet
 		$arr = array();
@@ -3238,7 +3497,7 @@ function ImgShw(ID, width, height, alt)
 */
 	}
 
-	function NormalizeContentType($contentType)
+	public static function NormalizeContentType($contentType)
 	{
 		$ct = strtolower($contentType);
 		$ct = str_replace(array("\r", "\n", "\0"), "", $ct);
@@ -3247,7 +3506,7 @@ function ImgShw(ID, width, height, alt)
 		{
 			$ct = "application/vnd.ms-excel";
 		}
-		elseif (strpos($ct, "word") !== false)
+		elseif (strpos($ct, "word") !== false && strpos($ct, "vnd.openxmlformats") === false)
 		{
 			$ct = "application/msword";
 		}
@@ -3255,7 +3514,7 @@ function ImgShw(ID, width, height, alt)
 		return $ct;
 	}
 
-	function GetContentType($path, $bPhysicalName = false)
+	public static function GetContentType($path, $bPhysicalName = false)
 	{
 		if($bPhysicalName)
 		{
@@ -3304,6 +3563,66 @@ function ImgShw(ID, width, height, alt)
 				"rtf" => "application/msword",
 				"rar" => "application/x-rar-compressed",
 				"zip" => "application/zip",
+				"pdf" => "application/pdf",
+				"ogv" => "video/ogg",
+				"mp4" => "video/mp4",
+				"mp4v" => "video/mp4",
+				"mpg4" => "video/mp4",
+				"mpeg" => "video/mpeg",
+				"mpg" => "video/mpeg",
+				"mpe" => "video/mpeg",
+				"m1v" => "video/mpeg",
+				"m2v" => "video/mpeg",
+				"webm" => "video/webm",
+				"3gp" => "video/3gpp",
+				"3g2" => "video/3gpp2",
+				"h264" => "video/h264",
+				"jpgv" => "video/jpeg",
+				"qt" => "video/quicktime",
+				"mov" => "video/quicktime",
+				"dvb" => "video/vnd.dvb.file",
+				"fvt" => "video/vnd.fvt",
+				"mxu" => "video/vnd.mpegurl",
+				"m4u" => "video/vnd.mpegurl",
+				"pyv" => "video/vnd.ms-playready.media.pyv",
+				"uvu" => "video/vnd.uvvu.mp4",
+				"uvvu" => "video/vnd.uvvu.mp4",
+				"viv" => "video/vnd.vivo",
+				"f4v" => "video/x-f4v",
+				"fli" => "video/x-fli",
+				"flv" => "video/x-flv",
+				"m4v" => "video/x-m4v",
+				"mkv" => "video/x-matroska",
+				"mk3d" => "video/x-matroska",
+				"mks" => "video/x-matroska",
+				"mng" => "video/x-mng",
+				"asf" => "video/x-ms-asf",
+				"asx" => "video/x-ms-asf",
+				"vob" => "video/x-ms-vob",
+				"wm" => "video/x-ms-wm",
+				"wmv" => "video/x-ms-wmv",
+				"wmx" => "video/x-ms-wmx",
+				"wvx" => "video/x-ms-wvx",
+				"avi" => "video/x-msvideo",
+				"movie" => "video/x-sgi-movie",
+				"smv" => "video/x-smv",
+				"mpga" => "audio/mpeg",
+				"mp2" => "audio/mpeg",
+				"mp2a" => "audio/mpeg",
+				"mp3" => "audio/mpeg",
+				"m2a" => "audio/mpeg",
+				"m3a" => "audio/mpeg",
+				"ogg" => "audio/ogg",
+				"oga" => "audio/ogg",
+				"spx" => "audio/ogg",
+				"weba" => "audio/webm",
+				"aac" => "audio/aacp",
+				"flac" => "audio/x-flac",
+				"m3u" => "audio/x-mpegurl",
+				"m3u8" => "application/vnd.apple.mpegurl",
+				"ts" => "video/MP2T",
+				"wav" => "audio/x-wav",
+				"m4a" => "audio/mp4",
 			);
 			$type = $arTypes[strtolower(substr($pathX, bxstrrpos($pathX, ".") + 1))];
 		}
@@ -3332,6 +3651,11 @@ function ImgShw(ID, width, height, alt)
 		{
 			$io = CBXVirtualIo::GetInstance();
 			$pathX = $io->GetPhysicalName($path);
+		}
+
+		if(!file_exists($pathX))
+		{
+			return false;
 		}
 
 		$file_handler = fopen($pathX, "rb");

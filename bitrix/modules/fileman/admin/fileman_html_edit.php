@@ -173,6 +173,7 @@ else
 
 $module_id = "fileman";
 $localRedirectUrl = '';
+
 if(strlen($strWarning)<=0)
 {
 	if($bEdit)
@@ -465,6 +466,15 @@ if ($localRedirectUrl !== '')
 	LocalRedirect($localRedirectUrl);
 }
 
+if(count($arParsedPath["AR_PATH"]) == 1)
+{
+	$adminChain->AddItem(
+		array(
+			"TEXT" => htmlspecialcharsex($DOC_ROOT),
+			"LINK" => "fileman_admin.php?lang=".LANGUAGE_ID."&site=".urlencode($site)."&path=/"
+		)
+	);
+}
 
 foreach($arParsedPath["AR_PATH"] as $chainLevel)
 {
@@ -899,7 +909,22 @@ $tabControl->BeginNextTab();
 				"limitPhpAccess" => $limit_php_access,
 				"relPath" => $relPath
 			));
+
+			CUtil::InitJSCore(array('translit'));
 			?>
+			<script>
+			BX.addCustomEvent('OnGetDefaultUploadImageName', function(nameObj)
+			{
+				if (BX('title', true) && BX('title', true).value !== '')
+				{
+					var name = BX.translit(BX('title', true).value, {replace_space: '-'});
+					if (name != '')
+					{
+						nameObj.value = name + '-img';
+					}
+				}
+			});
+			</script>
 		<?else:?>
 			<? CFileman::ShowHTMLEditControl("filesrc", $filesrc, Array(
 				"site"=>$site,

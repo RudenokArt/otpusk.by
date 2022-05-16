@@ -5,11 +5,22 @@ IncludeModuleLangFile(__FILE__);
 include($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/interface/lang_files.php");
 ?>
 <?
+
+$isSidePanel = (isset($_REQUEST["IFRAME"]) && $_REQUEST["IFRAME"] === "Y");
 //End of Content
+
+if(COption::GetOptionString("main", "update_devsrv", "") == "Y")
+{
+	?><br><br><?
+	echo BeginNote('style="position: relative; top: -15px;"');
+	?><span class="required"><?echo GetMessage("DEVSERVER_ADMIN_MESSAGE");?></span><?
+	echo EndNote();
+}
 ?>
 				</div><?//adm-workarea?>
 			</td><?//adm-workarea-wrap?>
 		</tr>
+		<?if (!$isSidePanel):?>
 		<tr class="adm-footer-wrap">
 			<td class="adm-left-side-wrap"></td>
 			<td class="adm-workarea-wrap">
@@ -41,6 +52,7 @@ else
 ?>
 			</td>
 		</tr>
+		<?endif;?>
 	</table>
 	<div id="fav_cont_item" class="adm-favorites-main" style="display:none;">
 		<div class="adm-favorites-alignment">

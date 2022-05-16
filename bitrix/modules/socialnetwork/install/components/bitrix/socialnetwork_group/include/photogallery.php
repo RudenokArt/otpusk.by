@@ -180,8 +180,8 @@ $arParams["PHOTO"] = array(
 		"PROPERTY_CODE" => array(),
 		"MODERATION" => ($arParams["PHOTO_MODERATION"] == "Y" ? "Y" : "N"),
 /***************** ADDITIONAL **************************************/
-		"SECTION_PAGE_ELEMENTS" => intVal($arParams["PHOTO_SECTION_PAGE_ELEMENTS"]),
-		"ELEMENTS_PAGE_ELEMENTS" => intVal($arParams["PHOTO_ELEMENTS_PAGE_ELEMENTS"]),
+		"SECTION_PAGE_ELEMENTS" => (intVal($arParams["PHOTO_SECTION_PAGE_ELEMENTS"]) > 0 ? intVal($arParams["PHOTO_SECTION_PAGE_ELEMENTS"]) : 15),
+		"ELEMENTS_PAGE_ELEMENTS" => (intVal($arParams["PHOTO_ELEMENTS_PAGE_ELEMENTS"]) > 0 ? intVal($arParams["PHOTO_ELEMENTS_PAGE_ELEMENTS"]) : 50),
 		"PAGE_NAVIGATION_TEMPLATE" => trim($arParams["PHOTO_PAGE_NAVIGATION_TEMPLATE"]),
 		"ELEMENTS_USE_DESC_PAGE" => "Y",
 		"DATE_TIME_FORMAT_SECTION" => "",
@@ -227,7 +227,6 @@ $arParams["PHOTO"] = array(
 		"RATING_MAIN_TYPE" => $arParams["SHOW_RATING"] == "Y"? $arParams["RATING_TYPE"]: "",
 /***************** COMMENTS ****************************************/
 		"USE_COMMENTS" => ($arParams["PHOTO_USE_COMMENTS"] == "Y" && $arResult["GROUP"]["CLOSED"] != "Y" ? "Y" : "N"),
-		"PATH_TO_SMILE" => $arParams["PATH_TO_FORUM_SMILE"],
 		"COMMENTS_TYPE" => ($arParams["PHOTO_COMMENTS_TYPE"] == "blog" ? "BLOG" : "FORUM"),
 		"BLOG_URL" => $arParams["PHOTO_BLOG_URL"],
 		"COMMENTS_COUNT" => $arParams["PHOTO_COMMENTS_COUNT"],
@@ -466,6 +465,8 @@ if (empty($user_alias)):
 				"SOCNET_GROUP_ID" => false,
 				"IBLOCK_SECTION_ID" => "0");
 
+			$groupId = $arResult["VARIABLES"]["group_id"];
+
 			if ($object == "user")
 			{
 				$arFields["NAME"] = trim($USER->GetLastName()." ".$USER->GetFirstName());
@@ -474,15 +475,15 @@ if (empty($user_alias)):
 			}
 			else
 			{
-				$res = CSocNetGroup::GetByID($arResult["VARIABLES"]["group_id"]);
+				$res = CSocNetGroup::GetByID($groupId);
 				if (!$res)
 				{
 					$arParams["ERROR_MESSAGE"] = GetMessage("SONET_GROUP_NOT_EXISTS");
 					return 0;
 				}
-				$arFields["SOCNET_GROUP_ID"] = $arResult["VARIABLES"]["group_id"];
+				$arFields["SOCNET_GROUP_ID"] = $groupId;
 				$arFields["NAME"] = GetMessage("SONET_GROUP_PREFIX").$res["NAME"];
-				$arFields["CODE"] = "group_".$arResult["VARIABLES"]["group_id"];
+				$arFields["CODE"] = "group_".$groupId;
 			}
 
 			if (!empty($arFiles))
@@ -490,7 +491,7 @@ if (empty($user_alias)):
 				$arFields["PICTURE"] = $arFiles["PICTURE"];
 			}
 			$bs = new CIBlockSection();
-			if ($bs->CheckFields($arFields))
+			if (COption::GetOptionString("photogallery", "PhotogalleryGroupChecker_".$groupId, "") != "Y" && $bs->CheckFields($arFields))
 			{
 				if (!empty($arFiles))
 				{

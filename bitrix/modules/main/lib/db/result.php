@@ -15,7 +15,7 @@ namespace Bitrix\Main\DB;
  *
  * @package Bitrix\Main\DB
  */
-abstract class Result
+abstract class Result implements \IteratorAggregate
 {
 	/** @var \Bitrix\Main\DB\Connection */
 	protected $connection;
@@ -247,7 +247,7 @@ abstract class Result
 	/**
 	 * Returns an array of fields according to columns in the result.
 	 *
-	 * @return @return \Bitrix\Main\Entity\ScalarField[]
+	 * @return \Bitrix\Main\ORM\Fields\ScalarField[]
 	 */
 	abstract public function getFields();
 
@@ -276,6 +276,22 @@ abstract class Result
 	}
 
 	/**
+	 * @return callable[]
+	 */
+	public function getConverters()
+	{
+		return $this->converters;
+	}
+
+	/**
+	 * @param callable[] $converters
+	 */
+	public function setConverters($converters)
+	{
+		$this->converters = $converters;
+	}
+
+	/**
 	 * Sets record count.
 	 * @param int $n
 	 */
@@ -296,5 +312,17 @@ abstract class Result
 			return $this->count;
 		}
 		throw new \Bitrix\Main\ObjectPropertyException("count");
+	}
+
+	/**
+	 * Retrieve an external iterator
+	 * @link http://php.net/manual/en/iteratoraggregate.getiterator.php
+	 * @return \Traversable An instance of an object implementing <b>Iterator</b> or
+	 * <b>Traversable</b>
+	 * @since 5.0.0
+	 */
+	public function getIterator()
+	{
+		return new ResultIterator($this);
 	}
 }

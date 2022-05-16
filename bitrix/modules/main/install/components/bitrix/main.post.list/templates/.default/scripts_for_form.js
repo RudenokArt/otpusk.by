@@ -37,9 +37,8 @@
 					}
 				}
 			}, this),
-
-			OnUCUserQuote : BX.delegate(function(entityId, author, res, safeEdit, loaded)
-			{
+			OnUCQuote : BX.delegate(function(entityId, author, res, safeEdit, loaded) {
+				var origRes = BX.util.htmlspecialchars(res);
 				if (this.entitiesId[entityId])
 				{
 					if (!this._checkTextSafety([entityId, 0], safeEdit))
@@ -47,7 +46,7 @@
 					this.show([entityId, 0]);
 					if (loaded !== true)
 					{
-						this.handler.exec(this.windowEvents.OnUCUserQuote, [entityId, author, res, safeEdit, true]);
+						this.handler.exec(this.windowEvents.OnUCQuote, [entityId, author, res, safeEdit, true]);
 					}
 					else if (!this.handler.oEditor.toolbar.controls.Quote)
 					{
@@ -59,7 +58,9 @@
 					}
 					else
 					{
-						res = BX.util.htmlspecialchars(res);
+						res = origRes;
+						var haveWrittenText = author && author.gender ?
+							BX.message("MPL_HAVE_WRITTEN_"+author.gender) : BX.message("MPL_HAVE_WRITTEN");
 						if (this.handler.oEditor.GetViewMode() == 'wysiwyg') // BB Codes
 						{
 							res = res.replace(/\n/g, '<br/>');
@@ -73,7 +74,7 @@
 								{
 									author = '<span>' + author.name.replace(/</gi, '&lt;').replace(/>/gi, '&gt;') + '</span>';
 								}
-								author = (author !== '' ? (author + BX.message("MPL_HAVE_WRITTEN") + '<br/>') : '');
+								author = (author !== '' ? (author + haveWrittenText + '<br/>') : '');
 
 								res = author + res;
 							}
@@ -90,23 +91,40 @@
 								{
 									author = author.name;
 								}
-								author = (author !== '' ? (author + BX.message("MPL_HAVE_WRITTEN") + '\n') : '');
+								author = (author !== '' ? (author + haveWrittenText + '\n') : '');
 								res = author + res;
 							}
 						}
-						this.handler.oEditor.action.actions.quote.setExternalSelection(res);
+
+						if (this.handler.oEditor.action.actions.quote.setExternalSelectionFromRange)
+						{
+							// Here we take selected text via editor tools
+							// we don't use "res"
+							this.handler.oEditor.action.actions.quote.setExternalSelectionFromRange();
+							var extSel = this.handler.oEditor.action.actions.quote.getExternalSelection();
+							if (extSel === '' && origRes !== '')
+							{
+								extSel = origRes;
+							}
+							extSel = (BX.type.isNotEmptyString(author) ? author : '') + extSel;
+							if (BX.type.isNotEmptyString(extSel))
+								this.handler.oEditor.action.actions.quote.setExternalSelection(extSel);
+						}
+						else
+						{
+							// For compatibility with old fileman (< 16.0.1)
+							this.handler.oEditor.action.actions.quote.setExternalSelection(res);
+						}
 						this.handler.oEditor.action.Exec('quote');
 					}
 				}
 			}, this),
-
-			OnUCUserReply : BX.delegate(function(entityId, authorId, authorName, safeEdit)
-			{
-				if (!this._checkTextSafety([entityId, 0], safeEdit))
+			OnUCReply : function(entityId, authorId, authorName, safeEdit, eventResult) {
+				if (eventResult.caught === true || !this._checkTextSafety([entityId, 0], safeEdit))
 					return;
-
 				if (this.entitiesId[entityId])
 				{
+					eventResult.caught = true;
 					this.show([entityId, 0]);
 					if (authorId > 0)
 					{
@@ -120,10 +138,8 @@
 						}]);
 					}
 				}
-			}, this),
-
-			OnUCAfterRecordEdit : BX.delegate(function(entityId, id, data, act)
-			{
+			}.bind(this),
+			OnUCAfterRecordEdit : BX.delegate(function(entityId, id, data, act) {
 				if (!!this.entitiesId[entityId]) {
 					if (act === "EDIT")
 					{
@@ -145,14 +161,7 @@
 							this.id = null;
 						}
 					}
-				} }, this),
-			OnUCUsersAreWriting : BX.delegate(function(entityId, authorId, authorName, authorAvatar, timeL) {
-				if (!!this.entitiesId[entityId]) { this.showAnswering([entityId, 0], authorId, authorName, authorAvatar, timeL); } }, this),
-			OnUCRecordHasDrawn :  BX.delegate(function(entityId, id, data/*, params*/) {
-				if (!!this.entitiesId[entityId]) {
-					var authorId = parseInt(data && data["AUTHOR"] ? data["AUTHOR"]["ID"] : 0);
-					if (authorId > 0)
-						this.hideAnswering([entityId, 0], authorId); } }, this)
+				} }, this)
 		};
 
 		this.linkEntity(arParams['entitiesId']);
@@ -165,8 +174,13 @@
 		if (this.eventNode)
 		{
 			BX.addCustomEvent(this.eventNode, 'OnBeforeHideLHE', BX.delegate(function(/*show, obj*/) {
-				if (!!this.id && !!BX('uc-writing-' + this.form.id + '-' + this.id[0]))
-					BX.hide(BX('uc-writing-' + this.form.id + '-' + this.id[0]));
+				BX.removeClass(document.documentElement, 'bx-ios-fix-frame-focus');
+				if (top && top["document"])
+					BX.removeClass(top["document"]["documentElement"], 'bx-ios-fix-frame-focus');
+				if (!!this.id && !!BX('uc-writing-' + this.form.id + '-' + this.id[0] + '-area'))
+				{
+					BX.hide(BX('uc-writing-' + this.form.id + '-' + this.id[0] + '-area'));
+				}
 			}, this));
 
 			BX.addCustomEvent(this.eventNode, 'OnAfterHideLHE', BX.delegate(function(/*show, obj*/) {
@@ -186,7 +200,6 @@
 				this.__content_length = 0;
 				if (!!this.id) {
 					BX.onCustomEvent(this.eventNode, 'OnUCFormAfterHide', [this]);
-					this.showAnswering(this.id);
 				}
 				clearTimeout(this._checkWriteTimeout);
 				this._checkWriteTimeout = 0;
@@ -195,9 +208,18 @@
 			}, this));
 
 			BX.addCustomEvent(this.eventNode, 'OnBeforeShowLHE', BX.delegate(function(/*show, obj*/) {
+				if (BX.browser.IsIOS() && BX.browser.IsMobile())
+				{
+					BX.addClass(window["document"]["documentElement"], 'bx-ios-fix-frame-focus');
+					if (top && top["document"])
+						BX.addClass(top["document"]["documentElement"], 'bx-ios-fix-frame-focus');
+				}
 				var node = this._getPlacehoder();
+
 				if (node)
 				{
+					BX.removeClass(node, 'feed-com-add-box-no-form');
+					BX.removeClass(node, 'feed-com-add-box-header');
 					BX.show(node);
 				}
 				node = this._getSwitcher();
@@ -206,14 +228,13 @@
 					BX.hide(node);
 				}
 
-				if (!!this.id && !!BX('uc-writing-' + this.form.id + '-' + this.id[0]))
-					BX.hide(BX('uc-writing-' + this.form.id + '-' + this.id[0]));
-
+				if (!!this.id && !!BX('uc-writing-' + this.form.id + '-' + this.id[0] + '-area'))
+				{
+					BX.hide(BX('uc-writing-' + this.form.id + '-' + this.id[0] + '-area'));
+				}
 			}, this));
 			BX.addCustomEvent(this.eventNode, 'OnAfterShowLHE', BX.delegate(function(show, obj){
 				this._checkWrite(show, obj);
-				if (!!this.id)
-					this.showAnswering(this.id);
 				BX.onCustomEvent(window, "OnUCFeedChanged", [this.id]);
 			}, this));
 			BX.addCustomEvent(this.eventNode, 'OnClickSubmit', BX.delegate(this.submit, this));
@@ -222,10 +243,15 @@
 			BX.onCustomEvent(this.eventNode, 'OnUCFormInit', [this]);
 		}
 		this.id = null;
+		this.jsCommentId = null;
+
+		// Lock the submit button when inserting an image.
+		BX.addCustomEvent(window, 'OnImageDataUriHandle', BX.delegate(this.showWait, this));
+		BX.addCustomEvent(window, 'OnImageDataUriCaughtUploaded', BX.delegate(this.closeWait, this));
+		BX.addCustomEvent(window, 'OnImageDataUriCaughtFailed', BX.delegate(this.closeWait, this));
 	};
 	window.FCForm.prototype = {
-		linkEntity : function(Ent)
-		{
+		linkEntity : function(Ent) {
 			if (!!Ent)
 			{
 				for(var ii in Ent)
@@ -240,16 +266,13 @@
 			if (!this.windowEventsSet && !!this.entitiesId)
 			{
 				BX.addCustomEvent(window, 'OnUCUnlinkForm', this.windowEvents.OnUCUnlinkForm);
-				BX.addCustomEvent(window, 'OnUCUserReply', this.windowEvents.OnUCUserReply);
-				BX.addCustomEvent(window, 'OnUCUserQuote', this.windowEvents.OnUCUserQuote);
+				BX.addCustomEvent(window, 'OnUCReply', this.windowEvents.OnUCReply);
+				BX.addCustomEvent(window, 'OnUCQuote', this.windowEvents.OnUCQuote);
 				BX.addCustomEvent(window, 'OnUCAfterRecordEdit', this.windowEvents.OnUCAfterRecordEdit);
-				BX.addCustomEvent(window, 'OnUCUsersAreWriting', this.windowEvents.OnUCUsersAreWriting);
-				BX.addCustomEvent(window, 'OnUCRecordHasDrawn', this.windowEvents.OnUCRecordHasDrawn);
 				this.windowEventsSet = true;
 			}
 		},
-		_checkTextSafety : function(id, checkObj)
-		{
+		_checkTextSafety : function(id, checkObj) {
 			if (checkObj === true)
 			{
 				checkObj = id;
@@ -268,7 +291,7 @@
 					time = 2000;
 				if(content.length >= 4 && this.__content_length != content.length && !!this.id)
 				{
-					BX.onCustomEvent(window, 'OnUCUserIsWriting', [this.id[0], this.id[1]]);
+					BX.onCustomEvent(window, 'OnUCUserIsWriting', [this.id[0], {sent : false}]);
 					time = 30000;
 				}
 				this._checkWriteTimeout = setTimeout(func, time);
@@ -278,21 +301,14 @@
 		_getPlacehoder : function(res) {res = (!!res ? res : this.id); return (!!res ? BX('record-' + res.join('-') + '-placeholder') : null); },
 		_getSwitcher : function(res) {res = (!!res ? res : this.id); return (!!res ? BX('record-' + res[0] + '-switcher') : null); },
 		hide : function(quick) {if (this.eventNode.style.display != 'none') { BX.onCustomEvent(this.eventNode, 'OnShowLHE', [(quick === true ? false : 'hide')]); } if (quick) { document.body.appendChild(this.form); }},
-
 		clear : function() {
 			//var form = this.form, filesForm = null;
 			this.editing = false;
 			var res = this._getPlacehoder();
 			if (!!res)
 				BX.hide(res);
-			var nodes = BX.findChildren(res, {'tagName' : "DIV", 'className' : "feed-add-error"}, true);
-			if (!!nodes)
-			{
-				res = nodes.pop();
-				do {
-					BX.remove(res);
-				} while ((res = nodes.pop()) && res);
-			}
+
+			this.clearNotification(res, 'feed-add-error');
 
 			BX.onCustomEvent(this.eventNode, 'OnUCFormClear', [this]);
 
@@ -308,25 +324,37 @@
 				BX.cleanNode(filesForm, false);
 
 			this.id = null;
+			this.jsCommentId = null;
 		},
 		show : function(id, text, data)
 		{
 			if (this.id && !!id && this.id.join('-') == id.join('-'))
+			{
+				var placeholderNode = this._getPlacehoder(id);
+				this.handler.oEditor.Focus();
+				setTimeout(function() {
+						placeholderNode.scrollIntoView(false);
+				}, 100);
 				return true;
+			}
 			else
+			{
 				this.hide(true);
+			}
 
 			this.id = id;
+			this.jsCommentId = BX.util.getRandomString(20);
 
 			var node = this._getPlacehoder();
+			BX.removeClass(node, 'feed-com-add-box-no-form');
+			BX.removeClass(node, 'feed-com-add-box-header');
 			node.appendChild(this.form);
 			BX.onCustomEvent(this.eventNode, 'OnUCFormBeforeShow', [this, text, data]);
 			BX.onCustomEvent(this.eventNode, 'OnShowLHE', ['show']);
 			BX.onCustomEvent(this.eventNode, 'OnUCFormAfterShow', [this, text, data]);
 			return true;
 		},
-		submit : function()
-		{
+		submit : function() {
 			if (this.busy === true)
 				return 'busy';
 
@@ -347,17 +375,33 @@
 			post_data['MODE'] = "RECORD";
 			post_data['AJAX_POST'] = "Y";
 			post_data['id'] = this.id;
+			if (this.jsCommentId !== null)
+				post_data['COMMENT_EXEMPLAR_ID'] = this.jsCommentId;
+			post_data['SITE_ID'] = BX.message("SITE_ID");
+			post_data['LANGUAGE_ID'] = BX.message("LANGUAGE_ID");
+			post_data["ACTION"] = "ADD";
+
 			if (this.editing === true)
 			{
-				post_data['REVIEW_ACTION'] = "EDIT";
+				post_data['REVIEW_ACTION'] = "EDIT"; // @deprecated
 				post_data["FILTER"] = {"ID" : this.id[1]};
+				post_data["ACTION"] = "EDIT";
+				post_data["ID"] = this.id[1]; // comment to edit
 			}
 			BX.onCustomEvent(this.eventNode, 'OnUCFormSubmit', [this, post_data]);
 			BX.onCustomEvent(window, 'OnUCFormSubmit', [this.id[0], this.id[1], this, post_data]);
+
+			var actionUrl = this.form.action;
+			actionUrl = BX.util.remove_url_param(actionUrl, [ 'b24statAction' ]);
+			actionUrl = BX.util.add_url_param(actionUrl, {
+				b24statAction: (this.id[1] > 0 ? 'editComment' : 'addComment')
+			});
+			this.form.action = actionUrl;
+
 			BX.ajax({
-				'method': 'POST',
-				'url': this.form.action,
-				'data': post_data,
+				method: 'POST',
+				url: this.form.action,
+				data: post_data,
 				dataType: 'json',
 				onsuccess: BX.proxy(function(data) {
 					this.closeWait();
@@ -367,9 +411,13 @@
 						data = this.OnUCFormResponseData;
 					if (!!data)
 					{
-						if (!!data['errorMessage'])
+						if (data['errorMessage'])
 						{
 							this.showError(data['errorMessage']);
+						}
+						else if (data["status"] == "error")
+						{
+							this.showError((BX.type.isNotEmptyString(data["message"]) ? data["message"] : ""));
 						}
 						else
 						{
@@ -386,11 +434,8 @@
 			});
 		},
 		cancel : function() {},
-		showError : function(text) {
-			if (!text)
-				return;
-
-			var node = this._getPlacehoder(), nodes = BX.findChildren(node, {'tagName' : "DIV", 'className' : "feed-add-error"}, true);
+		clearNotification : function(node, className) {
+			var nodes = BX.findChildren(node, {tagName : "DIV", className : className}, true);
 			if (!!nodes)
 			{
 				var res = nodes.pop();
@@ -399,9 +444,22 @@
 					BX.remove(res);
 				} while ((res = nodes.pop()) && !!res);
 			}
-			node.insertBefore(BX.create('div', {attrs : {"class": "feed-add-error"},
-				html: '<span class="feed-add-info-text"><span class="feed-add-info-icon"></span>' +
-					'<b>' + BX.message('FC_ERROR') + '</b><br />' + text + '</span>'}),
+		},
+		showError : function(text) {
+			if (!text)
+				return;
+
+			var node = this._getPlacehoder();
+			this.clearNotification(node, 'feed-add-error');
+			BX.addClass(node, (!node.firstChild ? 'feed-com-add-box-no-form' : 'feed-com-add-box-header'));
+
+			node.insertBefore(BX.create(
+				'div', {
+					attrs : {
+						class: "feed-add-error"
+					},
+					html: '<span class="feed-add-info-text"><span class="feed-add-info-icon"></span>' + '<b>' + BX.message('FC_ERROR') + '</b><br />' + text + '</span>'
+				}),
 				node.firstChild);
 
 			BX.show(node);
@@ -410,182 +468,35 @@
 			if (!text)
 				return;
 
-			var node = this._getPlacehoder(), nodes = BX.findChildren(node, {'tagName' : "DIV", 'className' : "feed-add-successfully"}, true), res = null;
-			if (!!nodes)
-			{
-				while ((res = nodes.pop()) && !!res) {
-					BX.remove(res);
-				}
-			}
+			var node = this._getPlacehoder();
+			this.clearNotification(node, 'feed-add-error');
+			this.clearNotification(node, 'feed-add-successfully');
+			BX.addClass(node, (!node.firstChild ? 'feed-com-add-box-no-form' : 'feed-com-add-box-header'));
+
 			node.insertBefore(BX.create('div', {attrs : {"class": "feed-add-successfully"},
 				html: '<span class="feed-add-info-text"><span class="feed-add-info-icon"></span>' + text + '</span>'}),
 				node.firstChild);
+			BX.addClass(node, 'comment-deleted');
 			BX.show(node);
 		},
 		showWait : function() {
 			var el = BX('lhe_button_submit_' + this.form.id);
+			this.busy = true;
 			if (!!el)
 			{
-				BX.addClass(el, "feed-add-button-load");
-				BX.addClass(el, "feed-add-button-press");
+				BX.addClass(el, "ui-btn-clock");
 				BX.defer(function(){el.disabled = true})();
 			}
 		},
 		closeWait : function() {
 			var el = BX('lhe_button_submit_' + this.form.id);
+			this.busy = false;
 			if (!!el )
 			{
 				el.disabled = false ;
-				BX.removeClass(el, 'feed-add-button-press');
-				BX.removeClass(el, "feed-add-button-load");
+				BX.removeClass(el, "ui-btn-clock");
 			}
 		},
-		objAnswering : null,
-		showAnswering : function(id, userId, name, avatar, time)
-		{
-			userId = (userId > 0 ? userId : 0);
-			if (userId <= 0)
-				return;
-			var
-				_id = 'uc-writing-' + this.form.id + '-' + id[0],
-				placeHolder = BX(_id + '-area'),
-				switcher = this._getSwitcher(id),
-				ucAnsweringStorage = BX.localStorage.get('ucAnsweringStorage');
-			ucAnsweringStorage = (!!ucAnsweringStorage ? ucAnsweringStorage : {});
-
-			if (!placeHolder && switcher)
-			{
-				placeHolder  = BX.create('DIV', {
-					attrs : {id : _id + '-area', className : "feed-com-writers"},
-					//style : { display : "none", "verticalAlign": "top", "fontWeight": "normal", "paddingLeft": "15px", "position": "absolute" },
-					html : '<div id="' + _id + '-users" class="feed-com-writers-wrap"></div><div class="feed-com-writers-pen"></div>'
-				});
-				switcher.appendChild(placeHolder);
-			}
-			if (!!placeHolder)
-			{
-				if (userId > 0)
-				{
-					if (!time)
-					{
-						ucAnsweringStorage['userId' + userId] = {id : id[0], userId : userId, name : name, avatar : avatar, 'time' : (new Date())};
-						BX.localStorage.set('ucAnsweringStorage', ucAnsweringStorage, 3000);
-					}
-					if (!BX(_id + '-user-' + userId))
-					{
-						BX.adjust(
-							BX(_id + '-users'),
-							{
-								children : [
-									BX.create('DIV', {
-											attrs : {
-												"className" : 'feed-com-avatar',
-												id : (_id + '-user-' + userId),
-												title : name
-											},
-											children : [
-												BX.create('IMG', {
-													attrs : {
-														src : (avatar && avatar.length > 0 ? avatar : '/bitrix/images/1.gif')
-													}
-												})
-											]
-										}
-									)
-								]
-							}
-						);
-					}
-				}
-				if (BX(_id + '-users').childNodes.length > 0)
-				{
-					if(BX(placeHolder.parentNode).style.display == 'none')
-					{
-						var node = BX('lhe_buttons_' + this.form.id);
-						if (!node || node.style.display == 'none')
-							node = this.form;
-						node.appendChild(placeHolder);
-					}
-					else if(placeHolder.parentNode != switcher)
-						switcher.appendChild(placeHolder);
-
-					if (this.objAnswering && this.objAnswering.name != 'show')
-						this.objAnswering.stop();
-					if (!this.objAnswering || this.objAnswering.name != 'show')
-					{
-						placeHolder.style.display = 'inline-block';
-						this.objAnswering = (new BX["easing"]({
-							duration : 500,
-							start : { opacity : 0},
-							finish : { opacity: 100},
-							transition : BX.easing.makeEaseOut(BX.easing.transitions.quart),
-							step : function(state){
-								placeHolder.style.opacity = state.opacity / 100;
-							}
-						}));
-						this.objAnswering.name = 'show';
-						this.objAnswering.animate();
-					}
-
-					var t = setTimeout(BX.delegate(function(){ this.hideAnswering(id, userId); }, this), (!!time ? time : 40500));
-					if (BX(_id + '-user-' + userId))
-					{
-						clearTimeout(BX(_id + '-user-' + userId).getAttribute("bx-check-timeout"));
-						BX(_id + '-user-' + userId).setAttribute("bx-check-timeout", (t + ''));
-					}
-				}
-			}
-		},
-		hideAnswering : function(id, userId)
-		{
-			var
-				_id = 'uc-writing-' + this.form.id + '-' + id[0],
-				placeHolder = BX(_id + '-area'),
-				el = BX(_id + '-user-' + userId, false);
-			if(el && placeHolder)
-			{
-				if(BX(_id + '-users').childNodes.length > 1)
-				{
-					(new BX["easing"]({
-						duration : 500,
-						start : { opacity: 100},
-						finish : { opacity : 0},
-						transition : BX["easing"].makeEaseOut(BX["easing"].transitions.quart),
-						step : function(state){
-							el.style.opacity = state.opacity / 100;
-						},
-						complete : function(){
-							if(!!el && !!el.parentNode)
-								el.parentNode.removeChild(el);
-						}
-					})).animate();
-				}
-				else
-				{
-					if (this.objAnswering && this.objAnswering.name != 'hide')
-						this.objAnswering.stop();
-					if (!this.objAnswering || this.objAnswering.name != 'hide')
-					{
-						this.objAnswering = (new BX["easing"]({
-							duration : 500,
-							start : { opacity: 100},
-							finish : { opacity : 0},
-							transition : BX["easing"].makeEaseOut(BX.easing.transitions.quart),
-							step : function(state){
-								placeHolder.style.opacity = state.opacity / 100;
-							},
-							complete : function(){
-								placeHolder.style.display = 'none';
-								if(!!el && !!el.parentNode)
-									el.parentNode.removeChild(el);
-							}
-						}));
-						this.objAnswering.name = 'hide';
-						this.objAnswering.animate();
-					}
-				}
-			}
-		}
 	};
 
 	window.convertFormToArray = function(form, data)
@@ -669,27 +580,6 @@
 		return data;
 	};
 
-	window.FCForm.onUCUsersAreWriting = function()
-	{
-		BX.ready(function(){
-			var res = null, timeL = null, ucAnsweringStorage = BX.localStorage.get('ucAnsweringStorage');
-			if(!!ucAnsweringStorage)
-			{
-				for (var ii in ucAnsweringStorage)
-				{
-					if (ucAnsweringStorage.hasOwnProperty(ii))
-					{
-						res = ucAnsweringStorage[ii];
-						if (!!res && res.userId > 0)
-						{
-							timeL = ((new Date()) - res.time);
-							if (timeL < 30000) { BX.onCustomEvent(window, 'OnUCUsersAreWriting', [res.id, res.userId, res.name, res.avatar, timeL]); }
-						}
-					}
-				}
-			}
-		});
-	};
 	window["fRefreshCaptcha"] = function(form)
 	{
 		var captchaIMAGE = null,

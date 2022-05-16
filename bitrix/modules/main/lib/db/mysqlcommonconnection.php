@@ -2,10 +2,14 @@
 namespace Bitrix\Main\DB;
 
 use Bitrix\Main\ArgumentException;
-use Bitrix\Main\Entity;
+use Bitrix\Main\ORM\Fields\ScalarField;
 
 abstract class MysqlCommonConnection extends Connection
 {
+	const INDEX_UNIQUE = 'UNIQUE';
+	const INDEX_FULLTEXT = 'FULLTEXT';
+	const INDEX_SPATIAL = 'SPATIAL';
+
 	protected $engine = "";
 
 	/**
@@ -120,7 +124,7 @@ abstract class MysqlCommonConnection extends Connection
 	 *
 	 * @param string $tableName The table name.
 	 *
-	 * @return Entity\ScalarField[] An array of objects with columns information.
+	 * @return ScalarField[] An array of objects with columns information.
 	 * @throws \Bitrix\Main\Db\SqlQueryException
 	 */
 	public function getTableFields($tableName)
@@ -129,7 +133,11 @@ abstract class MysqlCommonConnection extends Connection
 		{
 			$this->connectInternal();
 
-			$query = $this->queryInternal("SELECT * FROM ".$this->getSqlHelper()->quote($tableName)." LIMIT 0");
+			$sqlTableName = ($tableName{0} === '(')
+				? $sqlTableName = $tableName.' AS xyz' // subquery
+				: $sqlTableName = $this->getSqlHelper()->quote($tableName); // regular table name
+
+			$query = $this->queryInternal("SELECT * FROM {$sqlTableName} LIMIT 0");
 
 			$result = $this->createResult($query);
 
@@ -139,10 +147,10 @@ abstract class MysqlCommonConnection extends Connection
 	}
 
 	/**
-	 * @param string $tableName Name of the new table.
-	 * @param \Bitrix\Main\Entity\ScalarField[] $fields Array with columns descriptions.
-	 * @param string[] $primary Array with primary key column names.
-	 * @param string[] $autoincrement Which columns will be auto incremented ones.
+	 * @param string        $tableName     Name of the new table.
+	 * @param ScalarField[] $fields        Array with columns descriptions.
+	 * @param string[]      $primary       Array with primary key column names.
+	 * @param string[]      $autoincrement Which columns will be auto incremented ones.
 	 *
 	 * @return void
 	 * @throws \Bitrix\Main\ArgumentException
@@ -155,7 +163,7 @@ abstract class MysqlCommonConnection extends Connection
 
 		foreach ($fields as $columnName => $field)
 		{
-			if (!($field instanceof Entity\ScalarField))
+			if (!($field instanceof ScalarField))
 			{
 				throw new ArgumentException(sprintf(
 					'Field `%s` should be an Entity\ScalarField instance', $columnName
@@ -202,11 +210,12 @@ abstract class MysqlCommonConnection extends Connection
 	 * @param string          $indexName     Name of the new index.
 	 * @param string|string[] $columnNames   Name of the column or array of column names to be included into the index.
 	 * @param string[]        $columnLengths Array of column names and maximum length for them.
+	 * @param null            $indexType
 	 *
 	 * @return Result
-	 * @throws \Bitrix\Main\Db\SqlQueryException
+	 * @throws SqlQueryException
 	 */
-	public function createIndex($tableName, $indexName, $columnNames, $columnLengths = null)
+	public function createIndex($tableName, $indexName, $columnNames, $columnLengths = null, $indexType = null)
 	{
 		if (!is_array($columnNames))
 		{
@@ -234,7 +243,17 @@ abstract class MysqlCommonConnection extends Connection
 		}
 		unset($columnName);
 
-		$sql = 'CREATE INDEX '.$sqlHelper->quote($indexName).' ON '.$sqlHelper->quote($tableName).' ('.join(', ', $columnNames).')';
+		$indexTypeSql = '';
+
+		if ($indexType !== null
+			&& in_array(strtoupper($indexType), [static::INDEX_UNIQUE, static::INDEX_FULLTEXT, static::INDEX_SPATIAL], true)
+		)
+		{
+			$indexTypeSql = strtoupper($indexType);
+		}
+
+		$sql = 'CREATE '.$indexTypeSql.' INDEX '.$sqlHelper->quote($indexName).' ON '.$sqlHelper->quote($tableName)
+			.' ('.join(', ', $columnNames).')';
 
 		return $this->query($sql);
 	}
@@ -321,4 +340,12 @@ abstract class MysqlCommonConnection extends Connection
 			$this->query("SET storage_engine = '".$this->engine."'");
 		}
 	}
+
+	/**
+	 * Selects the default database for database queries.
+	 *
+	 * @param string $database Database name.
+	 * @return bool
+	 */
+	abstract public function selectDatabase($database);
 }

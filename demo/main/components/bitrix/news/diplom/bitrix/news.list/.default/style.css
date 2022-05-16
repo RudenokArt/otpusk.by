@@ -1,0 +1,17 @@
+div.news-list
+{
+	word-wrap: break-word;
+}
+div.news-list img.preview_picture
+{
+	float:left;
+	margin:0 4px 6px 0;
+}
+.news-date-time {
+	color:#486DAA;
+}
+.team-item {border:1px solid #B7B5B5; padding-top: 4px;}
+.team-item h5, .team-item h6 {height: 78px; overflow:hidden;}
+.content {
+    margin-bottom: 12px;
+}

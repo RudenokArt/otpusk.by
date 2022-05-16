@@ -1,11 +1,16 @@
 <?
 /**
  * @global CMain $APPLICATION
- * @param array $arParams
- * @param array $arResult
+ * @var array $arParams
+ * @var array $arResult
  */
 if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true)
 	die();
+
+if($arResult["SHOW_SMS_FIELD"] == true)
+{
+	CJSCore::Init('phone_auth');
+}
 ?>
 
 <div class="bx-auth-profile">
@@ -15,6 +20,57 @@ if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true)
 if ($arResult['DATA_SAVED'] == 'Y')
 	ShowNote(GetMessage('PROFILE_DATA_SAVED'));
 ?>
+
+<?if($arResult["SHOW_SMS_FIELD"] == true):?>
+
+<form method="post" action="<?=$arResult["FORM_TARGET"]?>">
+<?=$arResult["BX_SESSION_CHECK"]?>
+<input type="hidden" name="lang" value="<?=LANG?>" />
+<input type="hidden" name="ID" value=<?=$arResult["ID"]?> />
+<input type="hidden" name="SIGNED_DATA" value="<?=htmlspecialcharsbx($arResult["SIGNED_DATA"])?>" />
+<table class="profile-table data-table">
+	<tbody>
+		<tr>
+			<td><?echo GetMessage("main_profile_code")?><span class="starrequired">*</span></td>
+			<td><input size="30" type="text" name="SMS_CODE" value="<?=htmlspecialcharsbx($arResult["SMS_CODE"])?>" autocomplete="off" /></td>
+		</tr>
+	</tbody>
+</table>
+
+<p><input type="submit" name="code_submit_button" value="<?echo GetMessage("main_profile_send")?>" /></p>
+
+</form>
+
+<script>
+new BX.PhoneAuth({
+	containerId: 'bx_profile_resend',
+	errorContainerId: 'bx_profile_error',
+	interval: <?=$arResult["PHONE_CODE_RESEND_INTERVAL"]?>,
+	data:
+		<?=CUtil::PhpToJSObject([
+			'signedData' => $arResult["SIGNED_DATA"],
+		])?>,
+	onError:
+		function(response)
+		{
+			var errorDiv = BX('bx_profile_error');
+			var errorNode = BX.findChildByClassName(errorDiv, 'errortext');
+			errorNode.innerHTML = '';
+			for(var i = 0; i < response.errors.length; i++)
+			{
+				errorNode.innerHTML = errorNode.innerHTML + BX.util.htmlspecialchars(response.errors[i].message) + '<br>';
+			}
+			errorDiv.style.display = '';
+		}
+});
+</script>
+
+<div id="bx_profile_error" style="display:none"><?ShowError("error")?></div>
+
+<div id="bx_profile_resend"></div>
+
+<?else:?>
+
 <script type="text/javascript">
 <!--
 var opened_sections = [<?
@@ -90,18 +146,24 @@ var cookie_prefix = '<?=$arResult["COOKIE_PREFIX"]?>';
 		<td><input type="text" name="LAST_NAME" maxlength="50" value="<?=$arResult["arUser"]["LAST_NAME"]?>" /></td>
 	</tr>
 	<tr>
-		<td><?=GetMessage('SECOND_NAME')?></font></td>
+		<td><?=GetMessage('SECOND_NAME')?></td>
 		<td><input type="text" name="SECOND_NAME" maxlength="50" value="<?=$arResult["arUser"]["SECOND_NAME"]?>" /></td>
-	</tr>
-	<tr>
-		<td><?=GetMessage('EMAIL')?><?if($arResult["EMAIL_REQUIRED"]):?><span class="starrequired">*</span><?endif?></td>
-		<td><input type="text" name="EMAIL" maxlength="50" value="<? echo $arResult["arUser"]["EMAIL"]?>" /></td>
 	</tr>
 	<tr>
 		<td><?=GetMessage('LOGIN')?><span class="starrequired">*</span></td>
 		<td><input type="text" name="LOGIN" maxlength="50" value="<? echo $arResult["arUser"]["LOGIN"]?>" /></td>
 	</tr>
-<?if($arResult["arUser"]["EXTERNAL_AUTH_ID"] == ''):?>
+	<tr>
+		<td><?=GetMessage('EMAIL')?><?if($arResult["EMAIL_REQUIRED"]):?><span class="starrequired">*</span><?endif?></td>
+		<td><input type="text" name="EMAIL" maxlength="50" value="<? echo $arResult["arUser"]["EMAIL"]?>" /></td>
+	</tr>
+<?if($arResult["PHONE_REGISTRATION"]):?>
+	<tr>
+		<td><?echo GetMessage("main_profile_phone_number")?><?if($arResult["PHONE_REQUIRED"]):?><span class="starrequired">*</span><?endif?></td>
+		<td><input type="text" name="PHONE_NUMBER" maxlength="50" value="<? echo $arResult["arUser"]["PHONE_NUMBER"]?>" /></td>
+	</tr>
+<?endif?>
+<?if($arResult['CAN_EDIT_PASSWORD']):?>
 	<tr>
 		<td><?=GetMessage('NEW_PASSWORD_REQ')?></td>
 		<td><input type="password" name="NEW_PASSWORD" maxlength="50" value="" autocomplete="off" class="bx-auth-input" />
@@ -319,11 +381,11 @@ document.getElementById('bx_auth_secure').style.display = 'inline-block';
 			<td><input type="text" name="WORK_PHONE" maxlength="255" value="<?=$arResult["arUser"]["WORK_PHONE"]?>" /></td>
 		</tr>
 		<tr>
-			<td><?=GetMessage('USER_FAX')?></font></td>
+			<td><?=GetMessage('USER_FAX')?></td>
 			<td><input type="text" name="WORK_FAX" maxlength="255" value="<?=$arResult["arUser"]["WORK_FAX"]?>" /></td>
 		</tr>
 		<tr>
-			<td><?=GetMessage('USER_PAGER')?></font></td>
+			<td><?=GetMessage('USER_PAGER')?></td>
 			<td><input type="text" name="WORK_PAGER" maxlength="255" value="<?=$arResult["arUser"]["WORK_PAGER"]?>" /></td>
 		</tr>
 		<tr>
@@ -376,7 +438,7 @@ document.getElementById('bx_auth_secure').style.display = 'inline-block';
 	<tbody>
 		<tr>
 			<td><?=GetMessage("forum_SHOW_NAME")?></td>
-			<td><input type="checkbox" name="forum_SHOW_NAME" value="Y" <?if ($arResult["arForumUser"]["SHOW_NAME"]=="Y") echo "checked=\"checked\"";?> /></td>
+			<td><input type="hidden" name="forum_SHOW_NAME" value="N" /><input type="checkbox" name="forum_SHOW_NAME" value="Y" <?if ($arResult["arForumUser"]["SHOW_NAME"]=="Y") echo "checked=\"checked\"";?> /></td>
 		</tr>
 		<tr>
 			<td><?=GetMessage('forum_DESCRIPTION')?></td>
@@ -464,7 +526,7 @@ document.getElementById('bx_auth_secure').style.display = 'inline-block';
 		<tbody>
 			<tr>
 				<td><?=GetMessage("learning_PUBLIC_PROFILE");?>:</td>
-				<td><input type="checkbox" name="student_PUBLIC_PROFILE" value="Y" <?if ($arResult["arStudent"]["PUBLIC_PROFILE"]=="Y") echo "checked=\"checked\"";?> /></td>
+				<td><input type="hidden" name="student_PUBLIC_PROFILE" value="N" /><input type="checkbox" name="student_PUBLIC_PROFILE" value="Y" <?if ($arResult["arStudent"]["PUBLIC_PROFILE"]=="Y") echo "checked=\"checked\"";?> /></td>
 			</tr>
 			<tr>
 				<td><?=GetMessage("learning_RESUME");?>:</td>
@@ -539,4 +601,7 @@ if($arResult["SOCSERV_ENABLED"])
 	);
 }
 ?>
+
+<?endif?>
+
 </div>

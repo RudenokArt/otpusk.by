@@ -1,0 +1,32 @@
+#placements-map {
+	height: 500px;
+}
+
+.fs-18 {
+	font-size: 18px;
+}
+ul.availabily-list li {
+	margin-bottom: 0;
+	padding-top: 12px;
+}
+ul.availabily-list li > div {width: none;font-size: 12px}
+ul.availabily-list li > div span, ul.availabily-list li > div a {font-size: 12px}
+.country-list span {
+	padding-right: 5px;
+	border-right: 1px solid #ccc;
+	margin-right: 5px;
+	display: inline-block;
+}
+.country-list span:last-child {
+	padding-right: 0px;
+	border-right: none;
+	margin-right: 0px;
+}
+.country-list span a {
+	border-bottom: 1px dashed black;
+	font-weight: 100;
+	color: black;
+}
+.country-list span a:hover {
+	color: #EB5019;
+}

@@ -21,6 +21,21 @@ BX.CAutoSave = function(params)
 
 	BX.ready(BX.defer(this.Prepare, this));
 	BX.garbage(BX.delegate(this.Clear, this));
+
+	if (
+		BX.type.isNotEmptyString(this.FORM_MARKER)
+		&& BX(this.FORM_MARKER)
+	)
+	{
+		var formMarker = BX(this.FORM_MARKER);
+		if (
+			BX(formMarker.form)
+			&& BX.type.isNotEmptyString(formMarker.form.name)
+		)
+		{
+			BX.addCustomEvent(window.top, 'onExtAutoSaveReset_' + formMarker.form.name, BX.proxy(this.Reset, this));
+		}
+	}
 };
 
 BX.CAutoSave.prototype.Prepare = function()
@@ -102,7 +117,11 @@ BX.CAutoSave.prototype._PrepareAfter = function()
 		var o = this._NotifyContext();
 		if (o)
 		{
-			o.Notify(BX.message('AUTOSAVE') + ' <a href="javascript:void(0)" onclick="BX.CAutoSave.Restore(\'' + BX.util.urlencode(id) + '\', this); return false;">' + BX.message('AUTOSAVE_R') + '</a>');
+			o.Notify(
+				BX.message('AUTOSAVE') + ' <a href="javascript:void(0)" onclick="BX.CAutoSave.Restore(\'' + BX.util.urlencode(id) + '\', this); return false;">' +	BX.message('AUTOSAVE_R') + '</a>',
+				false,
+				true
+			);
 		}
 
 		// may be useful sometimes
@@ -212,6 +231,16 @@ BX.CAutoSave.prototype.Save = function()
 	else
 	{
 		this.Clear();
+	}
+};
+
+BX.CAutoSave.prototype.Reset = function()
+{
+	if (this.FORM && BX.isNodeInDom(this.FORM))
+	{
+		BX.ajax.post(
+			'/bitrix/tools/autosave.php?bxsender=core_autosave&action=reset&sessid=' + BX.bitrix_sessid(), {autosave_id: this.FORM_ID }, null
+		);
 	}
 };
 

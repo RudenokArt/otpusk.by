@@ -32,7 +32,7 @@ if (!function_exists("__array_merge"))
 ********************************************************************/
 /***************** BASE ********************************************/
 	$q = trim($_REQUEST["q"]);
-	$arResult["q"] = htmlspecialcharsEx($q);
+	$arResult["q"] = htmlspecialcharsbx($q);
 	$arParams["FID"] = (!empty($_REQUEST["FID"]) ? $_REQUEST["FID"] : $_REQUEST["FORUM_ID"]);
 	$arParams["FID"] = (!empty($arParams["FID"]) ? $arParams["FID"] : $_REQUEST["find_forum"]);
 	$arParams["FID"] = is_array($arParams["FID"]) ? $arParams["FID"] : array($arParams["FID"]);
@@ -219,6 +219,7 @@ if (strLen($_REQUEST["q"]) > 0 || !empty($_REQUEST["tags"])):
 			$arResult["order"]["topic"] = htmlspecialcharsbx($arResult["order"]["~topic"]);
 			$arResult["order"]["date"] = htmlspecialcharsbx($arResult["order"]["~date"]);
 			$arResult["EMPTY"] = "N";
+			$arResult["TOPICS"] = [];
 			do
 			{
 				if (intVal($res["ITEM_ID"]) > 0)

@@ -57,7 +57,7 @@ SequentialWorkflowActivity = function()
 		{
 			ob.swfToolboxDiv.style.position = 'static';
 		}
-	}
+	};
 
 	ob.DrawSequenceActivity = ob.Draw;
 	ob.Draw = function (div)
@@ -101,7 +101,7 @@ SequentialWorkflowActivity = function()
 							BX.remove(r);
 							for(var i=1; i<allP.childNodes.length; i++)
 								allP.childNodes[i]._ind = i-1;
-							window.dlgSnippetsSettings.Hide();
+							window.dlgSnippetsSettings.Close();
 							BCPSaveUserParams();
 						}
 					}
@@ -154,7 +154,7 @@ SequentialWorkflowActivity = function()
 		end.style.textAlign = 'center';
 		end.style.width = '120px';
 		end.innerHTML = '<div style="background: url(/bitrix/images/bizproc/beg_bg.gif);"><div  style="background: url(/bitrix/images/bizproc/beg_r.gif) right top no-repeat;"><div style="background: url(/bitrix/images/bizproc/beg_l.gif) left top no-repeat; height: 23px;"><div style="padding-top: 3px; font-size: 12px; color:#194d0b;">'+BPMESS['SEQWF_END']+'</div></div></div></div>';
-	}
+	};
 
 	ob.DrawActivities = function ()
 	{
@@ -162,7 +162,7 @@ SequentialWorkflowActivity = function()
 			ob._table.rows[1].cells[0].removeChild(ob._table.rows[1].cells[0].childNodes[0]);
 
 		ob.DrawSequenceActivity(ob._table.rows[1].cells[0]);
-	}
+	};
 
 	ob.DrawGroup = function (oGroup)
 	{
@@ -199,15 +199,15 @@ SequentialWorkflowActivity = function()
 		divGroupList.className = 'swftoolboxgrouplist';
 
 		return divGroupList;
-	}
+	};
 	
 	ob.DrawGroupItem = function (divGroupList, oActivity, bExt, ind)
 	{
 		var dCont, bCat, cat;
 
 		dCont = divGroupList.appendChild(document.createElement('DIV'));
-		//console.debug(oActivity);
-		if(oActivity['NAME'])
+		dCont.onclick = function(e){BX.PreventDefault(e);};
+		if(oActivity['NAME'] !== undefined)
 			dCont.activityTemplate = {'Properties': {'Title': oActivity['NAME']}, 'Type': oActivity['CLASS'], 'Children': [], 'Icon': oActivity['ICON']};
 		else
 			dCont.activityTemplate = oActivity;
@@ -241,7 +241,7 @@ SequentialWorkflowActivity = function()
 			t.rows[0].cells[2].onmousedown = function (e)
 			{
 				return BX.PreventDefault(e);
-			}
+			};
 			
 			dCont._ind = ind;
 
@@ -273,7 +273,37 @@ SequentialWorkflowActivity = function()
 			div.style.width = this.parentNode.offsetWidth + 'px';
 		}
 		
-	}
+	};
+
+	ob.DrawMarketplaceItem = function (divGroupList)
+	{
+		var dCont, bCat, cat;
+
+		dCont = divGroupList.appendChild(document.createElement('DIV'));
+		dCont.onclick = function(e) {
+			BX.PreventDefault(e);
+			BX.rest.Marketplace.open({}, 'auto_pb');
+		};
+
+		var t = dCont.appendChild(_crt(1, 3));
+
+		t.rows[0].style.height = '30px';
+		t.rows[0].cells[0].style.width = '30px';
+
+		t.rows[0].cells[0].style.background = 'url(/bitrix/images/bizproc/act_icon_plus.png) 3px 3px no-repeat';
+
+		//d.style.borderBottom = "1px #EBEBEB solid"
+		t.rows[0].cells[0].style.cursor = 'pointer';
+
+		t.rows[0].cells[1].style.cursor = 'pointer';
+		t.rows[0].cells[1].style.fontSize = '11px';
+		t.rows[0].cells[1].innerHTML = HTMLEncode(BPMESS['SEQWF_MARKETPLACE_ADD']);
+		t.rows[0].cells[1].align = 'left';
+
+		t.insertRow(-1);
+		t.rows[1].insertCell(-1).innerHTML = '<table width="100%" style="border-collapse: collapse" cellpadding="0" cellspacing="0" border="0"><tr><td width="5"></td><td style="border-bottom: 1px #EBEBEB solid; height: 1px; font-size: 1px;"><img src="/bitrix/images/1.gif" width="1" height="1"></td><td width="5"></td></tr></table>';
+		t.rows[1].cells[0].colSpan = "3";
+	};
 
 	ob.ShowActivities = function (div)
 	{
@@ -290,9 +320,16 @@ SequentialWorkflowActivity = function()
 
 			for(var act_i in arAllActivities)
 			{
-				if(!arAllActivities[act_i]["CATEGORY"] || arAllActivities[act_i]["CATEGORY"]["ID"]!=groupId)
+				if (!arAllActivities.hasOwnProperty(act_i))
 					continue;
-				if(arAllActivities[act_i]["EXCLUDED"])
+
+				if (arAllActivities[act_i]["EXCLUDED"] || !arAllActivities[act_i]["CATEGORY"])
+					continue;
+
+				var activityGroupId = arAllActivities[act_i]["CATEGORY"]["ID"];
+				if (arAllActivities[act_i]["CATEGORY"]["OWN_ID"])
+					activityGroupId = arAllActivities[act_i]["CATEGORY"]["OWN_ID"];
+				if (activityGroupId !=groupId)
 					continue;
 
 				if(act_i == 'setstateactivity' && rootActivity.Type == ob.Type)
@@ -302,6 +339,16 @@ SequentialWorkflowActivity = function()
 					divGroupList = ob.DrawGroup(arAllActGroups[groupId]);
 
 				ob.DrawGroupItem(divGroupList, arAllActivities[act_i]);
+			}
+
+			if (groupId === 'rest' && BX.getClass('BX.rest.Marketplace'))
+			{
+				if (divGroupList === null)
+				{
+					divGroupList = ob.DrawGroup(arAllActGroups[groupId]);
+				}
+
+				ob.DrawMarketplaceItem(divGroupList);
 			}
 		}
 
@@ -321,8 +368,12 @@ SequentialWorkflowActivity = function()
 
 		arUserParams['SNIPPETS'] = arUserParams['SNIPPETS'] || [];
 		for(var isn in arUserParams['SNIPPETS'])
+		{
+			if (!arUserParams['SNIPPETS'].hasOwnProperty(isn))
+				continue;
 			ob.DrawGroupItem(ob.divSnippets, arUserParams['SNIPPETS'][isn], true, isn);
-	}
+		}
+	};
 
 	ob.lastDrop2 = false;
 	ob.ondragging2 = function (e, X, Y)
@@ -344,7 +395,7 @@ SequentialWorkflowActivity = function()
 			ob.drdrop.style.border = '1px dashed #DDDDDD';
 			ob.lastDrop2 = false;
 		}
-	}
+	};
 
 	ob.ondrop2 = function (e, X, Y)
 	{
@@ -359,7 +410,7 @@ SequentialWorkflowActivity = function()
 			ob.drdrop.style.border = '1px dashed #DDDDDD';
 			ob.lastDrop2 = false;
 		}
-	}
+	};
 
 
 	ob.RemoveResourcesSequenceActivity = ob.RemoveResources;
@@ -378,7 +429,7 @@ SequentialWorkflowActivity = function()
 			ob.Table.parentNode.removeChild(ob.Table);
 			ob.Table = null;
 		}
-	}
+	};
 
 	return ob;
-}
+};

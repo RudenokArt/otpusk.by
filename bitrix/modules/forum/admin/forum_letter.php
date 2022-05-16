@@ -3,7 +3,7 @@
 	Profanity dictionary.
 ********************************************************************/
 	require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_before.php");
-	require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/forum/include.php");
+	\Bitrix\Main\Loader::includeModule("forum");
 	$forumModulePermissions = $APPLICATION->GetGroupRight("forum");
 	if ($forumModulePermissions == "D")
 		$APPLICATION->AuthForm(GetMessage("ACCESS_DENIED"));
@@ -19,7 +19,7 @@
 	$arFilter = array();
 	$find = trim($find);
 	if (strLen($find) > 0)
-		$arFilter["%".htmlspecialcharsEx($find_type)] = "%".$find."%";
+		$arFilter["%".htmlspecialcharsbx($find_type)] = "%".$find."%";
 	$DICTIONARY_ID = intVal($_REQUEST["DICTIONARY_ID"]);
 	if ($DICTIONARY_ID <= 0)
 		$lAdmin->AddFilterError(GetMessage("FLT_NOT_DICT")); 
@@ -124,7 +124,7 @@
 	<?$oFilter->Begin();?>
 	<tr valign="center">
 		<td><b><?=GetMessage("MAIN_FIND")?>:</b></td>
-		<td><input type="text" name="find" size="47" value="<?=htmlspecialcharsEx($find)?>">
+		<td><input type="text" name="find" size="47" value="<?=htmlspecialcharsbx($find)?>">
 		<?
 		$arr = array(
 			"reference" => array(

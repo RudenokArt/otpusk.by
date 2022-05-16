@@ -3,9 +3,9 @@ require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/forum/classes/general/me
 
 class CForumMessage extends CAllForumMessage
 {
-	function Add($arFields, $strUploadDir = false, $arParams = array())
+	public static function Add($arFields, $strUploadDir = false, $arParams = array())
 	{
-		global $DB;
+		global $DB, $USER_FIELD_MANAGER;
 
 		$strUploadDir = ($strUploadDir === false ? "forum/upload" : $strUploadDir);
 
@@ -77,10 +77,17 @@ class CForumMessage extends CAllForumMessage
 /***************** Quota *******************************************/
 		$_SESSION["SESS_RECOUNT_DB"] = "Y";
 
-		$GLOBALS["USER_FIELD_MANAGER"]->Update("FORUM_MESSAGE", $ID, $arFields);
+		$USER_FIELD_MANAGER->Update("FORUM_MESSAGE", $ID, $arFields, (array_key_exists("USER_ID", $arFields) ? $arFields["USER_ID"] : false));
+
+		$arMessage = CForumMessage::GetByIDEx($ID, array("GET_FORUM_INFO" => "N", "GET_TOPIC_INFO" => "Y", "FILTER" => "Y"));
+
+		/***************** Events onAfterMessageAdd ************************/
+		foreach(GetModuleEvents("forum", "onAfterMessageAdd", true) as $arEvent)
+			ExecuteModuleEventEx($arEvent, array(&$ID, $arMessage, $arMessage["TOPIC_INFO"], $arMessage["FORUM_INFO"], $arFields));
+		/***************** /Events *****************************************/
+
 		if ($arParams["SKIP_STATISTIC"] == "Y" && $arParams["SKIP_INDEXING"] == "Y")
 			return $ID;
-		$arMessage = CForumMessage::GetByIDEx($ID, array("GET_FORUM_INFO" => "N", "GET_TOPIC_INFO" => "Y", "FILTER" => "Y"));
 
 		if ($arParams["SKIP_STATISTIC"] != "Y")
 		{
@@ -91,97 +98,102 @@ class CForumMessage extends CAllForumMessage
 			CForumTopic::SetStat($arMessage["TOPIC_ID"],  array("MESSAGE" => $arMessage));
 			CForumNew::SetStat($arMessage["FORUM_ID"],  array("MESSAGE" => $arMessage));
 		}
-/***************** Events onAfterMessageAdd ************************/
-		foreach(GetModuleEvents("forum", "onAfterMessageAdd", true) as $arEvent)
-			ExecuteModuleEventEx($arEvent, array(&$ID, $arMessage, $arMessage["TOPIC_INFO"], $arMessage["FORUM_INFO"], $arFields));
-/***************** /Events *****************************************/
-		if ($arMessage["APPROVED"] == "Y")
+		if ($arMessage["APPROVED"] == "Y" && $arParams["SKIP_INDEXING"] != "Y" && CModule::IncludeModule("search"))
 		{
-			if ($arParams["SKIP_INDEXING"] != "Y" && CModule::IncludeModule("search"))
+			$arMessage["POST_MESSAGE"] = (COption::GetOptionString("forum", "FILTER", "Y") == "Y" ?
+				$arMessage["POST_MESSAGE_FILTER"] : $arMessage["POST_MESSAGE"]);
+			$arParams = array(
+				"PERMISSION" => array(),
+				"SITE" => CForumNew::GetSites($arMessage["FORUM_ID"]),
+				"DEFAULT_URL" => "/");
+
+			$arGroups = CForumNew::GetAccessPermissions($arMessage["FORUM_ID"]);
+			foreach($arGroups as $arGroup)
 			{
-				$arMessage["POST_MESSAGE"] = (COption::GetOptionString("forum", "FILTER", "Y") == "Y" ?
-					$arMessage["POST_MESSAGE_FILTER"] : $arMessage["POST_MESSAGE"]);
-				$arParams = array(
-					"PERMISSION" => array(),
-					"SITE" => CForumNew::GetSites($arMessage["FORUM_ID"]),
-					"DEFAULT_URL" => "/");
-
-				$arGroups = CForumNew::GetAccessPermissions($arMessage["FORUM_ID"]);
-				foreach($arGroups as $arGroup)
+				if ($arGroup[1] >= "E")
 				{
-					if ($arGroup[1] >= "E")
-					{
-						$arParams["PERMISSION"][] = $arGroup[0];
-						if ($arGroup[0] == 2)
-							break;
-					}
+					$arParams["PERMISSION"][] = $arGroup[0];
+					if ($arGroup[0] == 2)
+						break;
 				}
-
-				$arSearchInd = array(
-					"LID" => array(),
-					"LAST_MODIFIED" => $arMessage["POST_DATE"],
-					"PARAM1" => $arMessage["FORUM_ID"],
-					"PARAM2" => $arMessage["TOPIC_ID"],
-					"ENTITY_TYPE_ID"  => ($arMessage["NEW_TOPIC"] == "Y"? "FORUM_TOPIC": "FORUM_POST"),
-					"ENTITY_ID" => ($arMessage["NEW_TOPIC"] == "Y"? $arMessage["TOPIC_ID"]: $ID),
-					"USER_ID" => $arMessage["AUTHOR_ID"],
-					"PERMISSIONS" => $arParams["PERMISSION"],
-					"TITLE" => $arMessage["TOPIC_INFO"]["TITLE"].($arMessage["NEW_TOPIC"] == "Y" && !empty($arMessage["TOPIC_INFO"]["DESCRIPTION"]) ?
-						", ".$arMessage["TOPIC_INFO"]["DESCRIPTION"] : ""),
-					"TAGS" => ($arMessage["NEW_TOPIC"] == "Y" ? $arMessage["TOPIC_INFO"]["TAGS"] : ""),
-					"BODY" => GetMessage("AVTOR_PREF")." ".$arMessage["AUTHOR_NAME"].". ".(forumTextParser::clearAllTags($arMessage["POST_MESSAGE"])),
-					"URL" => "",
-					"INDEX_TITLE" => $arMessage["NEW_TOPIC"] == "Y",
-				);
-
-				// get mentions
-				$arMentionedUserID = CForumMessage::GetMentionedUserID($arMessage["POST_MESSAGE"]);
-				if (!empty($arMentionedUserID))
-				{
-					$arSearchInd["PARAMS"] = array(
-						"mentioned_user_id" => $arMentionedUserID
-					);
-				}
-
-				$urlPatterns = array(
-					"FORUM_ID" => $arMessage["FORUM_ID"],
-					"TOPIC_ID" => $arMessage["TOPIC_ID"],
-					"TITLE_SEO" => $arMessage["TOPIC_INFO"]["TITLE_SEO"],
-					"MESSAGE_ID" => $arMessage["ID"],
-					"SOCNET_GROUP_ID" => $arMessage["TOPIC_INFO"]["SOCNET_GROUP_ID"],
-					"OWNER_ID" => $arMessage["TOPIC_INFO"]["OWNER_ID"],
-					"PARAM1" => $arMessage["PARAM1"],
-					"PARAM2" => $arMessage["PARAM2"]);
-				foreach ($arParams["SITE"] as $key => $val)
-				{
-					$arSearchInd["LID"][$key] = CForumNew::PreparePath2Message($val, $urlPatterns);
-					if (empty($arSearchInd["URL"]) && !empty($arSearchInd["LID"][$key]))
-						$arSearchInd["URL"] = $arSearchInd["LID"][$key];
-				}
-
-				if (empty($arSearchInd["URL"]))
-				{
-					foreach ($arParams["SITE"] as $key => $val):
-						$db_lang = CLang::GetByID($key);
-						if ($db_lang && $ar_lang = $db_lang->Fetch()):
-							$arParams["DEFAULT_URL"] = $ar_lang["DIR"];
-							break;
-						endif;
-					endforeach;
-					$arParams["DEFAULT_URL"] .= COption::GetOptionString("forum", "REL_FPATH", "").
-						"forum/read.php?FID=#FID#&TID=#TID#&MID=#MID##message#MID#";
-
-					$arSearchInd["URL"] = CForumNew::PreparePath2Message($arParams["DEFAULT_URL"], $urlPatterns);
-				}
-				CSearch::Index("forum", $ID, $arSearchInd);
 			}
+
+			$arSearchInd = array(
+				"LID" => array(),
+				"LAST_MODIFIED" => $arMessage["POST_DATE"],
+				"PARAM1" => $arMessage["FORUM_ID"],
+				"PARAM2" => $arMessage["TOPIC_ID"],
+				"ENTITY_TYPE_ID"  => ($arMessage["NEW_TOPIC"] == "Y"? "FORUM_TOPIC": "FORUM_POST"),
+				"ENTITY_ID" => ($arMessage["NEW_TOPIC"] == "Y"? $arMessage["TOPIC_ID"]: $ID),
+				"USER_ID" => $arMessage["AUTHOR_ID"],
+				"PERMISSIONS" => $arParams["PERMISSION"],
+				"TITLE" => $arMessage["TOPIC_INFO"]["TITLE"].($arMessage["NEW_TOPIC"] == "Y" && !empty($arMessage["TOPIC_INFO"]["DESCRIPTION"]) ?
+					", ".$arMessage["TOPIC_INFO"]["DESCRIPTION"] : ""),
+				"TAGS" => ($arMessage["NEW_TOPIC"] == "Y" ? $arMessage["TOPIC_INFO"]["TAGS"] : ""),
+				"BODY" => GetMessage("AVTOR_PREF")." ".$arMessage["AUTHOR_NAME"].". ".(CSearch::KillTags(forumTextParser::clearAllTags($arMessage["POST_MESSAGE"]))),
+				"URL" => "",
+				"INDEX_TITLE" => $arMessage["NEW_TOPIC"] == "Y",
+			);
+
+			// get mentions
+			$arMentionedUserID = CForumMessage::GetMentionedUserID($arMessage["POST_MESSAGE"]);
+			if (!empty($arMentionedUserID))
+			{
+				$arSearchInd["PARAMS"] = array(
+					"mentioned_user_id" => $arMentionedUserID
+				);
+			}
+
+			$urlPatterns = array(
+				"FORUM_ID" => $arMessage["FORUM_ID"],
+				"TOPIC_ID" => $arMessage["TOPIC_ID"],
+				"TITLE_SEO" => $arMessage["TOPIC_INFO"]["TITLE_SEO"],
+				"MESSAGE_ID" => $arMessage["ID"],
+				"SOCNET_GROUP_ID" => $arMessage["TOPIC_INFO"]["SOCNET_GROUP_ID"],
+				"OWNER_ID" => $arMessage["TOPIC_INFO"]["OWNER_ID"],
+				"PARAM1" => $arMessage["PARAM1"],
+				"PARAM2" => $arMessage["PARAM2"]);
+			foreach ($arParams["SITE"] as $key => $val)
+			{
+				$arSearchInd["LID"][$key] = CForumNew::PreparePath2Message($val, $urlPatterns);
+				if (empty($arSearchInd["URL"]) && !empty($arSearchInd["LID"][$key]))
+					$arSearchInd["URL"] = $arSearchInd["LID"][$key];
+			}
+
+			if (empty($arSearchInd["URL"]))
+			{
+				foreach ($arParams["SITE"] as $key => $val):
+					$db_lang = CLang::GetByID($key);
+					if ($db_lang && $ar_lang = $db_lang->Fetch()):
+						$arParams["DEFAULT_URL"] = $ar_lang["DIR"];
+						break;
+					endif;
+				endforeach;
+				$arParams["DEFAULT_URL"] .= COption::GetOptionString("forum", "REL_FPATH", "").
+					"forum/read.php?FID=#FID#&TID=#TID#&MID=#MID##message#MID#";
+
+				$arSearchInd["URL"] = CForumNew::PreparePath2Message($arParams["DEFAULT_URL"], $urlPatterns);
+			}
+			/***************** Events onMessageIsIndexed ***********************/
+			$index = true;
+			foreach(GetModuleEvents("forum", "onMessageIsIndexed", true) as $arEvent)
+			{
+				if (ExecuteModuleEventEx($arEvent, array($ID, $arMessage, &$arSearchInd)) === false)
+				{
+					$index = false;
+					break;
+				}
+			}
+			/***************** /Events *****************************************/
+			if ($index == true)
+				CSearch::Index("forum", $ID, $arSearchInd, true);
 		}
 		return $ID;
 	}
 
-	function GetList($arOrder = Array("ID"=>"ASC"), $arFilter = Array(), $bCount = false, $iNum = 0, $arAddParams = array())
+	public static function GetList($arOrder = Array("ID"=>"ASC"), $arFilter = Array(), $bCount = false, $iNum = 0, $arAddParams = array())
 	{
-		global $DB;
+		global $DB, $USER_FIELD_MANAGER;
 		$arSqlSearch = array();
 		$arSqlOrder = array();
 		$strSqlSearch = "";
@@ -428,29 +440,31 @@ class CForumMessage extends CAllForumMessage
 			$strSqlSearch = "";
 		}
 
+		$select = "FM.ID, 
+			FM.AUTHOR_ID, FM.AUTHOR_NAME, FM.AUTHOR_EMAIL, FM.AUTHOR_IP,
+			FM.USE_SMILES, FM.POST_MESSAGE, FM.POST_MESSAGE_HTML, FM.POST_MESSAGE_FILTER,
+			FM.FORUM_ID, FM.TOPIC_ID, FM.NEW_TOPIC,
+			FM.APPROVED, FM.SOURCE_ID, FM.POST_MESSAGE_CHECK, FM.GUEST_ID, FM.AUTHOR_REAL_IP, FM.ATTACH_IMG, FM.XML_ID,
+			" . $DB->DateToCharFunction("FM.POST_DATE", "FULL") . " as POST_DATE,
+			FM.EDITOR_ID, FM.EDITOR_NAME, FM.EDITOR_EMAIL, FM.EDIT_REASON,
+			FU.SHOW_NAME, U.LOGIN, U.NAME, U.SECOND_NAME, U.LAST_NAME, U.PERSONAL_PHOTO,
+			" . $DB->DateToCharFunction("FM.EDIT_DATE", "FULL") . " as EDIT_DATE, FM.PARAM1, FM.PARAM2, FM.HTML, FM.MAIL_HEADER" .
+			$obUserFieldsSql->GetSelect() .
+			(!empty($arAddParams["sNameTemplate"]) ?
+				",\n\t".CForumUser::GetFormattedNameFieldsForSelect(array_merge(
+					$arAddParams, array(
+					"sUserTablePrefix" => "U.",
+					"sForumUserTablePrefix" => "FU.",
+					"sFieldName" => "AUTHOR_NAME_FRMT")), false) : "");
+
 		$strSql =
-			"SELECT FM.ID,
-				FM.AUTHOR_ID, FM.AUTHOR_NAME, FM.AUTHOR_EMAIL, FM.AUTHOR_IP,
-				FM.USE_SMILES, FM.POST_MESSAGE, FM.POST_MESSAGE_HTML, FM.POST_MESSAGE_FILTER,
-				FM.FORUM_ID, FM.TOPIC_ID, FM.NEW_TOPIC,
-				FM.APPROVED, FM.SOURCE_ID, FM.POST_MESSAGE_CHECK, FM.GUEST_ID, FM.AUTHOR_REAL_IP, FM.ATTACH_IMG, FM.XML_ID,
-				".$DB->DateToCharFunction("FM.POST_DATE", "FULL")." as POST_DATE,
-				FM.EDITOR_ID, FM.EDITOR_NAME, FM.EDITOR_EMAIL, FM.EDIT_REASON,
-				FU.SHOW_NAME, U.LOGIN, U.NAME, U.SECOND_NAME, U.LAST_NAME, U.PERSONAL_PHOTO,
-				".$DB->DateToCharFunction("FM.EDIT_DATE", "FULL")." as EDIT_DATE, FM.PARAM1, FM.PARAM2, FM.HTML, FM.MAIL_HEADER".
-				$obUserFieldsSql->GetSelect().
-				(!empty($arAddParams["sNameTemplate"]) ?
-					",\n\t".CForumUser::GetFormattedNameFieldsForSelect(array_merge(
-						$arAddParams, array(
-						"sUserTablePrefix" => "U.",
-						"sForumUserTablePrefix" => "FU.",
-						"sFieldName" => "AUTHOR_NAME_FRMT")), false) : "")."
+			"SELECT " . $select . "
 			FROM b_forum_message FM
 				LEFT JOIN b_forum_user FU ON (FM.AUTHOR_ID = FU.USER_ID)
-				LEFT JOIN b_user U ON (FM.AUTHOR_ID = U.ID)".
-				$strSqlUserFieldJoin."
-			WHERE 1 = 1 ".$strSqlSearch."
-			".$strSqlOrder;
+				LEFT JOIN b_user U ON (FM.AUTHOR_ID = U.ID)" .
+				$strSqlUserFieldJoin . "
+			WHERE 1 = 1 " . $strSqlSearch . "
+			" . $strSqlOrder;
 
 		$iNum = intVal($iNum);
 		if (($iNum>0) || (is_array($arAddParams) && (intVal($arAddParams["nTopCount"])>0)))
@@ -461,18 +475,18 @@ class CForumMessage extends CAllForumMessage
 		if (!$iNum && is_array($arAddParams) && is_set($arAddParams, "bDescPageNumbering") && (intVal($arAddParams["nTopCount"])<=0))
 		{
 			$db_res =  new CDBResult();
-			$db_res->SetUserFields($GLOBALS["USER_FIELD_MANAGER"]->GetUserFields("FORUM_MESSAGE"));
+			$db_res->SetUserFields($USER_FIELD_MANAGER->GetUserFields("FORUM_MESSAGE"));
 			$db_res->NavQuery($strSql, $iCnt, $arAddParams);
 		}
 		else
 		{
 			$db_res = $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
-			$db_res->SetUserFields($GLOBALS["USER_FIELD_MANAGER"]->GetUserFields("FORUM_MESSAGE"));
+			$db_res->SetUserFields($USER_FIELD_MANAGER->GetUserFields("FORUM_MESSAGE"));
 		}
 		return new _CMessageDBResult($db_res, $arAddParams);
 	}
 
-	function GetListEx($arOrder = Array("ID"=>"ASC"), $arFilter = Array(), $bCount = false, $iNum = 0, $arAddParams = array())
+	public static function GetListEx($arOrder = Array("ID"=>"ASC"), $arFilter = Array(), $bCount = false, $iNum = 0, $arAddParams = array())
 	{
 		global $DB;
 		$arSqlSearch = array();
@@ -488,6 +502,7 @@ class CForumMessage extends CAllForumMessage
 		$UseGroup = false;
 		$arFilter = (is_array($arFilter) ? $arFilter : array());
 		$arAddParams = (is_array($arAddParams) ? $arAddParams : array());
+		$arIndexFields = array();
 
 		foreach ($arFilter as $key => $val)
 		{
@@ -504,6 +519,7 @@ class CForumMessage extends CAllForumMessage
 				case "APPROVED":
 				case "NEW_TOPIC":
 				case "POST_MESSAGE":
+					$arIndexFields[] = $key;
 					if ($strOperation == "LIKE")
 						$val = "%".$val."%";
 					if (strlen($val)<=0)
@@ -512,10 +528,16 @@ class CForumMessage extends CAllForumMessage
 						$arSqlSearch[] = ($strNegative=="Y"?" FM.".$key." IS NULL OR NOT ":"")."(FM.".$key." ".$strOperation." '".$DB->ForSql($val)."' )";
 					break;
 				case "APPROVED_AND_MINE":
+					$arIndexFields[] = "APPROVED";
 					if ($val >= 0)
+					{
 						$arSqlSearch[] = "(FM.APPROVED='Y' OR FM.AUTHOR_ID=".intval($val).")";
+						$arIndexFields[] = "AUTHOR_ID";
+					}
 					else
+					{
 						$arSqlSearch[] = "(FM.APPROVED='Y')";
+					}
 					break;
 				case "PARAM2":
 				case "ID":
@@ -523,6 +545,7 @@ class CForumMessage extends CAllForumMessage
 				case "FORUM_ID":
 				case "TOPIC_ID":
 				case "ATTACH_IMG":
+					$arIndexFields[] = $key;
 					if ( ($strOperation == "IN") && (!is_array($val)) && (strpos($val,",")>0) )
 						$val = explode(",", $val);
 					if (($strOperation!="IN") && (intVal($val) > 0))
@@ -554,6 +577,7 @@ class CForumMessage extends CAllForumMessage
 					}
 					break;
 				case "POST_DATE":
+					$arIndexFields[] = $key;
 					if (strlen($val)<=0)
 						$arSqlSearch[] = ($strNegative=="Y"?"NOT":"")."(FM.".$key." IS NULL OR LENGTH(FM.".$key.")<=0)";
 					else
@@ -586,19 +610,22 @@ class CForumMessage extends CAllForumMessage
 							$val = explode(",", $val);
 						if (!in_array(2, $val))
 							$val[] = 2;
-						$val = implode(",", $val);
+						$val = implode(",", array_map("intval", $val));
+						$arIndexFields[] = "FP.GROUP_ID";
 						$arSqlFrom["FP"] = "LEFT JOIN b_forum_perms FP ON (FP.FORUM_ID=FM.FORUM_ID)";
 						$arSqlSearch[] = "FP.GROUP_ID IN (".$DB->ForSql($val).") AND ((FP.PERMISSION IN ('E','I','M') AND FM.APPROVED='Y') OR (FP.PERMISSION IN ('Q','U','Y')))";
 						$UseGroup = true;
 					}
 				break;
 				case "TOPIC_SOCNET_GROUP_ID":
+						$arIndexFields[] = "FT.SOCNET_GROUP_ID";
 						$arSqlFrom["FT"] = "
 							LEFT JOIN b_forum_topic FT ON (FT.ID = FM.TOPIC_ID)";
 						$arSqlSearch[] = "FT.SOCNET_GROUP_ID = ".IntVal($val);
 						$arSqlSelect[] = "FT.SOCNET_GROUP_ID as TOPIC_SOCNET_GROUP_ID";
 					break;
 				case "TOPIC_OWNER_ID":
+						$arIndexFields[] = "FT.OWNER_ID";
 						$arSqlFrom["FT"] = "
 							LEFT JOIN b_forum_topic FT ON (FT.ID = FM.TOPIC_ID)";
 						$arSqlSearch[] = "FT.OWNER_ID = ".IntVal($val);
@@ -633,6 +660,7 @@ class CForumMessage extends CAllForumMessage
 					{
 						$arSqlFrom["FT"] = "
 							LEFT JOIN b_forum_topic FT ON (FT.ID = FM.TOPIC_ID)";
+						$arIndexFields[] = "ID";
 						$arSqlSearch[] = "FT.ID IN (SELECT DISTINCT TOPIC_ID FROM b_forum_message WHERE ID IN (".$val."))";
 					}
 				break;
@@ -641,6 +669,7 @@ class CForumMessage extends CAllForumMessage
 					$arSqlFrom["FT"] = "
 						LEFT JOIN b_forum_topic FT ON (FT.ID = FM.TOPIC_ID)";
 					$key = "TITLE";
+					$arIndexFields[] = $key;
 					if ($strOperation == "LIKE")
 						$val = "%".$val."%";
 					if (strlen($val)<=0)
@@ -674,8 +703,13 @@ class CForumMessage extends CAllForumMessage
 		if(count($arSqlOrder) > 0)
 			$strSqlOrder = " ORDER BY ".implode(", ", $arSqlOrder);
 
+		$IX_FORUM_MESSAGE_TOPIC = false;
 		if (count($arSqlSearch) > 0)
+		{
 			$strSqlSearch = " AND (".implode(") AND (", $arSqlSearch).") ";
+			$arIndexFields = array_unique($arIndexFields);
+			$IX_FORUM_MESSAGE_TOPIC = ($arIndexFields == array("TOPIC_ID", "APPROVED") || $arIndexFields == array("TOPIC_ID"));
+		}
 		if (count($arSqlSelect) > 0)
 			$strSqlSelect = ",\n\t".implode(", ", $arSqlSelect);
 		if (count($arSqlFrom) > 0)
@@ -762,7 +796,7 @@ class CForumMessage extends CAllForumMessage
 				"	FU.SHOW_NAME, FU.DESCRIPTION, FU.NUM_POSTS, FU.POINTS as NUM_POINTS, FU.SIGNATURE, FU.AVATAR, \n".
 				"	".$DB->DateToCharFunction("FU.DATE_REG", "SHORT")." as DATE_REG, \n".
 				"	U.LOGIN, U.NAME, U.SECOND_NAME, U.LAST_NAME, U.PERSONAL_PHOTO, FU.RANK_ID, U.PERSONAL_WWW, U.PERSONAL_GENDER, \n".
-				"	U.EMAIL, U.PERSONAL_ICQ, U.PERSONAL_CITY, U.PERSONAL_COUNTRY".
+				"	U.EMAIL, U.PERSONAL_ICQ, U.PERSONAL_CITY, U.PERSONAL_COUNTRY, U.EXTERNAL_AUTH_ID".
 				(!empty($arAddParams["sNameTemplate"]) ?
 					",\n\t".CForumUser::GetFormattedNameFieldsForSelect(array_merge(
 						$arAddParams, array(
@@ -799,14 +833,14 @@ class CForumMessage extends CAllForumMessage
 				"	FU.SHOW_NAME, FU.DESCRIPTION, FU.NUM_POSTS, FU.POINTS as NUM_POINTS, FU.SIGNATURE, FU.AVATAR, \n".
 				"	".$DB->DateToCharFunction("FU.DATE_REG", "SHORT")." as DATE_REG, \n".
 				"	U.LOGIN, U.NAME, U.SECOND_NAME, U.LAST_NAME, U.PERSONAL_PHOTO, FU.RANK_ID, U.PERSONAL_WWW, U.PERSONAL_GENDER, \n".
-				"	U.EMAIL, U.PERSONAL_ICQ, U.PERSONAL_CITY, U.PERSONAL_COUNTRY".
+				"	U.EMAIL, U.PERSONAL_ICQ, U.PERSONAL_CITY, U.PERSONAL_COUNTRY, U.EXTERNAL_AUTH_ID".
 				(!empty($arAddParams["sNameTemplate"]) ?
 					",\n\t".CForumUser::GetFormattedNameFieldsForSelect(array_merge(
 						$arAddParams, array(
 						"sUserTablePrefix" => "U.",
 						"sForumUserTablePrefix" => "FU.",
 						"sFieldName" => "AUTHOR_NAME_FRMT")), false)."\n" : "").$strSqlSelect."\n".
-				"FROM b_forum_message FM \n".
+				"FROM b_forum_message FM ".($IX_FORUM_MESSAGE_TOPIC ? "USE INDEX (IX_FORUM_MESSAGE_TOPIC)" : "")."\n".
 				"	LEFT JOIN b_forum_user FU ON (FM.AUTHOR_ID = FU.USER_ID) \n".
 				"	LEFT JOIN b_user U ON (FM.AUTHOR_ID = U.ID) \n".
 				"	".$strSqlFrom." \n".
@@ -832,7 +866,7 @@ class CForumMessage extends CAllForumMessage
 		return new _CMessageDBResult($db_res, $arAddParams);
 	}
 
-	function QueryFirstUnread($arFilter) // out-of-date function
+	public static function QueryFirstUnread($arFilter) // out-of-date function
 	{
 		$db_res = CForumMessage::GetList(array("ID"=>"ASC"), $arFilter, false, 1);
 		return $db_res;
@@ -841,7 +875,7 @@ class CForumMessage extends CAllForumMessage
 
 class CForumFiles extends CAllForumFiles
 {
-	function GetList($arOrder = Array("ID"=>"ASC"), $arFilter = Array(), $iNum = 0, $arAddParams = array())
+	public static function GetList($arOrder = Array("ID"=>"ASC"), $arFilter = Array(), $iNum = 0, $arAddParams = array())
 	{
 		global $DB;
 		$arSqlSearch = array();
@@ -1050,7 +1084,7 @@ class CForumFiles extends CAllForumFiles
 		return $db_res;
 	}
 
-	function CleanUp()
+	public static function CleanUp()
 	{
 		global $DB;
 		$period = 24*3600;
@@ -1067,4 +1101,3 @@ class CForumFiles extends CAllForumFiles
 		return "CForumFiles::CleanUp();";
 	}
 }
-?>

@@ -1,0 +1,31 @@
+.rooms-txt {
+	margin: 30px 0;
+    font-size: 20px;
+}
+
+.rooms {
+	margin-bottom: 20px;
+}
+
+.order-link {
+	padding: 8px 8px 7px;
+	font-size: 10px !important;
+	font-weight: 600;
+	text-transform: uppercase;
+	/*letter-spacing: 2px;*/
+	line-height: 1;
+	color: #004991;
+	/*padding-left: 5px;*/
+	border: 1px solid #004991;
+	/*padding-right: 5px;*/
+}
+.content form {
+	margin-top: 8px;
+}
+.block-order-form {
+	width: auto;
+}
+.ok_mess {
+	padding: 20px;
+	color: #004991;
+}

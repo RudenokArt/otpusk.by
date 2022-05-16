@@ -86,13 +86,7 @@
 
 			/* move notify out monitor */
 			BX.removeClass(notifyPopup.popupContainer.firstChild, 'popup-window');
-			if(BX('workarea'))
-			{
-				var pos = BX.pos(BX('workarea'));
-				notifyPopup.popupContainer.style.left = pos.left - 223 +'px';
-			}
-			else
-				notifyPopup.popupContainer.style.left = 10+'px';
+			notifyPopup.popupContainer.style.left = 10+'px';
 			notifyPopup.popupContainer.style.opacity = 0;
 
 			if (this.notifyHeightMax < this.notifyHeightCurrent+notifyPopup.popupContainer.offsetHeight+10)
@@ -114,7 +108,8 @@
 				finish : { opacity : 100},
 				transition : BX.easing.makeEaseOut(BX.easing.transitions.quart),
 				step : function(state){
-					notifyPopup.popupContainer.style.opacity = state.opacity / 100;
+					if (BX(notifyPopup) && BX(notifyPopup.popupContainer))
+						notifyPopup.popupContainer.style.opacity = state.opacity / 100;
 				}
 			})).animate();
 
@@ -280,7 +275,7 @@
 	};
 
 	SPC.prototype.check = function(id, data, tag, text) {
-		if (id[1] <= 0 || !window["UC"]["Informer"])
+		if (id[1] <= 0 || !window["UC"]["Informer"] || !BX.type.isNotEmptyString(text))
 			return;
 		var entityId = /(\d+)/g.exec(id[0]),
 			node = BX('record-' + id.join('-') + '-cover');

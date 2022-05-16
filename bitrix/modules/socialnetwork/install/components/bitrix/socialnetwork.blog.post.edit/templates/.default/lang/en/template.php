@@ -1,5 +1,6 @@
 <?
 $MESS["BLOG_BUTTON_SEND"] = "Send";
+$MESS["BLOG_BUTTON_PUBLISH"] = "Publish";
 $MESS["BLOG_BUTTON_CANCEL"] = "Cancel";
 $MESS["BLOG_BUTTON_DRAFT"] = "Save as draft";
 $MESS["BLOG_TITLE"] = "Topic";
@@ -11,7 +12,8 @@ $MESS["BLOG_TITLE_GRAT_OTHER"] = "other";
 $MESS["BLOG_GRAT_POPUP_TITLE"] = "Choose one";
 $MESS["BLOG_TAB_POST"] = "Message";
 $MESS["BLOG_TAB_FILE"] = "File";
-$MESS["BLOG_TAB_LISTS"] = "Processes";
+$MESS["BLOG_TAB_LISTS"] = "Workflow";
+$MESS["BLOG_TAB_TASK"] = "Task";
 $MESS["BLOG_TAB_VOTE"] = "Poll";
 $MESS["BLOG_TAB_GRAT"] = "Appreciation";
 $MESS["BLOG_LINK_SHOW_NEW"] = "Send message &hellip;";
@@ -26,4 +28,15 @@ $MESS["SBPE_CALENDAR_EVENT"] = "Event";
 $MESS["BLOG_POST_AUTOSAVE"] = "Blog post data has not been saved.";
 $MESS["BLOG_POST_AUTOSAVE2"] = "Revert to autosaved values?";
 $MESS["LISTS_CATALOG_PROCESSES_ACCESS_DENIED"] = "No access";
+$MESS["BLOG_POST_EDIT_T_CREATE_TASK_SUCCESS_TITLE"] = "Task has been created";
+$MESS["BLOG_POST_EDIT_T_CREATE_TASK_SUCCESS_DESCRIPTION"] = "You can now view and edit the task.";
+$MESS["BLOG_POST_EDIT_T_CREATE_TASK_BUTTON_TITLE"] = "View task";
+$MESS["MPF_DRAG_ATTACHMENTS2"] = "Upload files?";
+$MESS["IMPORTANT_TILL_TITLE"] = "show announcement:";
+$MESS["IMPORTANT_FOR_ALWAYS"] = "always";
+$MESS["IMPORTANT_FOR_ONE_DAY"] = "one day";
+$MESS["IMPORTANT_FOR_TWO_DAYS"] = "two days";
+$MESS["IMPORTANT_FOR_WEEK"] = "one week";
+$MESS["IMPORTANT_FOR_MONTH"] = "one month";
+$MESS["IMPORTANT_FOR_CUSTOM"] = "until";
 ?>

@@ -1,0 +1,51 @@
+.master input, .master select{border-radius:0 !important;}
+.master .select2-container--default .select2-selection--single{border-radius:0 !important;}
+.main-search-wrapper.full-width .column-item{width:20% !important;}
+.master-date-container, .people-container{width:100%;height:40px;background:#fff;cursor:pointer;position:relative;}
+.days-text, .night-text, .adults, .children{color:#555;height:18px;padding-left:12px;font-size:12px;}
+.ui-widget{position:absolute;top:-240px;border-bottom:none;border-bottom-right-radius:0;border-bottom-left-radius:0;z-index:99;}
+.people-hide-container{position:absolute;top:0;left:0;display:none;background:#fff;padding:5px 5px 5px 10px;box-sizing:border-box;color:#555;width:100%;font-size:12px;}
+.people-hide-container input{width:66px;}
+.first, .second{display:inline-block;}
+.btn-container{text-align:center;width:100%;padding-right:5px;margin:10px 0 5px 0;}
+.btn-container button{width:70%;}
+.delta-days, .nights, .white{width:221px;height:28px;background:#fff;position:absolute;display:none;top:8px;border:1px solid #ddd;border-bottom:none;border-top:none;color:#000;text-align:center;z-index:99;}
+.date-select-color{background:#007fff;}
+.white{height:32px;}
+.delta-days{top:40px;}
+.nights{top:40px;text-align:left;padding-left:5px;height:37px;}
+.opacity{height:21px;}
+.tt{font-size:11px;font-weight:normal;line-height:none;}
+.closeDatePicker{*margin-left:6px;}
+.search-ti{padding-left:0 !important;padding-right:0 !important;}
+.main-search-wrapper.full-width{width:100% !important;}
+@media only screen and (min-width:479px) and (max-width:991px){.ui-datepicker-calendar{line-height:12px;}
+.ui-widget{top:-170px;}
+.white{height:22px;top:0;}
+.delta-days{top:22px;}
+.nights{top:22px;}
+.people-hide-container{top:-50px;}
+.opacity, .h1{display:none;}
+}
+@media (max-width:479px){.main-search-wrapper.full-width .column-item{width:100% !important;}
+.opacity{height:9px;}
+}
+@media only screen and (min-width:479px) and (max-width:767px){.hide-767{display:none;}
+}
+@media only screen and (max-width:767px){.main-search-wrapper.full-width .column-item{width:50% !important;}
+input[name="days"], .days-checker{display:none;}
+}
+@media only screen and (max-width:991px){.main-search-wrapper.full-width .column-item{width:50% !important;}
+}
+.btn-wrapper{width:100%;text-align:right;padding-right:10px;margin-top:5px;}
+.closeDatePicker{border:none !important;}
+.nights{height:56px;}
+.master-date-container .select2-container, .people-hide-container .select2-container{border:1px solid #ddd;}
+.first, .second{width:48%}
+.people-hide-container .select2-container{width:80% !important;}
+.nights .select2-selection{padding-left:7px !important;min-width:46px;}
+.days-checker{z-index:9;position:absolute !important;right:0;*top:8px;color:#555;padding-right:10px !important;font-size:12px;padding-top:2px !important;}
+input[name='days'] + label:before{top:2px !important;font-size:14px;}
+.kids-block{display:block;}
+.kids-item{display:inline-block;width:31%;}
+.select2-container--default.select2-container--disabled .select2-selection--single{background-color:#e4e1e1;}

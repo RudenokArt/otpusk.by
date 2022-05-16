@@ -4,52 +4,53 @@ This is callback page for Dropbox OAuth 2.0 authentication.
 Dropbox redirects only to specific back url set in the OAuth application.
 The page opens in popup window after user authorized on Dropbox.
 */
-define("NOT_CHECK_PERMISSIONS", true);
+define("NO_KEEP_STATISTIC", "Y");
+define("NO_AGENT_STATISTIC","Y");
+define("DisableEventsCheck", true);
+define("NO_AGENT_CHECK", true);
+
+define('SKIP_TEMPLATE_AUTH_ERROR', true);
+define('NOT_CHECK_PERMISSIONS', true);
 
 require_once($_SERVER['DOCUMENT_ROOT']."/bitrix/modules/main/include/prolog_before.php");
+
+if(isset($_REQUEST["action"]) && $_REQUEST["action"] == 'web_hook')
+{
+	if (CModule::IncludeModule("seo") && CModule::IncludeModule("socialservices"))
+	{
+		\Bitrix\Seo\WebHook\Service::listen();
+		exit;
+	}
+}
 
 if(CModule::IncludeModule("socialservices") && CSocServAuthManager::CheckUniqueKey())
 {
 	if(isset($_REQUEST["authresult"]))
 	{
-		$engine = $_REQUEST["engine"];
+		$clientId = (int)$_REQUEST['proxy_client_id'];
+		$engine = (string)$_REQUEST['engine'];
+		\Bitrix\Seo\Service::clearClientsCache($engine, $clientId);
 
-		\Bitrix\Seo\Service::clearAuth($engine, true);
+		$jsEventData = [
+			'reload' => true,
+			'engine' => $engine,
+			'clientId' => $clientId > 0 ? $clientId : '',
+		];
 ?>
 <script type="text/javascript">
-	opener.location.reload();
+	var eventData = <?=CUtil::PhpToJSObject($jsEventData)?>;
+	window.opener.BX.onCustomEvent(
+		window,
+		'seo-client-auth-result',
+		[eventData]
+	);
+	if (eventData.reload)
+	{
+		opener.location.reload();
+	}
 	window.close();
 </script>
 <?
-	}
-	else
-	{
-		$result = array();
-
-		$state = $_REQUEST["state"];
-		if(isset($_REQUEST["code"]) && $_REQUEST["code"] <> '')
-		{
-			$engine = \Bitrix\Seo\Service::getEngine();
-			$engine->getInterface()->setCode($_REQUEST["code"]);
-
-			if($engine->getInterface()->GetAccessToken() !== false)
-			{
-				$engine->setAuthSettings($engine->getInterface()->getResult());
-
-				$result["result"] = "ok";
-			}
-			else
-			{
-				$result = $engine->getInterface()->getError();
-			}
-		}
-		else
-		{
-			$result["error"] = "Wrong request";
-		}
-
-		Header("Content-Type: application/json");
-		echo \Bitrix\Main\Web\Json::encode($result);
 	}
 }
 

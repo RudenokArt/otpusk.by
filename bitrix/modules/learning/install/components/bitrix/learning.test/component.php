@@ -4,7 +4,10 @@ require_once($_SERVER["DOCUMENT_ROOT"].$componentPath."/functions.php");
 
 //Authorized?
 if (!$USER->IsAuthorized())
-	$APPLICATION->AuthForm(GetMessage("LEARNING_NO_AUTHORIZE"));
+{
+	$APPLICATION->AuthForm(GetMessage("LEARNING_NO_AUTHORIZE"), false, false, "N", false);
+	return;
+}
 
 //Module
 if (!CModule::IncludeModule("learning"))
@@ -215,7 +218,7 @@ if (!sizeof($errors))
 		$APPLICATION->SetTitle($arResult["TEST"]["NAME"]);
 
 	//Actions
-	$bTestCreate = ($_SERVER["REQUEST_METHOD"]=="POST" && !isset($sessAttemptID));
+	$bTestCreate = ($_SERVER["REQUEST_METHOD"]=="POST" && !isset($sessAttemptID) && isset($_POST["next"]));
 	$bPostAnswer = ($_SERVER["REQUEST_METHOD"]=="POST" && isset($sessAttemptID) && $_POST["ANSWERED"] == "Y");
 
 	$arResult["COMPLETE_PERCENT"] = 0;

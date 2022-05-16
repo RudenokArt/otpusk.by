@@ -1,14 +1,7 @@
-<?
-/*
-##############################################
-# Bitrix: SiteManager                        #
-# Copyright (c) 2004 Bitrix                  #
-# http://www.bitrix.ru                       #
-# mailto:admin@bitrix.ru                     #
-##############################################
-*/
+<?php
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_before.php");
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/statistic/prolog.php");
+/** @var CMain $APPLICATION */
 $STAT_RIGHT = $APPLICATION->GetGroupRight("statistic");
 if($STAT_RIGHT=="D")
 	$APPLICATION->AuthForm(GetMessage("ACCESS_DENIED"));
@@ -88,11 +81,11 @@ if (!($stoplist && $stoplist->ExtractFields()))
 	$str_MASK_2="255";
 	$str_MASK_3="255";
 	$str_MASK_4="255";
-	$str_IP_1 = $net1;
-	$str_IP_2 = $net2;
-	$str_IP_3 = $net3;
-	$str_IP_4 = $net4;
-	$str_USER_AGENT = $user_agent;
+	$str_IP_1 = htmlspecialcharsBx($net1);
+	$str_IP_2 = htmlspecialcharsBx($net2);
+	$str_IP_3 = htmlspecialcharsBx($net3);
+	$str_IP_4 = htmlspecialcharsBx($net4);
+	$str_USER_AGENT = htmlspecialcharsBx($user_agent);
 	$str_DATE_START=GetTime(time()+CTimeZone::GetOffset(),"FULL");
 	$str_MESSAGE = GetMessage("STAT_DEFAULT_MESSAGE");
 	$str_MESSAGE_LID = LANG;
@@ -247,4 +240,4 @@ $tabControl->End();
 ?>
 </form>
 <?$tabControl->ShowWarnings("form1", $message);?>
-<? require_once ($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/epilog_admin.php"); ?>
+<? require_once ($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/epilog_admin.php");

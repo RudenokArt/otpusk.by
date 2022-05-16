@@ -1,0 +1,30 @@
+.no-border{
+	border: none !important;
+}
+
+.pos-rel {
+	position: relative;
+}
+
+.pos-abs-btn {
+	position: absolute;
+	right: 12px;
+}
+
+.pos-rel .traveller-remove{
+	top: 0 !important;
+    left: -15px !important;
+}
+
+.red { color: red; }
+
+.green { color: green; }
+
+span.select2 {
+	width: 50% !important;
+}
+
+.special-label {
+	padding-top: 0 !important;
+	line-height: 18px !important;
+}

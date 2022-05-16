@@ -19,4 +19,9 @@ $MESS["SONETP_NOT_INSTALL_P"] = "не устанавливать";
 $MESS["SONETP_EDIT_FORM_LABEL"] = "Важное сообщение";
 $MESS["SONETP_LIST_COLUMN_LABEL"] = "Важное";
 $MESS["SONETP_LIST_FILTER_LABEL"] = "Важное";
+$MESS["SONET_UF_SG_DEPT_EDIT_FORM_LABEL"] = "Подразделения";
+$MESS["SONET_UF_SG_DEPT_LIST_COLUMN_LABEL"] = "Подразделения";
+$MESS["SONET_UF_SG_DEPT_LIST_FILTER_LABEL"] = "Подразделения";
+$MESS["SONETP_UF_IMPRTANT_DATE_END_EDIT_FORM_LABEL"] = "Срок действия";
+$MESS["SONETP_UF_IMPRTANT_DATE_END_LIST_COLUMN_LABEL"] = "Срок";
 ?>

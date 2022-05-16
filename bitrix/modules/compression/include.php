@@ -1,18 +1,18 @@
-<?
+<?php
 class CCompress
 {
-	function OnPageStart()
+	public static function OnPageStart()
 	{
 		ob_start();
 		ob_start(); // second buffering envelope for PHP URL rewrite, see http://bugs.php.net/bug.php?id=35933
 		ob_implicit_flush(0);
 	}
 
-	function OnAfterEpilog()
+	public static function OnAfterEpilog()
 	{
 		global $USER;
 
-		$canEditPHP = $USER->CanDoOperation('edit_php');
+		$canEditPHP = (is_object($USER) && $USER->CanDoOperation('edit_php'));
 		$bShowTime = isset($_SESSION["SESS_SHOW_TIME_EXEC"]) && ($_SESSION["SESS_SHOW_TIME_EXEC"] == 'Y');
 		$bShowStat = ($GLOBALS["DB"]->ShowSqlStat && ($canEditPHP || $_SESSION["SHOW_SQL_STAT"]=="Y"));
 		$bShowCacheStat = (\Bitrix\Main\Data\Cache::getShowCacheStat() && ($canEditPHP || $_SESSION["SHOW_CACHE_STAT"]=="Y"));
@@ -73,17 +73,17 @@ class CCompress
 		}
 	}
 
-	function DisableCompression()
+	public static function DisableCompression()
 	{
 		define("BX_COMPRESSION_DISABLED", true);
 	}
 
-	function Disable2048Spaces()
+	public static function Disable2048Spaces()
 	{
 		define("BX_SPACES_DISABLED", true);
 	}
 
-	function CheckCanGzip()
+	public static function CheckCanGzip()
 	{
 		if(!function_exists("gzcompress")) return 0;
 		if(defined("BX_COMPRESSION_DISABLED") && BX_COMPRESSION_DISABLED===true) return 0;
@@ -95,4 +95,3 @@ class CCompress
 		return 0;
 	}
 }
-?>

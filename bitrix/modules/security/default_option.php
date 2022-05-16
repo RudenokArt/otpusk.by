@@ -18,7 +18,7 @@ $security_default_option = array(
 	"redirect_log" => "Y",
 	"redirect_referer_check" => "Y",
 	"redirect_href_sign" => "Y",
-	"redirect_action" => "show_message", // force_url | show_message
+	"redirect_action" => "show_message_and_stay", // force_url | show_message | show_message_and_stay
 	"redirect_message_warning" => "",
 	"redirect_message_timeout" => 30,
 	"redirect_url" => "/",
@@ -39,5 +39,4 @@ $security_default_option = array(
 	"security_event_file_active" => "N",
 	"security_event_file_path" => "",
 	"needed_tests_packages" => "a:3:{i:0;s:10:\"slow_local\";i:1;s:10:\"fast_local\";i:2;s:6:\"remote\";}",
-	"security_scanner_secure_connection" => "Y",
 );

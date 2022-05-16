@@ -7,70 +7,82 @@
  */
 namespace Bitrix\Sender\Preset;
 
-use Bitrix\Main\Entity;
-use Bitrix\Main\EventResult;
-use Bitrix\Main\Event;
-use Bitrix\Main\IO\File;
 use Bitrix\Main\Localization\Loc;
+
+use Bitrix\Sender\Templates;
+use Bitrix\Sender\TemplateTable;
 
 Loc::loadMessages(__FILE__);
 
+/**
+ * Class Template
+ * @package Bitrix\Sender\Preset
+ * @deprecated
+ * @internal
+ */
 class Template
 {
 	/**
+	 * Get list by type.
+	 *
 	 * @return array
 	 */
 	public static function getListByType()
 	{
-		$resultTemplateList = array();
-		$templateList = static::getList();
-		foreach($templateList as $template)
-			$resultTemplateList[$template['TYPE']][] = $template;
-
-		return $resultTemplateList;
+		return Templates\Selector::create()->getCategorized();
 	}
 
 	/**
+	 * Get type list.
+	 *
 	 * @return array
 	 */
 	public static function getTypeList()
 	{
-		return array(
-			'BASE' => Loc::getMessage('TYPE_PRESET_TEMPLATE_BASE'),
-			'USER' => Loc::getMessage('TYPE_PRESET_TEMPLATE_USER'),
-			'ADDITIONAL' => Loc::getMessage('TYPE_PRESET_TEMPLATE_ADDITIONAL'),
-		);
+		return Templates\Category::getNamedCodes();
 	}
 
 	/**
+	 * Get template.
+	 *
+	 * @param string $type Template type.
+	 * @param string $id Template ID.
+	 * @return array|null
+	 */
+	public static function getById($type, $id)
+	{
+		return Templates\Selector::create()
+			->withTypeId($type)
+			->withId($id)
+			->get();
+	}
+
+	/**
+	 * Get list.
+	 *
+	 * @param array $parameters Parameters.
 	 * @return array
 	 */
-	public static function getList()
+	public static function getList(array $parameters = array())
 	{
-		$resultList = array();
-		$event = new Event('sender', 'OnPresetTemplateList');
-		$event->send();
-
-		foreach ($event->getResults() as $eventResult)
+		$selector = Templates\Selector::create();
+		if (isset($parameters[0]))
 		{
-			if ($eventResult->getType() == EventResult::ERROR)
-			{
-				continue;
-			}
-
-			$eventResultParameters = $eventResult->getParameters();
-
-			if (!empty($eventResultParameters))
-			{
-				$resultList = array_merge($resultList, $eventResultParameters);
-			}
+			$selector->withTypeId($parameters[0]);
 		}
-
-		return $resultList;
+		if (isset($parameters[1]))
+		{
+			$selector->withId($parameters[1]);
+		}
+		return $selector->withDefaultMessageCode()->getList();
 	}
 
 	/**
+	 * Get template list html.
+	 *
+	 * @param string $containerId Container ID.
 	 * @return string
+	 * @deprecated Use component bitrix:sender.template.selector.
 	 */
 	public static function getTemplateListHtml($containerId = 'TEMPLATE_CONTAINER')
 	{
@@ -86,7 +98,6 @@ class Template
 		<script>
 			BX.ready(function(){
 				letterManager = new SenderLetterManager;
-				letterManager.setTemplateListByType(<?=\CUtil::PhpToJSObject($templateListByType);?>);
 				if(!letterManager.get('<?=$containerId?>'))
 				{
 					letterManager.add('<?=$containerId?>', {'container': BX('<?=$containerId?>')});
@@ -95,7 +106,7 @@ class Template
 		</script>
 		<div class="sender-template-cont">
 			<div>
-				<table>
+				<table style="width: 100%;">
 					<tr>
 					<td style="vertical-align: top;">
 						<div class="sender-template-type-selector">
@@ -105,29 +116,55 @@ class Template
 								if(!$firstTemplateType) $firstTemplateType = $templateType;
 								?>
 								<div class="sender-template-type-selector-button sender-template-type-selector-button-type-<?=$templateType?>"
-									 bxsendertype="<?=htmlspecialcharsbx($templateType)?>">
+										data-bx-sender-tmpl-type="<?=htmlspecialcharsbx($templateType)?>">
 									<?=$templateTypeName?>
 								</div>
 							<?endforeach;?>
 						</div>
 					</td>
-					<td style="vertical-align: top;">
+					<td style="vertical-align: top; width: 100%;">
 						<div class="sender-template-list-container">
 							<?foreach($templateTypeList as $templateType => $templateTypeName):?>
-								<div class="sender-template-list-type-container sender-template-list-type-container-<?=$templateType?>" style="display: none;">
-									<?if(isset($templateListByType[$templateType])) foreach($templateListByType[$templateType] as $templateNum => $template):?>
+								<div id="sender-template-list-type-container-<?=$templateType?>" class="sender-template-list-type-container sender-template-list-type-container-<?=$templateType?>" style="display: none;">
+									<?
+									if(isset($templateListByType[$templateType]))
+										foreach($templateListByType[$templateType] as $templateNum => $template):
+											$isContentForBlockEditor = TemplateTable::isContentForBlockEditor($template['HTML']);
+									?>
 										<div class="sender-template-list-type-block">
-											<div class="sender-template-list-type-block-caption sender-template-list-block-selector">
-												<a class="sender-link-email" href="javascript: void(0);" bxsendertype="<?=htmlspecialcharsbx($template['TYPE'])?>" bxsendernum="<?=intval($templateNum)?>">
+											<div class="sender-template-list-type-block-caption sender-template-list-block-selector"
+												 data-bx-sender-tmpl-version="<?=($isContentForBlockEditor?'block':'visual')?>"
+												 data-bx-sender-tmpl-name="<?=htmlspecialcharsbx($template['NAME'])?>"
+												 data-bx-sender-tmpl-type="<?=htmlspecialcharsbx($template['TYPE'])?>"
+												 data-bx-sender-tmpl-code="<?=htmlspecialcharsbx($template['ID'])?>"
+												 data-bx-sender-tmpl-lang="<?=LANGUAGE_ID?>">
+												<a class="sender-link-email" href="javascript: void(0);">
 													<?=htmlspecialcharsbx($template['NAME'])?>
 												</a>
+												<?if(!$isContentForBlockEditor):?>
+													<br>
+													<span style="font-size: 10px;"><?=Loc::getMessage('SENDER_PRESET_TEMPLATE_OLD_EDITOR')?></span>
+												<?endif;?>
 											</div>
 											<div class="sender-template-list-type-block-img sender-template-list-block-selector"
-												 bxsendertype="<?=htmlspecialcharsbx($template['TYPE'])?>" bxsendernum="<?=intval($templateNum)?>">
+													data-bx-sender-tmpl-version="<?=($isContentForBlockEditor?'block':'visual')?>"
+													data-bx-sender-tmpl-name="<?=htmlspecialcharsbx($template['NAME'])?>"
+													data-bx-sender-tmpl-type="<?=htmlspecialcharsbx($template['TYPE'])?>"
+													data-bx-sender-tmpl-code="<?=htmlspecialcharsbx($template['ID'])?>"
+													data-bx-sender-tmpl-lang="<?=LANGUAGE_ID?>">
 												<?if(!empty($template['ICON'])):?>
 													<img src="<?=$template['ICON']?>">
 												<?endif;?>
 											</div>
+											<?if(!empty($template['HTML'])):?>
+												<div class="sender-template-message-preview-btn"
+													data-bx-sender-tmpl-name="<?=htmlspecialcharsbx($template['NAME'])?>"
+													data-bx-sender-tmpl-type="<?=htmlspecialcharsbx($template['TYPE'])?>"
+													data-bx-sender-tmpl-code="<?=htmlspecialcharsbx($template['ID'])?>"
+													data-bx-sender-tmpl-lang="<?=LANGUAGE_ID?>">
+													<a class="sender-link-email " href="javascript: void(0);"><?=Loc::getMessage('SENDER_PRESET_TEMPLATE_BTN_PREVIEW')?></a>
+												</div>
+											<?endif;?>
 										</div>
 									<?endforeach;?>
 									<?if(empty($templateListByType[$templateType])):?>
@@ -139,116 +176,14 @@ class Template
 							<?endforeach;?>
 						</div>
 					</td>
+					<td style="vertical-align: top;">
+						<span class="sender-template-btn-close" title="<?=Loc::getMessage('SENDER_PRESET_TEMPLATE_BTN_CLOSE')?>"></span>
+					</td>
 					</tr>
 				</table>
 			</div>
 		</div>
 		<?
 		return ob_get_clean();
-	}
-}
-
-
-class TemplateBase
-{
-	const LOCAL_DIR_TMPL = '/modules/sender/preset/template/';
-	const LOCAL_DIR_IMG = '/images/sender/preset/template/';
-
-	/**
-	 * @return array
-	 */
-	public static function onPresetTemplateList()
-	{
-		$resultList = array();
-
-		$templateList = static::getListName();
-
-
-		foreach ($templateList as $templateName)
-		{
-			$template = static::getById($templateName);
-			if($template)
-				$resultList[] = $template;
-		}
-
-		return $resultList;
-	}
-
-	/**
-	 * @return array
-	 */
-	public static function getListName()
-	{
-		$templateNameList = array(
-			'empty',
-			'1column1',
-			'1column2',
-			'2column1',
-			'2column2',
-			'2column3',
-			'2column4',
-			'2column5',
-			'2column6',
-			'3column1',
-			'3column2',
-			'3column3',
-		);
-
-		return $templateNameList;
-	}
-
-	/**
-	 * @param $templateName
-	 * @return array|null
-	 */
-	public static function getById($templateName)
-	{
-		$result = null;
-
-		$localPathOfIcon = static::LOCAL_DIR_IMG . bx_basename($templateName) . '.png';
-		$fullPathOfIcon = \Bitrix\Main\Loader::getLocal($localPathOfIcon);
-
-		$fullPathOfFile = \Bitrix\Main\Loader::getLocal(static::LOCAL_DIR_TMPL . bx_basename($templateName) . '.php');
-		if ($fullPathOfFile)
-			$fileContent = File::getFileContents($fullPathOfFile);
-		else
-			$fileContent = '';
-
-
-		if (!empty($fileContent) || $templateName == 'empty')
-		{
-			$fileContent = str_replace(
-				array('%TEXT_UNSUB_TEXT%', '%TEXT_UNSUB_LINK%'),
-				array(
-					Loc::getMessage('PRESET_MAILBLOCK_unsub_TEXT_UNSUB_TEXT'),
-					Loc::getMessage('PRESET_MAILBLOCK_unsub_TEXT_UNSUB_LINK')
-				),
-				$fileContent
-			);
-
-			$result = array(
-				'TYPE' => 'BASE',
-				'NAME' => Loc::getMessage('PRESET_TEMPLATE_' . $templateName),
-				'ICON' => (!empty($fullPathOfIcon) ? '/bitrix'.$localPathOfIcon : ''),
-				'HTML' => $fileContent
-			);
-		}
-
-		return $result;
-	}
-
-	/**
-	 * @param $templateName
-	 * @param $html
-	 * @return bool|int
-	 */
-	public static function update($templateName, $html)
-	{
-		$result = false;
-		$fullPathOfFile = \Bitrix\Main\Loader::getLocal(static::LOCAL_DIR_TMPL . bx_basename($templateName) . '.php');
-		if ($fullPathOfFile)
-			$result = File::putFileContents($fullPathOfFile, $html);
-
-		return $result;
 	}
 }

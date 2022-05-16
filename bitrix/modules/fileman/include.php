@@ -27,8 +27,67 @@ include_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/fileman/properties.php")
 
 CJSCore::RegisterExt('file_input', array(
 	'js' => '/bitrix/js/fileman/core_file_input.js',
-	'lang' => '/bitrix/modules/fileman/lang/'.LANGUAGE_ID.'/classes/general/file_input.php'
+	'lang' => '/bitrix/modules/fileman/lang/'.LANGUAGE_ID.'/classes/general/file_input.php',
+	'rel' => array('window') //BX.COpener
 ));
+
+CJSCore::RegisterExt('map_google', array(
+	'js' => '/bitrix/js/fileman/core_map_google.js'
+));
+
+CJSCore::RegisterExt('google_loader', array(
+	'js' => '/bitrix/js/fileman/google/loader.js',
+	'oninit' => function()
+	{
+		$additionalLang = array(
+			'GOOGLE_MAP_API_KEY' => \Bitrix\Fileman\UserField\Address::getApiKey(),
+			'GOOGLE_MAP_API_KEY_HINT' => \Bitrix\Fileman\UserField\Address::getApiKeyHint(),
+		);
+
+		$trialHint = \Bitrix\Fileman\UserField\Address::getTrialHint();
+		if(is_array($trialHint))
+		{
+			$additionalLang['GOOGLE_MAP_TRIAL_TITLE'] = $trialHint[0];
+			$additionalLang['GOOGLE_MAP_TRIAL'] = $trialHint[1];
+		}
+
+		return array(
+			'lang_additional' => $additionalLang,
+		);
+	}
+));
+
+CJSCore::RegisterExt('google_map', array(
+	'js' => '/bitrix/js/fileman/google/map.js',
+	'rel' => array('google_loader'),
+));
+
+CJSCore::RegisterExt('google_geocoder', array(
+	'js' => '/bitrix/js/fileman/google/geocoder.js',
+	'rel' => array('google_loader'),
+));
+
+CJSCore::RegisterExt('google_autocomplete', array(
+	'js' => '/bitrix/js/fileman/google/autocomplete.js',
+	'rel' => array('google_loader'),
+));
+
+CJSCore::RegisterExt('userfield_address', array(
+	'js' => array('/bitrix/js/fileman/userfield/address.js'),
+	'css' => array('/bitrix/js/fileman/userfield/address.css'),
+	'lang' => '/bitrix/modules/fileman/lang/'.LANGUAGE_ID.'/js_userfield_address.php',
+	'rel' => array('uf', 'google_map', 'google_geocoder', 'google_autocomplete', 'popup'),
+));
+
+CJSCore::RegisterExt('player', [
+	'js' => [
+		'/bitrix/js/fileman/player/fileman_player.js',
+		'/bitrix/js/fileman/player/videojs/video.js',
+	],
+	'css' => [
+		'/bitrix/js/fileman/player/videojs/video-js.css',
+	],
+]);
 
 //on update method still not exist
 if(method_exists($GLOBALS["APPLICATION"], 'AddJSKernelInfo'))

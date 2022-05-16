@@ -1,6 +1,6 @@
 <?if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
 /**
- * @var $this CBitrixComponent
+ * @var ForumCommentsComponent $this
  * @var $USER CUser
  * @var $DB CDataBase
  * @var $arParams array
@@ -36,6 +36,7 @@ $arParams["MESSAGES_PER_PAGE"] = intVal($arParams["MESSAGES_PER_PAGE"] > 0 ? $ar
 $arParams["DATE_TIME_FORMAT"] = trim(empty($arParams["DATE_TIME_FORMAT"]) ? $DB->DateFormatToPHP(CSite::GetDateFormat("FULL")) : $arParams["DATE_TIME_FORMAT"]);
 $arParams["NAME_TEMPLATE"] = empty($arParams["NAME_TEMPLATE"]) ? "" : str_replace(array("#NOBR#","#/NOBR#"), array("",""), $arParams["NAME_TEMPLATE"]);
 $arParams["PREORDER"] = ($arParams["PREORDER"] == "Y" ? "Y" : "N");
+$arParams["SET_LAST_VISIT"] = empty($arParams["SET_LAST_VISIT"]) ? "N" : ($arParams["SET_LAST_VISIT"] == "Y" ? "Y" : "N");
 
 $arParams["SHOW_RATING"] = ($arParams["SHOW_RATING"] == "Y" ? "Y" : "N");
 $arParams["PAGE_NAVIGATION_TEMPLATE"] = trim($arParams["PAGE_NAVIGATION_TEMPLATE"]);
@@ -57,7 +58,8 @@ $arParams["ALLOW"] = array_flip(array(
 		"ALLOW_NL2BR",
 		"ALLOW_TABLE",
 		"ALLOW_MENTION",
-		"ALLOW_ALIGN"));
+		"ALLOW_ALIGN",
+		"ALLOW_MENTION"));
 foreach ($arParams["ALLOW"] as $sName => $default)
 {
 	$sVal = array_key_exists($sName, $arParams) ? $arParams[$sName] : $arResult['FORUM'][$sName];
@@ -148,7 +150,8 @@ $arAllow = array(
 	"NL2BR" => $arParams["ALLOW_NL2BR"],
 	"TABLE" => $arParams["ALLOW_TABLE"],
 	"UPLOAD" => $arParams["ALLOW_UPLOAD"],
-	"ALIGN" => $arParams["ALLOW_ALIGN"]
+	"ALIGN" => $arParams["ALLOW_ALIGN"],
+	"MENTION" => $arParams["ALLOW_MENTION"]
 );
 
 /********************************************************************
@@ -179,7 +182,7 @@ if ($arResult["SHOW_POST_FORM"] == "Y")
 		$arResult["MESSAGE_VIEW"] = array(
 			"POST_MESSAGE_TEXT" => $parser->convert($arResult["MESSAGE_VIEW"]["POST_MESSAGE"], array_merge(
 					$arAllow, array("SMILES" => $arAllow["ALLOW_SMILES"] == "Y" && $arResult["MESSAGE_VIEW"]["USE_SMILES"] == "Y" ? "Y" : "N"))),
-			"AUTHOR_NAME" => htmlspecialcharsEx($arResult["USER"]["SHOWED_NAME"]),
+			"AUTHOR_NAME" => htmlspecialcharsbx($arResult["USER"]["SHOWED_NAME"]),
 			"AUTHOR_ID" => intval($arResult["USER"]["ID"]),
 			"AUTHOR_URL" => CComponentEngine::MakePathFromTemplate($arParams["URL_TEMPLATES_PROFILE_VIEW"], array("UID" => $arResult["MESSAGE_VIEW"]["AUTHOR_ID"])),
 			"POST_DATE" => CForumFormat::DateFormat($arParams["DATE_TIME_FORMAT"], time()+CTimeZone::GetOffset()),
@@ -192,9 +195,9 @@ if ($arResult["SHOW_POST_FORM"] == "Y")
 	$arResult["~REVIEW_TEXT"] = $_POST["REVIEW_TEXT"];
 	$arResult["~REVIEW_USE_SMILES"] = ($_POST["REVIEW_USE_SMILES"] == "Y" ? "Y" : "N");
 
-	$arResult["REVIEW_AUTHOR"] = htmlspecialcharsEx($arResult["~REVIEW_AUTHOR"]);
-	$arResult["REVIEW_EMAIL"] = htmlspecialcharsEx($arResult["~REVIEW_EMAIL"]);
-	$arResult["REVIEW_TEXT"] = htmlspecialcharsEx($arResult["~REVIEW_TEXT"]);
+	$arResult["REVIEW_AUTHOR"] = htmlspecialcharsbx($arResult["~REVIEW_AUTHOR"]);
+	$arResult["REVIEW_EMAIL"] = htmlspecialcharsbx($arResult["~REVIEW_EMAIL"]);
+	$arResult["REVIEW_TEXT"] = htmlspecialcharsbx($arResult["~REVIEW_TEXT"]);
 	$arResult["REVIEW_USE_SMILES"] = $arResult["~REVIEW_USE_SMILES"];
 
 	// Form Info
@@ -224,12 +227,13 @@ elseif (empty($arParams["~URL_TEMPLATES_READ"]))
 	$arParams["~URL_TEMPLATES_READ"] = $APPLICATION->GetCurPage()."?PAGE_NAME=read&FID=#FID#&TID=#TID#&MID=#MID#";
 $arParams["~URL_TEMPLATES_READ"] = str_replace(array("#FORUM_ID#", "#TOPIC_ID#", "#MESSAGE_ID#"),
 		array("#FID#", "#TID#", "#MID#"), $arParams["~URL_TEMPLATES_READ"]);
-$arParams["URL_TEMPLATES_READ"] = htmlspecialcharsEx($arParams["~URL_TEMPLATES_READ"]);
+$arParams["URL_TEMPLATES_READ"] = htmlspecialcharsbx($arParams["~URL_TEMPLATES_READ"]);
 //
 // Link to forum
 $arResult["read"] = CComponentEngine::MakePathFromTemplate($arParams["URL_TEMPLATES_READ"],
 	array("FID" => $arParams["FORUM_ID"], "TID" => $arResult["FORUM_TOPIC_ID"], "TITLE_SEO" => $arResult["TOPIC"]["TITLE_SEO"],
 		"MID" => "s", "PARAM1" => $arParams['ENTITY_TYPE'], "PARAM2" => $arParams["ENTITY_ID"]));
+$messageUrl =
 /********************************************************************
 				/Input params
 ********************************************************************/
@@ -299,7 +303,26 @@ $cache_id = "forum_comment_".serialize($ar_cache_id);
 
 if ($arResult['DO_NOT_CACHE'] || $this->StartResultCache($arParams["CACHE_TIME"], $cache_id))
 {
-	ForumSetLastVisit($arParams["FORUM_ID"], $arResult["FORUM_TOPIC_ID"], array("nameTemplate" => $arParams["NAME_TEMPLATE"]));
+	$auxSuffix = false;
+	switch (strtolower($arParams['ENTITY_TYPE']))
+	{
+		case \Bitrix\Forum\Comments\TaskEntity::ENTITY_TYPE:
+			$auxSuffix = 'TASK';
+			break;
+		case \Bitrix\Forum\Comments\CalendarEntity::ENTITY_TYPE:
+			$auxSuffix = 'CALENDAR';
+			break;
+		case \Bitrix\Forum\Comments\WorkflowEntity::ENTITY_TYPE:
+			$auxSuffix = 'WF';
+			break;
+		default:
+			$auxSuffix = false;
+	}
+
+	if ($arParams["SET_LAST_VISIT"] == "Y")
+	{
+		ForumSetLastVisit($arParams["FORUM_ID"], $arResult["FORUM_TOPIC_ID"], array("nameTemplate" => $arParams["NAME_TEMPLATE"]));
+	}
 	if ($arResult["FORUM_TOPIC_ID"] > 0)
 	{
 		$arMessages = array();
@@ -333,6 +356,8 @@ if ($arResult['DO_NOT_CACHE'] || $this->StartResultCache($arParams["CACHE_TIME"]
 				$GLOBALS['forumComponent'] = &$this;
 				$FormatDate = (strpos($arParams["DATE_TIME_FORMAT"], 'a') !== false ? 'g:i a' :
 					(strpos($arParams["DATE_TIME_FORMAT"], 'A') !== false ? 'g:i A' : 'G:i'));
+				$url = (new \Bitrix\Main\Web\Uri($arParams["URL"]))
+					->deleteParams(["MID", "ID", "sessid", "AJAX_POST", "ENTITY_XML_ID", "ENTITY_TYPE", "ENTITY_ID", "REVIEW_ACTION", "MODE", "FILTER", "result", "ACTION"]);
 				while ($res = $db_res->GetNext())
 				{
 					/************** Message info ***************************************/
@@ -348,13 +373,13 @@ if ($arResult['DO_NOT_CACHE'] || $this->StartResultCache($arParams["CACHE_TIME"]
 					$res["~POST_MESSAGE_TEXT"] = (COption::GetOptionString("forum", "FILTER", "Y")=="Y" ? $res["~POST_MESSAGE_FILTER"] : $res["~POST_MESSAGE"]);
 					// links
 					$res["PANELS"] = $arResult["PANELS"];
+					$url->addParams(array("MID" => $res["ID"]));
 					$res["URL"] = array(
-						"LINK" => $APPLICATION->GetCurPageParam("MID=".$res["ID"],
-							array("MID", "sessid", "AJAX_POST", "ENTITY_XML_ID", "ENTITY_TYPE", "ENTITY_ID", "REVIEW_ACTION", "MODE", "FILTER", "result"))
+						"LINK" => $url->getPathQuery(),
+						"MODERATE" => $url->addParams(array("ACTION" => ($res["APPROVED"]=="Y" ? "HIDE" : "SHOW")))->getPathQuery(),
+						"EDIT" => $url->addParams(array("ACTION" => "GET"))->getPathQuery(),
+						"DELETE" => $url->addParams(array("ACTION" => "DEL"))->getPathQuery(),
 					);
-					$res["URL"]["MODERATE"] = ForumAddPageParams($res["URL"]["LINK"], array("REVIEW_ACTION" => ($res["APPROVED"]=="Y" ? "HIDE" : "SHOW")));
-					$res["URL"]["EDIT"] = ForumAddPageParams($res["URL"]["LINK"], array("REVIEW_ACTION" => "GET"));
-					$res["URL"]["DELETE"] = ForumAddPageParams($res["URL"]["LINK"], array("REVIEW_ACTION" => "DEL"));
 					if ($res["PANELS"]["EDIT"] == "Y" || (
 							$arParams["ALLOW_EDIT_OWN_MESSAGE"] === "LAST" &&
 							$res["ID"] == $arResult["TOPIC"]["ABS_LAST_MESSAGE_ID"] &&
@@ -370,6 +395,11 @@ if ($arResult['DO_NOT_CACHE'] || $this->StartResultCache($arParams["CACHE_TIME"]
 					}
 					/************** Message info/***************************************/
 					/************** Author info ****************************************/
+					if (empty($res["NAME"]) && !empty($res["AUTHOR_NAME"]))
+					{
+						$res["NAME"] = $res["AUTHOR_NAME"];
+						$res["~NAME"] = $res["~AUTHOR_NAME"];
+					}
 					if (!empty($arParams["NAME_TEMPLATE"]) && $res["SHOW_NAME"] != "Y")
 					{
 						$name = CUser::FormatName(
@@ -409,6 +439,10 @@ if ($arResult['DO_NOT_CACHE'] || $this->StartResultCache($arParams["CACHE_TIME"]
 						if ($res["AVATAR"]["FILE"] !== false)
 							$res["AVATAR"]["HTML"] = CFile::ShowImage($res["AVATAR"]["FILE"]['src'], 30, 30, "border=0 align='right'");
 					}
+					else
+					{
+						$res["AVATAR"] = null;
+					}
 					// For quote JS
 					$res["FOR_JS"] = array(
 						"AUTHOR_NAME" => CUtil::JSEscape($res["AUTHOR_NAME"]),
@@ -416,6 +450,49 @@ if ($arResult['DO_NOT_CACHE'] || $this->StartResultCache($arParams["CACHE_TIME"]
 					);
 
 					$res["NEW"] = ($arResult["UNREAD_MID"] > 0 && $res["ID"] >= $arResult["UNREAD_MID"] ? "Y" : "N");
+
+					if (
+						$auxSuffix
+						&& \Bitrix\Main\Loader::includeModule('socialnetwork')
+						&& ($commentAuxProvider = \Bitrix\Socialnetwork\CommentAux\Base::findProvider(
+							array(
+								'POST_TEXT' => $res['~POST_MESSAGE_TEXT'],
+							),
+							array(
+								'needSetParams' => false
+							)
+						))
+					)
+					{
+						$forumPostLivefeedProvider = new \Bitrix\Socialnetwork\Livefeed\ForumPost();
+						$dbres = \Bitrix\Socialnetwork\LogCommentTable::getList(array(
+							'filter' => array(
+								'SOURCE_ID' => $res['ID'],
+								'EVENT_ID' => $forumPostLivefeedProvider->getEventId()
+							),
+							'select' => array('EVENT_ID', 'SHARE_DEST', 'LOG_ID')
+						));
+						if ($sonetCommentFields = $dbres->fetch())
+						{
+
+							$auxParams = $commentAuxProvider->getParamsFromFields($sonetCommentFields);
+							if (!empty($auxParams))
+							{
+								$commentAuxProvider->setParams($auxParams);
+								$commentAuxProvider->setOptions(array(
+									'eventId' => $sonetCommentFields['EVENT_ID'],
+									'suffix' => $auxSuffix,
+									'logId' => $sonetCommentFields['LOG_ID'],
+									'cache' => !$arResult['DO_NOT_CACHE']
+								));
+
+								$res['~POST_MESSAGE_TEXT'] = $commentAuxProvider->getText();
+								$res["AUX"] = $commentAuxProvider->getType();
+								$res["AUX_LIVE_PARAMS"] = array();
+							}
+						}
+					}
+
 					$arMessages[$res["ID"]] = $res;
 				}
 			}

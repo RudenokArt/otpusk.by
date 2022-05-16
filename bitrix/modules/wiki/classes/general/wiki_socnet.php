@@ -159,7 +159,8 @@ class CWikiSocnet
 						"UPDATE_CALLBACK" => array("CSocNetLogTools", "UpdateComment_Forum"),
 						"DELETE_CALLBACK" => array("CSocNetLogTools", "DeleteComment_Forum"),
 						"CLASS_FORMAT" => "CWikiSocnet",
-						"METHOD_FORMAT" => "FormatComment_Wiki"
+						"METHOD_FORMAT" => "FormatComment_Wiki",
+						"RATING_TYPE_ID" => "FORUM_POST"
 					)
 				),
 				'wiki_del' => array(
@@ -328,6 +329,10 @@ class CWikiSocnet
 			"MESSAGE" => $arFields['MESSAGE']
 		);
 
+		$sanitizer = new CBXSanitizer();
+		$sanitizer->SetLevel(CBXSanitizer::SECURE_LEVEL_LOW);
+		$arResult['EVENT_FORMATTED']['MESSAGE'] = $sanitizer->SanitizeHtml(htmlspecialcharsback($arResult['EVENT_FORMATTED']['MESSAGE']));
+
 		$arResult['HAS_COMMENTS'] = 'N';
 		if (
 			intval($arFields['SOURCE_ID']) > 0
@@ -425,7 +430,7 @@ class CWikiSocnet
 
 		$arResult["EVENT_FORMATTED"] = array(
 			"TITLE" => $title,
-			"MESSAGE" => ($bMail ? CSocNetTextParser::killAllTags($arFields['MESSAGE']) : $arFields['MESSAGE'])
+			"MESSAGE" => ($bMail ? CSocNetTextParser::killAllTags($arFields['MESSAGE']) : htmlspecialcharsBack($arFields['MESSAGE']))
 		);
 
 		if ($bMail)
@@ -794,7 +799,7 @@ class CWikiSocnet
 					$bxSocNetSearch->Url(
 						str_replace(
 							"#wiki_name#",
-							urlencode($arFields["TITLE"]),
+							rawurlencode($arFields["TITLE"]),
 							$bxSocNetSearch->_params["PATH_TO_GROUP_WIKI_POST_COMMENT"]
 						),
 						array(

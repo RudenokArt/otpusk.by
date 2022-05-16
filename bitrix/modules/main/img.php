@@ -6,9 +6,6 @@
  * @copyright 2001-2014 Bitrix
  */
 
-require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/save_colors.php");
-
-
 /*******************************************************
 Converts ISO to UNICODE
 ********************************************************/
@@ -95,7 +92,7 @@ function GetArrSaveDecColor($arr)
 
 function GetNextRGB($base_color, $total)
 {
-	global $arrSaveColor;
+	$arrSaveColor = getSafeColors();
 
 	$tsc = count($arrSaveColor);
 	if ($total > $tsc)
@@ -244,7 +241,6 @@ function GetArrayX($arrX, &$MinX, &$MaxX, $max_grid=15, $min_grid=10)
 	$arrayX = array();
 	while ($unix_date < $MaxX+$shiftX)
 	{
-		// если имеем ситуацию с переходом на зимнее время (день увеличивается на 1 час)
 		if ($prev_date == date("d.m.Y", $unix_date))
 		{
 			$unix_date += 3600;
@@ -263,9 +259,6 @@ function GetArrayX($arrX, &$MinX, &$MaxX, $max_grid=15, $min_grid=10)
 }
 
 
-/******************************************************
-Формируем ось Y (целые числа)
-*******************************************************/
 function GetArrayY($arrY, &$MinY, &$MaxY, $max_grid=15, $first_null="Y", $integers=false)
 {
 	$arrayY = array();
@@ -342,46 +335,31 @@ function ReColor($colorString)
 	);
 }
 
-/******************************************************************************
-* $k - array performance font size to pixel format
-* array index == font size
-******************************************************************************/
-$k = array();
-$k[1]=5;
-$k[2]=2.7;
-$k[3]=2.3;
-$k[4]=2;
-$k[5]=1.7;
-$k[6]=1.5;
-$k[7]=1.3;
-$k[8]=1.1;
-$k[9]=1;
-$k[10]=0.85;
-$k[11]=0.75;
-$k[12]=0.7;
-$k[13]=0.65;
-$k[14]=0.60;
-$k[15]=0.55;
-$k[16]=0.52;
-
-/******************************************************************************
-	Рисует координатную сетку для графика
-
-	$arrayX - массив значений по X
-	$arrayY - массив значений по Y
-	$width - ширина графика
-	$height - высота графика
-	$ImageHandle - дескриптор картинки
-	$bgColor - цвет подложки графика
-	$gColor - цвет сетки
-	$Color - цвет осей
-	$dD - отступ от края картинки
-	$FontWidth - ширина текстовых символов
-
-******************************************************************************/
 function DrawCoordinatGrid($arrayX, $arrayY, $width, $height, $ImageHandle, $bgColor="FFFFFF", $gColor='B1B1B1', $Color="000000", $dD=15, $FontWidth=2, $arrTTF_FONT=false)
 {
-	global $k, $xA, $yA, $xPixelLength, $yPixelLength, $APPLICATION;
+	global $xA, $yA, $xPixelLength, $yPixelLength, $APPLICATION;
+
+	/******************************************************************************
+	* $k - array performance font size to pixel format
+	* array index == font size
+	******************************************************************************/
+	$k = array();
+	$k[1]=5;
+	$k[2]=2.7;
+	$k[3]=2.3;
+	$k[4]=2;
+	$k[5]=1.7;
+	$k[6]=1.5;
+	$k[7]=1.3;
+	$k[8]=1.1;
+	$k[9]=1;
+	$k[10]=0.85;
+	$k[11]=0.75;
+	$k[12]=0.7;
+	$k[13]=0.65;
+	$k[14]=0.60;
+	$k[15]=0.55;
+	$k[16]=0.52;
 
 	$arResult = array();
 
@@ -432,9 +410,6 @@ function DrawCoordinatGrid($arrayX, $arrayY, $width, $height, $ImageHandle, $bgC
 	}
 
 /*
-
-	Считаем точки для осей и координатной сетки
-
 	C
 	|
 	|
@@ -447,7 +422,6 @@ function DrawCoordinatGrid($arrayX, $arrayY, $width, $height, $ImageHandle, $bgC
 	$ttf_font_x = "";
 	$ttf_size_x = $ttf_shift_x = $ttf_base_x = 0;
 
-	// координаты точки A
 	$xA = $dD+$dlataX;
 	if ($bUseTTFX)
 	{
@@ -465,26 +439,22 @@ function DrawCoordinatGrid($arrayX, $arrayY, $width, $height, $ImageHandle, $bgC
 		$yA = $height-$dD-ImageFontHeight($FontWidth)/2;
 	}
 
-	// координаты точки C
 	$xC = $xA;
 	$yC = $dD;
 
-	// координаты точки B
 	$xB = $width-$dD;
 	$yB = $yA;
 
-	$GrafWidth = $xB - $xA;		// ширина координатной сетки
-	$GrafHeight = $yA - $yC;	// высота координатной сетки
+	$GrafWidth = $xB - $xA;
+	$GrafHeight = $yA - $yC;
 
-	$PointsX = max(sizeof($arrayX)+$bForBarDiagram, 2);	// количество делений по оси X
-	$PointsY = max(sizeof($arrayY), 2);	// количество делений по оси Y
+	$PointsX = max(sizeof($arrayX)+$bForBarDiagram, 2);
+	$PointsY = max(sizeof($arrayY), 2);
 
-	$dX = $GrafWidth/($PointsX-1);	// шаг сетки по X
-	$dY = $GrafHeight/($PointsY-1);	// шаг сетки по Y
+	$dX = $GrafWidth/($PointsX-1);
+	$dY = $GrafHeight/($PointsY-1);
 
 /*
-	Рисуем вертикальую сетку
-
 	C	P1
 	|	|
 	|	|
@@ -515,9 +485,9 @@ function DrawCoordinatGrid($arrayX, $arrayY, $width, $height, $ImageHandle, $bgC
 		if($bForBarDiagram)
 			$arResult["XBUCKETS"][$i] = array(ceil($xP0)+1, ceil($xP0+$dX)-1);
 
-		$captionX = $arrayX[$i]; // подписи по оси X
-		$xCaption = $xP0 - strlen($captionX)*$k[$FontWidth] + ($dX*$bForBarDiagram/2); // координата X для подписи
-		$yCaption = $yP0; // координата Y для подписи
+		$captionX = $arrayX[$i];
+		$xCaption = $xP0 - strlen($captionX)*$k[$FontWidth] + ($dX*$bForBarDiagram/2);
+		$yCaption = $yP0;
 
 		if ($bUseTTFX)
 		{
@@ -535,8 +505,6 @@ function DrawCoordinatGrid($arrayX, $arrayY, $width, $height, $ImageHandle, $bgC
 	}
 
 /*
-	Рисуем горизонтальную сетку
-
    C
    |
    |
@@ -567,9 +535,9 @@ function DrawCoordinatGrid($arrayX, $arrayY, $width, $height, $ImageHandle, $bgC
 				);
 			ImageSetStyle($ImageHandle, $style);
 			ImageLine($ImageHandle, ceil($xM0), ceil($yM0), ceil($xM1), ceil($yM1), IMG_COLOR_STYLED);
-			$captionY = $arrayY[$i]; // подписи по оси Y
-			$xCaption = $dlataX; // координата X для подписи
-			$yCaption = $yM1-$k[$FontWidth]*3; // координата Y для подписи
+			$captionY = $arrayY[$i];
+			$xCaption = $dlataX;
+			$yCaption = $yM1-$k[$FontWidth]*3;
 
 			if ($bUseTTFY)
 			{
@@ -585,12 +553,11 @@ function DrawCoordinatGrid($arrayX, $arrayY, $width, $height, $ImageHandle, $bgC
 		$i++;
 	}
 
-	// рисуем оси X и Y
 	ImageLine($ImageHandle, ceil($xA), ceil($yA), ceil($xC), ceil($yC), $color000000);
 	ImageLine($ImageHandle, ceil($xB), ceil($yB), ceil($xA), ceil($yA), $color000000);
 
-	$xPixelLength = $xB - $xA;	// ширина поля для графика
-	$yPixelLength = $yA - $yC;	// высота поля для графика
+	$xPixelLength = $xB - $xA;
+	$yPixelLength = $yA - $yC;
 
 	$arResult["VIEWPORT"] = array(ceil($xA), ceil($yA), ceil($xB), ceil($yC));
 
@@ -641,20 +608,6 @@ function Bar_Diagram($ImageHandle, $arData, $MinY, $MaxY, $gridInfo)
 	}
 }
 
-/******************************************************************************
-	Рисует график
-
-	$arrayX - массив значений по X
-	$arrayY - массив значений по Y
-	$ImageHandle - дескриптор картинки
-	$MinX - минимум графика по X
-	$MaxX - максимум графика по X
-	$MinY - минимум графика по Y
-	$MaxY - максимум графика по Y
-	$Color - цвет графика
-	$dashed - рисовать ли пунктиром
-
-******************************************************************************/
 function Graf($arrayX, $arrayY, $ImageHandle, $MinX, $MaxX, $MinY, $MaxY, $Color='FF0000', $dashed="N", $thikness=2, $antialiase=true)
 {
 	global $xA, $yA, $xPixelLength, $yPixelLength;
@@ -743,18 +696,6 @@ function Graf($arrayX, $arrayY, $ImageHandle, $MinX, $MaxX, $MinY, $MaxY, $Color
 	}
 }
 
-/******************************************************************************
-	Функция рисует сектор
-
-	$ImageHandle	- дескриптор картинки
-	$start			- начальный угол
-	$end			- конечный угол
-	$color			- RGB цвет сектора
-	$diameter		- диаметр круга
-	$centerX		- координата X центра круга
-	$centerY		- координата Y центра круга
-
-******************************************************************************/
 function Draw_Sector($ImageHandle, $start, $end, $color, $diameter, $centerX, $centerY)
 {
 	$radius = $diameter/2;
@@ -763,18 +704,15 @@ function Draw_Sector($ImageHandle, $start, $end, $color, $diameter, $centerX, $c
 
 	imagearc($ImageHandle, $centerX, $centerY, $diameter, $diameter, 0, 360, $color);
 
-	// первая линия сектора
 	$startX = $centerX + cos(deg2rad($start)) * $radius;
 	$startY = $centerY + sin(deg2rad($start)) * $radius;
 	imageline($ImageHandle, $centerX, $centerY, $startX, $startY, $color);
 
-	// вторая линия сектора
 	$endX = $centerX + cos(deg2rad($end)) * $radius;
 	$endY = $centerY + sin(deg2rad($end)) * $radius;
 	imageline($ImageHandle, $centerX, $centerY, $endX, $endY, $color);
 
-	// найдем координаты точки заливки
-	$diff = intval($end - $start); // угол сектора
+	$diff = intval($end - $start);
 	if ($diff < 180)
 	{
 		$x = ($centerX+(($startX + $endX)/2))/2;
@@ -794,19 +732,6 @@ function Draw_Sector($ImageHandle, $start, $end, $color, $diameter, $centerX, $c
 	//imagesetpixel($ImageHandle, $x, $y, $color);
 }
 
-/******************************************************************************
-	Функция рисует круговую диаграмму
-
-	$ImageHandle		- дескриптор картинки
-	$arr			- массив с ключами:
-		COLOR - цвет сектора,
-		COUNTER - численное значение
-	$background_color	- RGB цвет заливки изображения
-	$diameter		- диаметр круга
-	$centerX		- координата X центра круга
-	$centerY		- координата Y центра круга
-
-******************************************************************************/
 function Circular_Diagram($ImageHandle, $arr, $background_color, $diameter, $centerX, $centerY, $antialiase=true)
 {
 	if($antialiase)
@@ -817,7 +742,6 @@ function Circular_Diagram($ImageHandle, $arr, $background_color, $diameter, $cen
 		$centerX=$centerX*5;
 		$centerY=$centerY*5;
 		$ImageHandle = CreateImageHandle($diameter, $diameter, "FFFFFF", true);
-		//Заливаем фон
 		imagefill($ImageHandle, 0, 0, imagecolorallocate($ImageHandle, 255,255,255));
 	}
 	$arr2 = array();
@@ -915,17 +839,6 @@ function Circular_Diagram($ImageHandle, $arr, $background_color, $diameter, $cen
 		imagecopyresampled($ImageHandle_Saved, $ImageHandle, 0, 0, 0, 0, $diameter_saved, $diameter_saved, $diameter, $diameter);
 	}
 }
-
-/******************************************************************************
-	Функция очищает край круговой диаграммы от мусора
-
-	$ImageHandle		- дескриптор картинки
-	$background_color	- RGB цвет заливки изображения
-	$diameter			- диаметр круга
-	$centerX			- координата X центра круга
-	$centerY			- координата Y центра круга
-
-******************************************************************************/
 
 function Clean_Circular_Diagram($ImageHandle, $background_color, $diameter, $centerX, $centerY)
 {
@@ -1150,4 +1063,200 @@ function _a_draw_ellipse($im, $x1, $y1, $x2, $y2, $fgcolors, $half=false)
 			if(!$half || $ix>$cx) _a_set_pixel($im, $iy, $ix-1, $f, $fgcolors);
 		}
 	}
+}
+
+function getSafeColors()
+{
+	static $colors = array(
+		"CCCCCC",
+		"999999",
+		"FF0000",
+		"FF3333",
+		"CC0000",
+		"FF6666",
+		"CC3333",
+		"990000",
+		"FF9999",
+		"CC6666",
+		"993333",
+		"FFCCCC",
+		"CC9999",
+		"996666",
+		"FF3300",
+		"FF6633",
+		"CC3300",
+		"FF9966",
+		"CC6633",
+		"993300",
+		"FF6600",
+		"FF9933",
+		"CC6600",
+		"FFCC99",
+		"CC9966",
+		"996633",
+		"FF9900",
+		"FFCC66",
+		"CC9933",
+		"996600",
+		"CC9900",
+		"FFCC33",
+		"FFCC00",
+		"FFFF00",
+		"FFFF33",
+		"CCCC00",
+		"FFFF66",
+		"CCCC33",
+		"999900",
+		"FFFF99",
+		"CCCC66",
+		"999933",
+		"FFFFCC",
+		"CCCC99",
+		"999966",
+		"A2CA00",
+		"CCFF33",
+		"99CC00",
+		"CCFF66",
+		"99CC33",
+		"669900",
+		"99FF00",
+		"99FF33",
+		"66CC00",
+		"73E600",
+		"99CC66",
+		"669933",
+		"66FF00",
+		"99FF66",
+		"66CC33",
+		"339900",
+		"66FF33",
+		"33CC00",
+		"33FF00",
+		"00FF00",
+		"33FF33",
+		"00CC00",
+		"66FF66",
+		"33CC33",
+		"009900",
+		"99FF99",
+		"66CC66",
+		"339933",
+		"00AA00",
+		"99CC99",
+		"669966",
+		"00FF33",
+		"33FF66",
+		"00CC33",
+		"66FF99",
+		"33CC66",
+		"009933",
+		"00FF66",
+		"33FF99",
+		"00CC66",
+		"99FFCC",
+		"66CC99",
+		"339966",
+		"00FF99",
+		"66FFCC",
+		"33CC99",
+		"009966",
+		"33FFCC",
+		"00CC99",
+		"00FFCC",
+		"00FFFF",
+		"33FFFF",
+		"00CCCC",
+		"66FFFF",
+		"33CCCC",
+		"009999",
+		"99FFFF",
+		"66CCCC",
+		"339999",
+		"CCFFFF",
+		"99CCCC",
+		"669999",
+		"00CCFF",
+		"33CCFF",
+		"0099CC",
+		"66CCFF",
+		"3399CC",
+		"006699",
+		"0099FF",
+		"3399FF",
+		"0066CC",
+		"99CCFF",
+		"6699CC",
+		"336699",
+		"599BFF",
+		"6699FF",
+		"3366CC",
+		"003399",
+		"3366FF",
+		"0033CC",
+		"0033FF",
+		"0000FF",
+		"3333FF",
+		"0000CC",
+		"6666FF",
+		"3333CC",
+		"000099",
+		"9999FF",
+		"6666CC",
+		"333399",
+		"CCCCFF",
+		"9999CC",
+		"666699",
+		"0A7BB8",
+		"6633FF",
+		"3300CC",
+		"9966FF",
+		"5997D5",
+		"330099",
+		"6600FF",
+		"9933FF",
+		"1AA9F7",
+		"CC99FF",
+		"9966CC",
+		"663399",
+		"9900FF",
+		"CC66FF",
+		"CE37CE",
+		"660099",
+		"CC33FF",
+		"9900CC",
+		"CC00FF",
+		"FF00FF",
+		"FF33FF",
+		"CC00CC",
+		"FF66FF",
+		"CC33CC",
+		"990099",
+		"FF99FF",
+		"CC66CC",
+		"993399",
+		"FFCCFF",
+		"CC99CC",
+		"996699",
+		"FF00CC",
+		"FF33CC",
+		"CC0099",
+		"FF66CC",
+		"CC3399",
+		"990066",
+		"FF0099",
+		"FF3399",
+		"CC0066",
+		"FF99CC",
+		"CC6699",
+		"993366",
+		"FF0066",
+		"FF6699",
+		"CC3366",
+		"990033",
+		"FF3366",
+		"CC0033",
+		"FF0033",
+	);
+
+	return $colors;
 }

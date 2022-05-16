@@ -1,4 +1,9 @@
-<?if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();?>
+<?php
+
+if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
+
+\Bitrix\Main\UI\Extension::load("ui.buttons");
+?>
 <div class="bp-setconstants <?if ($arParams['POPUP']):?>bp-setconstants-popup<?endif?>">
 <?
 if (strlen($arResult["FatalErrorMessage"]) > 0)
@@ -37,7 +42,12 @@ else
 					if (response.ERROR_MESSAGE)
 						alert(response.ERROR_MESSAGE);
 					else
-						BX.PopupWindowManager.getCurrentPopup().close();
+					{
+						if(!!form.modalWindow)
+							form.modalWindow.close();
+						else
+							BX.PopupWindowManager.getCurrentPopup().close();
+					}
 				});
 				return false;
 			}(this, event);"<?endif
@@ -75,9 +85,9 @@ else
 			<?
 		}
 		?>
-		<?if (!$arParams['POPUP']):?>
+		<?if (!$arParams['POPUP'] && $arResult["CONSTANTS"]):?>
 		<div class="bp-question-item">
-			<input type="submit" value="<?= GetMessage("BPWFSCT_SAVE") ?>">
+			<input type="submit" value="<?= GetMessage("BPWFSCT_SAVE") ?>" class="ui-btn ui-btn-success">
 		</div>
 		<?endif?>
 	</form>

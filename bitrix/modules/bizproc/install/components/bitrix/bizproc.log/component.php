@@ -55,7 +55,14 @@ if (array_key_exists("COMPONENT_VERSION", $arParams) && $arParams["COMPONENT_VER
 		$runtime->StartRuntime();
 		$documentService = $runtime->GetService("DocumentService");
 
-		$documentType = $documentService->GetDocumentType($documentId);
+		try
+		{
+			$documentType = $documentService->GetDocumentType($documentId);
+		}
+		catch (Exception $e)
+		{
+			$documentType = $documentId;
+		}
 
 		$arResult["GRID_ID"] = "bizproc_loggrid_".$arWorkflowState["WORKFLOW_TEMPLATE_ID"];
 
@@ -90,8 +97,12 @@ if (array_key_exists("COMPONENT_VERSION", $arParams) && $arParams["COMPONENT_VER
 				),
 				array(
 					"id" => "ADMIN_MODE",
-					"name" => GetMessage("CBBWL_C_ADMIN_MODE"),
-					"type" => "checkbox",
+					"name" => GetMessage("CBBWL_C_ADMIN_MODE_LABEL"),
+					"type" => "list",
+					"items" => array(
+						'' => GetMessage("CBBWL_C_ADMIN_MODE_SIMPLE"),
+						'Y' => GetMessage("CBBWL_C_ADMIN_MODE"),
+					)
 				),
 			);
 		}
@@ -146,8 +157,17 @@ if (array_key_exists("COMPONENT_VERSION", $arParams) && $arParams["COMPONENT_VER
 			$prefix = "";
 			if (!$arResult["AdminMode"])
 			{
-				if ($arTrack["TYPE"] != CBPTrackingType::Custom && $arTrack["TYPE"] != CBPTrackingType::FaultActivity && $arTrack["TYPE"] != CBPTrackingType::Report)
+				if ($arTrack["TYPE"] != CBPTrackingType::Custom
+					&& $arTrack["TYPE"] != CBPTrackingType::FaultActivity
+					&& $arTrack["TYPE"] != CBPTrackingType::Report
+					&& $arTrack["TYPE"] != CBPTrackingType::Error
+				)
 					continue;
+			}
+
+			if ($arTrack["TYPE"] == CBPTrackingType::AttachedEntity || $arTrack["TYPE"] == CBPTrackingType::Trigger)
+			{
+				continue;
 			}
 
 			$date = $arTrack["MODIFIED"];
@@ -169,6 +189,7 @@ if (array_key_exists("COMPONENT_VERSION", $arParams) && $arParams["COMPONENT_VER
 					$type = GetMessage("BPABL_TYPE_3");
 					break;
 				case 4:
+				case 9:
 					$type = GetMessage("BPABL_TYPE_4");
 					break;
 				case 5:
@@ -176,7 +197,6 @@ if (array_key_exists("COMPONENT_VERSION", $arParams) && $arParams["COMPONENT_VER
 					break;
 				case 6:
 					$type = GetMessage("BPABL_TYPE_7");
-					$arTrack["ACTION_NOTE"] = htmlspecialcharsback($arTrack["ACTION_NOTE"]);
 					break;
 				default:
 					$type = GetMessage("BPABL_TYPE_6");
@@ -363,4 +383,3 @@ else
 					/Standart operations
 	********************************************************************/
 }
-?>

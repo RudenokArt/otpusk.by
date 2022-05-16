@@ -13,7 +13,6 @@ require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/vote/include.php");
 ClearVars();
 IncludeModuleLangFile(__FILE__);
 $err_mess = "File: ".__FILE__."<br>Line: ";
-define("HELP_FILE","vote_user_votes.php");
 
 /********************************************************************
 				Actions 
@@ -62,7 +61,7 @@ require_once ($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_adm
 
 $aMenu = array(
 	array(
-		"TEXT"	=> GetMessage("VOTE_RESULTS_LIST"), 
+		"TEXT"	=> GetMessage("VOTE_RESULTS_LIST"),
 		"LINK"	=> "/bitrix/admin/vote_user_votes.php?lang=".LANGUAGE_ID
 	)
 );

@@ -214,10 +214,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && strlen($Update)>0 && check_bitrix_se
 			{
 				if ($LESSON_ID > 0)
 				{
-					CLearnLesson::Update($LESSON_ID, $arFields);
+					$res = CLearnLesson::Update($LESSON_ID, $arFields);
 
 					// If we are in context of parent lesson => update edges properties
-					if (isset($g_learn_parentLessonId) && $g_learn_parentLessonId > 0)
+					if ($res && isset($g_learn_parentLessonId) && $g_learn_parentLessonId > 0)
 					{
 						CLearnLesson::RelationUpdate (
 							$g_learn_parentLessonId, 
@@ -241,7 +241,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && strlen($Update)>0 && check_bitrix_se
 							$arNewEdgeProperties);
 					}
 					else
+					{
 						$LESSON_ID = CLearnLesson::Add($arFields);
+					}
 
 					$res = ($LESSON_ID > 0);
 				}
@@ -1386,7 +1388,7 @@ $tabControl->BeginCustomField("PREVIEW_TEXT", GetMessage("LEARNING_PREVIEW_TEXT"
 		<td valign="top" width="50%" align="right"><?echo GetMessage("LEARNING_CONTENT_SOURCE")?>:</td>
 		<td valign="top" width="50%">
 			<label><input onClick="toggleSource()" <?php if ($bContentReadOnly) echo ' disabled="disabled" '; ?> type="radio" name="CONTENT_SOURCE" value="field"<?php echo $str_DETAIL_TEXT_TYPE!="file" ? " checked" : ""?>>&nbsp;<?echo GetMessage("LEARNING_CONTENT_SOURCE_FIELD")?></label><br />
-			<label><input onClick="toggleSource()" <?php if ($bContentReadOnly) echo ' disabled="disabled" '; ?> type="radio" name="CONTENT_SOURCE" value="file"<?php echo $str_DETAIL_TEXT_TYPE=="file" ? " checked" : ""?>>&nbsp;<?echo GetMessage("LEARNING_CONTENT_SOURCE_FILE")?></label>
+			<label><input onClick="toggleSource()" <?php if ($bContentReadOnly) echo ' disabled="disabled" '; ?> type="radio" name="CONTENT_SOURCE" value="file"<?php echo $str_DETAIL_TEXT_TYPE=="file" ? " checked" : ""?>>&nbsp;<?echo GetMessage("LEARNING_CONTENT_SOURCE_FILE")?> (pdf, html, text, jpg, png)</label>
 		</td>
 	</tr>
 	<?if(COption::GetOptionString("learning", "use_htmledit", "Y")=="Y" && CModule::IncludeModule("fileman")):

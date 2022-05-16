@@ -1,6 +1,6 @@
 <?
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_before.php");
-require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/bizproc/include.php");
+\Bitrix\Main\Loader::includeModule('bizproc');
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/bizproc/prolog.php");
 
 IncludeModuleLangFile(__FILE__);
@@ -46,7 +46,7 @@ if (!empty($filter_status))
 	if ($filter_status == 2)
 		unset($arFilter['USER_STATUS']);
 	else
-		$arFilter['USER_STATUS'] = array(CBPTaskUserStatus::Ok, CBPTaskUserStatus::Yes, CBPTaskUserStatus::No);
+		$arFilter['USER_STATUS'] = array(CBPTaskUserStatus::Ok, CBPTaskUserStatus::Yes, CBPTaskUserStatus::No, CBPTaskUserStatus::Cancel);
 }
 if (!empty($filter_workflow_template_id))
 {

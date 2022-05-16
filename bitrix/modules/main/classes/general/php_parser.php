@@ -10,7 +10,7 @@ class PHPParser
 {
 	protected static $arAllStr;
 
-	function ReplString($str, $arAllStr)
+	public static function ReplString($str, $arAllStr)
 	{
 		self::$arAllStr = $arAllStr;
 
@@ -42,54 +42,72 @@ class PHPParser
 		return '"'.self::$arAllStr[$matches[1]].'"';
 	}
 
-	function GetParams($params)
+	public static function GetParams($params)
 	{
 		$arParams = array();
-		$sk = 0;
+		$brackets = 0;
 		$param_tmp = "";
 		$params_l = strlen($params);
 		for($i=0; $i<$params_l; $i++)
 		{
 			$ch = substr($params, $i, 1);
-			if($ch=="(")
-				$sk++;
-			elseif($ch==")")
-				$sk--;
-			elseif($ch=="," && $sk==0)
+			if($ch == "(" || $ch == "[")
+			{
+				$brackets++;
+			}
+			elseif($ch == ")" || $ch == "]")
+			{
+				$brackets--;
+			}
+			elseif($ch=="," && $brackets == 0)
 			{
 				$arParams[] = $param_tmp;
 				$param_tmp = "";
 				continue;
 			}
 
-			if($sk<0)
+			if($brackets < 0)
 				break;
 
 			$param_tmp .= $ch;
 		}
-		if($param_tmp!="")
+		if($param_tmp <> "")
+		{
 			$arParams[] = $param_tmp;
+		}
 
 		return $arParams;
 	}
 
-	function GetParamsRec($params, &$arAllStr, &$arResult)
+	public static function GetParamsRec($params, &$arAllStr, &$arResult)
 	{
+		$found = false;
+		$paramsList = "";
 		if (strtolower(substr($params, 0, 6)) == 'array(')
 		{
-			$arParams = PHPParser::GetParams(substr($params, 6));
+			$found = true;
+			$paramsList = substr($params, 6);
+		}
+		elseif(substr($params, 0, 1) == "[")
+		{
+			$found = true;
+			$paramsList = substr($params, 1);
+		}
+		if($found)
+		{
+			$arParams = PHPParser::GetParams($paramsList);
 			foreach ($arParams as $i => $el)
 			{
 				$p = strpos($el, "=>");
 				if ($p === false)
 				{
-					if(is_array($arResult))
+					if(is_string($arResult))
 					{
-						PHPParser::GetParamsRec($el, $arAllStr, $arResult[$i]);
+						$arResult = PHPParser::ReplString($el, $arAllStr);
 					}
 					else
 					{
-						$arResult = PHPParser::ReplString($el, $arAllStr);
+						PHPParser::GetParamsRec($el, $arAllStr, $arResult[$i]);
 					}
 				}
 				else
@@ -107,7 +125,7 @@ class PHPParser
 	}
 
 	// Parse string and check if it is a component call. Return call params array
-	function CheckForComponent($str)
+	public static function CheckForComponent($str)
 	{
 		if(substr($str, 0, 5)=="<?"."php")
 			$str = substr($str, 5);
@@ -241,7 +259,7 @@ class PHPParser
 		return false;
 	}
 
-	function GetComponentParams($instruction, $arAllStr)
+	public static function GetComponentParams($instruction, $arAllStr)
 	{
 		if ($pos = strpos($instruction, "("))
 		{
@@ -275,7 +293,7 @@ class PHPParser
 		return array();
 	}
 
-	function ParseScript($scriptContent)
+	public static function ParseScript($scriptContent)
 	{
 		$arComponents = array();
 		$componentNumber = -1;
@@ -436,7 +454,7 @@ class PHPParser
 	}
 
 	// Components 2. Parse string and check if it is a component call. Return call params array
-	function CheckForComponent2($str)
+	public static function CheckForComponent2($str)
 	{
 		if (substr($str, 0, 5) == "<?"."php")
 			$str = substr($str, 5);
@@ -570,7 +588,7 @@ class PHPParser
 	}
 
 	// Parse file and return all PHP blocks in array
-	function ParseFile($filesrc, $limit = false)
+	public static function ParseFile($filesrc, $limit = false)
 	{
 		$arScripts = array();
 		$p = 0;
@@ -664,7 +682,7 @@ class PHPParser
 		return $arScripts;
 	}
 
-	function PreparePHP($str)
+	public static function PreparePHP($str)
 	{
 		if(substr($str, 0, 2) == "={" && substr($str, -1, 1)=="}" && strlen($str)>3)
 			return substr($str, 2, -1);
@@ -673,7 +691,7 @@ class PHPParser
 	}
 
 	// Return PHP string of component call params
-	function ReturnPHPStr($arVals, $arParams)
+	public static function ReturnPHPStr($arVals, $arParams)
 	{
 		$res = "";
 		$un = md5(uniqid(""));
@@ -723,7 +741,7 @@ class PHPParser
 	}
 
 
-	function ReturnPHPStrRec($arVal, $level, $comm="")
+	public static function ReturnPHPStrRec($arVal, $level, $comm="")
 	{
 		$result = "";
 		$pref = str_repeat("\t", $level+1);
@@ -742,7 +760,7 @@ class PHPParser
 	}
 
 	// Components 2. Return PHP string of component call params
-	function ReturnPHPStr2($arVals, $arParams=array())
+	public static function ReturnPHPStr2($arVals, $arParams=array())
 	{
 		$res = "";
 		foreach($arVals as $key => $val)
@@ -755,7 +773,7 @@ class PHPParser
 		return trim($res, " \t,\r\n");
 	}
 
-	function FindComponent($component_name, $filesrc, $src_line)
+	public static function FindComponent($component_name, $filesrc, $src_line)
 	{
 		/* parse source file for PHP code */
 		$arComponents = PHPParser::ParseScript($filesrc);
@@ -781,7 +799,7 @@ class PHPParser
 		return $arComponent;
 	}
 
-	function getPhpChunks($filesrc, $limit = false)
+	public static function getPhpChunks($filesrc, $limit = false)
 	{
 		$chunks = array();
 		$chunk = '';
@@ -835,7 +853,7 @@ class PHPParser
 		return $chunks;
 	}
 
-	function getPageTitle($filesrc, $prolog = false)
+	public static function getPageTitle($filesrc, $prolog = false)
 	{
 		if ($prolog === false)
 		{
@@ -864,7 +882,7 @@ class PHPParser
 		return $title;
 	}
 
-	function getComponentFunctionStrings()
+	public static function getComponentFunctionStrings()
 	{
 		return array(
 			'$APPLICATION->IncludeComponent',

@@ -1,4 +1,7 @@
 <?
+
+use Bitrix\Socialservices\UserTable;
+
 IncludeModuleLangFile(__FILE__);
 
 class CSocServBitrixOAuth extends CSocServAuth
@@ -13,8 +16,6 @@ class CSocServBitrixOAuth extends CSocServAuth
 	protected $portalURI = '';
 	protected $redirectURI = '';
 
-	protected $userId = null;
-
 	protected $signature = null;
 
 	function __construct($appID, $appSecret, $portalURI, $redirectURI, $userId = null)
@@ -23,7 +24,8 @@ class CSocServBitrixOAuth extends CSocServAuth
 		$this->appSecret = $appSecret;
 		$this->portalURI = $portalURI;
 		$this->redirectURI = $redirectURI;
-		$this->userId = $userId == null ? $GLOBALS["USER"]->GetID() : $userId;
+
+		return parent::__construct($userId);
 	}
 
 	public function getEntityOAuth($code = false)
@@ -70,8 +72,16 @@ class CSocServBitrixOAuth extends CSocServAuth
 		$userId = intval($this->userId);
 		if($userId > 0)
 		{
-			$dbSocservUser = CSocServAuthDB::GetList(array(), array('USER_ID' => $userId, 'XML_ID' => $this->appID, "EXTERNAL_AUTH_ID" => "Bitrix24OAuth", 'PERSONAL_WWW' => $this->portalURI), false, false, array("OATOKEN", "REFRESH_TOKEN", "OATOKEN_EXPIRES", "OASECRET"));
-			if($arOauth = $dbSocservUser->Fetch())
+			$dbSocservUser = UserTable::getList([
+				'filter' => [
+					'=USER_ID' => $userId,
+					'=XML_ID' => $this->appID,
+					"=EXTERNAL_AUTH_ID" => "Bitrix24OAuth",
+					'=PERSONAL_WWW' => $this->portalURI
+				],
+				'select' => ["OATOKEN", "REFRESH_TOKEN", "OATOKEN_EXPIRES", "OASECRET"]
+			]);
+			if($arOauth = $dbSocservUser->fetch())
 			{
 				$accessToken = $arOauth["OATOKEN"];
 				if(
@@ -105,7 +115,7 @@ class CSocServBitrixOAuth extends CSocServAuth
 		$APPLICATION->RestartBuffer();
 		if((isset($_REQUEST["code"]) && $_REQUEST["code"] <> '') && CSocServAuthManager::CheckUniqueKey())
 		{
-			$redirect_uri = CSocServUtil::ServerName().'/bitrix/tools/oauth/bitrix24.php';
+			$redirect_uri = \CHTTP::URN2URI('/bitrix/tools/oauth/bitrix24.php');
 			$userId = intval($_REQUEST['uid']);
 			$appID = trim(COption::GetOptionString("socialservices", "bitrix24_gadget_appid", ''));
 			$appSecret = trim(COption::GetOptionString("socialservices", "bitrix24_gadget_appsecret", ''));
@@ -121,7 +131,7 @@ class CSocServBitrixOAuth extends CSocServAuth
 				$gAuth->saveDataDB();
 			}
 		}
-		$url = CSocServUtil::ServerName().BX_ROOT;
+		$url = \CHTTP::URN2URI(BX_ROOT);
 		$mode = 'opener';
 		$url = CUtil::JSEscape($url);
 		$location = ($mode == "opener") ? 'if(window.opener) window.opener.location = \''.$url.'\'; window.close();' : ' window.location = \''.$url.'\';';
@@ -146,7 +156,7 @@ class CSocServBitrixOAuth extends CSocServAuth
 			CUserOptions::SetOption('socialservices', 'bitrix24_task_planer_gadget_code', $_REQUEST["code"]);
 		}
 
-		$url = CSocServUtil::ServerName().BX_ROOT;
+		$url = \CHTTP::URN2URI(BX_ROOT);
 		$mode = 'opener';
 		$url = CUtil::JSEscape($url);
 		$location = ($mode == "opener") ? 'if(window.opener) window.opener.location = \''.$url.'\'; window.close();' : ' window.location = \''.$url.'\';';
@@ -177,10 +187,7 @@ class CBitrixOAuthInterface extends CSocServOAuthTransport
 	protected $accessTokenExpires = 0;
 	protected $refresh_token = '';
 	protected $portalURI = '';
-	protected $scope = array(
-		'user',
-		'entity',
-	);
+	protected $scope = array();
 
 	public function __construct($appID, $appSecret, $portalURI, $code = false)
 	{
@@ -192,11 +199,6 @@ class CBitrixOAuthInterface extends CSocServOAuthTransport
 	public function getMemberId()
 	{
 		return $this->member_id;
-	}
-
-	public function getScopeEncode()
-	{
-		return implode(',', array_map('urlencode', array_unique($this->getScope())));
 	}
 
 	public function GetAuthUrl($redirect_uri, $state = '')
@@ -299,7 +301,14 @@ class CBitrixOAuthInterface extends CSocServOAuthTransport
 	{
 		global $USER;
 
-		$dbSocUser = CSocServAuthDB::GetList(array(), array('XML_ID' => $this->appID, 'PERSONAL_WWW' => $this->portalURI, 'EXTERNAL_AUTH_ID' => "Bitrix24OAuth"), false, false, array("ID"));
+		$dbSocUser = UserTable::getList([
+			'filter' => [
+				'=XML_ID' => $this->appID,
+				'=PERSONAL_WWW' => $this->portalURI,
+				'=EXTERNAL_AUTH_ID' => 'Bitrix24OAuth'
+			],
+			'select' => ['ID']
+		]);
 
 		if($USER->IsAuthorized())
 		{
@@ -319,13 +328,15 @@ class CBitrixOAuthInterface extends CSocServOAuthTransport
 				$arFields['REFRESH_TOKEN'] = $this->refresh_token;
 			}
 
-			if($arUser = $dbSocUser->Fetch())
+			if($arUser = $dbSocUser->fetch())
 			{
-				return CSocServAuthDB::Update($arUser["ID"], $arFields);
+				$result = UserTable::update($arUser["ID"], $arFields);
+				return $result->isSuccess() ? $arUser["ID"] : false;
 			}
 			else
 			{
-				return CSocServAuthDB::Add($arFields);
+				$result = UserTable::add($arFields);
+				return $result->isSuccess() ? $result->getId() : false;
 			}
 		}
 		return true;

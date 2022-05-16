@@ -69,12 +69,24 @@ $arResult["ALLOW_DELETE_ID"] = array();
 $arResult["SEND_MY_ACTIVITY"] = '';
 $arResult["PostToShow"]["SPERM"] = array();
 $twitNum = 100;
-$dbSocservUser = CSocServAuthDB::GetList(array("PERSONAL_PHOTO" => "DESC"), array('USER_ID' => $userID, "!EXTERNAL_AUTH_ID" => 'Bitrix24OAuth'));
+
+$dbSocservUser = \Bitrix\Socialservices\UserTable::getList([
+	'filter' => [
+		'=USER_ID' => $userID,
+		"!EXTERNAL_AUTH_ID" => 'Bitrix24OAuth'
+	]
+]);
+
 //***************************************
 //Obtain data on the related user account.
 //***************************************
-while($arUser = $dbSocservUser->Fetch())
+while($arUser = $dbSocservUser->fetch())
 {
+	if(!array_key_exists($arUser["EXTERNAL_AUTH_ID"], $arServices))
+	{
+		continue;
+	}
+
 	if($arUser["EXTERNAL_AUTH_ID"] == 'Twitter')
 		$arResult["PostToShow"]["SPERM"] = unserialize($arUser["PERMISSIONS"]);
 	if($arUser["NAME"] != '' && $arUser["LAST_NAME"] != '')
@@ -137,6 +149,7 @@ while($arUser = $dbSocservUser->Fetch())
 
 	$arResult["DB_SOCSERV_USER"][] = $arService;
 }
+
 if(is_array($arResult["DB_SOCSERV_USER"]))
 	foreach($arResult["DB_SOCSERV_USER"] as $key => $value)
 	{
@@ -169,8 +182,11 @@ if ($_SERVER["REQUEST_METHOD"] == "GET" && $_REQUEST["action"] == "delete" && is
 	$userId = intval($_REQUEST["user_id"]);
 	if(in_array($userId, $arResult["ALLOW_DELETE_ID"]))
 	{
-		if (!CSocServAuthDB::Delete($userId))
+		$result = \Bitrix\Socialservices\UserTable::delete($userId);
+		if (!$result->isSuccess())
+		{
 			$_SESSION["LAST_ERROR"] = GetMessage("DELETE_ERROR");
+		}
 	}
 
 	$backurl = '';
@@ -216,7 +232,7 @@ if(CModule::IncludeModule("socialnetwork"))
 			'LAST' => array(
 				'SONETGROUPS' => CSocNetLogDestination::GetLastSocnetGroup(),
 				'DEPARTMENT' => CSocNetLogDestination::GetLastDepartment(),
-				'LAST' => CSocNetLogDestination::GetLastUser()
+				'USERS' => CSocNetLogDestination::GetLastUser()
 			)
 		);
 	}
@@ -277,7 +293,10 @@ if(CModule::IncludeModule("socialnetwork"))
 		}
 	}
 	else
+	{
 		$arResult["PostToShow"]["FEED_DESTINATION"]['SELECTED']['UA'] = 'groups';
+	}
+
 	// intranet structure
 	$arStructure = CSocNetLogDestination::GetStucture();
 	$arResult["PostToShow"]["FEED_DESTINATION"]['DEPARTMENT'] = $arStructure['department'];
@@ -290,8 +309,13 @@ if(CModule::IncludeModule("socialnetwork"))
 	}
 	else
 	{
-		foreach ($arResult["PostToShow"]["FEED_DESTINATION"]['LAST']['USERS'] as $value)
-			$arDestUser[] = str_replace('U', '', $value);
+		if (!empty($arResult["PostToShow"]["FEED_DESTINATION"]['LAST']['USERS']))
+		{
+			foreach ($arResult["PostToShow"]["FEED_DESTINATION"]['LAST']['USERS'] as $value)
+			{
+				$arDestUser[] = str_replace('U', '', $value);
+			}
+		}
 
 		$arResult["PostToShow"]["FEED_DESTINATION"]['EXTRANET_USER'] = 'N';
 		$arResult["PostToShow"]["FEED_DESTINATION"]['USERS'] = CSocNetLogDestination::GetUsers(Array('id' => $arDestUser));

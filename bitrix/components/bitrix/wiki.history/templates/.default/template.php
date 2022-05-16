@@ -1,6 +1,10 @@
-<?if(!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED!==true)die();?>
+<?if(!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED!==true)die();
 
-<div id="wiki-post">
+use Bitrix\Main\UI;
+
+UI\Extension::load("ui.tooltip");
+
+?><div id="wiki-post">
 <?if(strlen($arResult['MESSAGE'])>0):
 	?>
 	<div class="wiki-notes">
@@ -54,7 +58,7 @@ else:
 			$arResult['HISTORY'][$sKey]['ANCHOR_ID'] = RandString(8);
 
 			$_arData = array(
-				'LOGIN' => !empty($arHistory['USER_LINK']) ? '<a href="'.$arHistory['USER_LINK'].'" id="anchor_'.$arResult['HISTORY'][$sKey]['ANCHOR_ID'].'">'.$arHistory['USER_LOGIN'].'</a>' : $arHistory['USER_LOGIN'],
+				'LOGIN' => !empty($arHistory['USER_LINK']) ? '<a href="'.$arHistory['USER_LINK'].'" id="anchor_'.$arResult['HISTORY'][$sKey]['ANCHOR_ID'].'" bx-tooltip-user-id="'.$arHistory['USER_ID'].'">'.$arHistory['USER_LOGIN'].'</a>' : $arHistory['USER_LOGIN'],
 				'DATE' => $arHistory['MODIFIED'],
 				'MODIFY_COMMENT' => $arHistory['MODIFY_COMMENT']
 			);
@@ -121,7 +125,7 @@ else:
 				'custom_html' => "
 					<input type=\"hidden\" name=\"".$arResult['PAGE_VAR']."\" value=\"".$arResult['ELEMENT']['NAME']."\">
 					<input type=\"hidden\" name=\"".$arResult['OPER_VAR']."\" value=\"history_diff\">
-					<input type=\"submit\" value=\"".GetMessage('WIKI_DIFF_VERSION')."\"/>"
+					<input type=\"submit\" name=\"compare\" value=\"".GetMessage('WIKI_DIFF_VERSION')."\" disabled/>"
 				),
 				'ACTION_ALL_ROWS' => false,
 				'NAV_OBJECT' => $arResult['DB_LIST'],
@@ -129,21 +133,6 @@ else:
 			),
 			$component
 		);
-
-		if ($arResult['SOCNET']):
-			?>
-			<script type="text/javascript">
-			<?
-			foreach($arResult["HISTORY"] as $arHistory)
-			{
-				?>
-				BX.tooltip(<?=$arHistory["USER_ID"]?>, "anchor_<?=$arHistory['ANCHOR_ID']?>", "<?=CUtil::JSEscape($arResult['AJAX_PAGE'])?>");
-				<?
-			}
-			?>
-			</script>
-			<?
-		endif;
 		?>
 		<script type="text/javascript">
 
@@ -190,8 +179,9 @@ else:
 					inp[i].title = '<?=CUTIL::JSEscape(GetMessage('WIKI_SELECT_DIFF'))?>';
 					BX.bind(inp[i], 'click', function() {
 						var j = 0;
+						var i = 0;
 						var inp = document.forms['form_WIKI_HISTORY'].elements;
-						for(var i = 0; i < inp.length; i++)
+						for(i = 0; i < inp.length; i++)
 						{
 							if (inp[i].type == 'checkbox' && inp[i].id.indexOf('ID_') == 0 && inp[i].checked)
 								j++;
@@ -199,12 +189,13 @@ else:
 
 						if ((j >= 2 && this.checked) || !this.checked)
 						{
-							for(var i = 0; i < inp.length; i++)
+							for(i = 0; i < inp.length; i++)
 							{
 								if (inp[i].type == 'checkbox' && inp[i].id.indexOf('ID_') == 0 && !inp[i].checked)
 									inp[i].disabled = this.checked;
 							}
 						}
+						document.forms['form_WIKI_HISTORY'].elements['compare'].disabled = (j < 2);
 					});
 				}
 			}

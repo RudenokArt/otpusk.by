@@ -7,9 +7,12 @@
  */
 namespace Bitrix\Sender;
 
+use Bitrix\Main\DB\SqlExpression;
 use Bitrix\Main\Entity;
 use Bitrix\Main\Localization\Loc;
-use Bitrix\Main\Type;
+use Bitrix\Main\Type as MainType;
+
+use Bitrix\Sender\Internals\Model;
 
 Loc::loadMessages(__FILE__);
 
@@ -47,7 +50,7 @@ class MailingTable extends Entity\DataManager
 			'DATE_INSERT' => array(
 				'data_type' => 'datetime',
 				'required' => true,
-				'default_value' => new Type\DateTime(),
+				'default_value' => new MainType\DateTime(),
 			),
 			'ACTIVE' => array(
 				'data_type' => 'string',
@@ -75,6 +78,7 @@ class MailingTable extends Entity\DataManager
 			'SITE_ID' => array(
 				'data_type' => 'string',
 				'required' => true,
+				'default_value' => SITE_ID
 			),
 			'TRIGGER_FIELDS' => array(
 				'data_type' => 'text',
@@ -101,6 +105,14 @@ class MailingTable extends Entity\DataManager
 			'MAILING_SUBSCRIPTION' => array(
 				'data_type' => 'Bitrix\Sender\MailingSubscriptionTable',
 				'reference' => array('=this.ID' => 'ref.MAILING_ID'),
+			),
+			'SUBSCRIBER' => array(
+				'data_type' => 'Bitrix\Sender\MailingSubscriptionTable',
+				'reference' => array('=this.ID' => 'ref.MAILING_ID', 'ref.IS_UNSUB' => new SqlExpression('?', 'N')),
+			),
+			'SITE' => array(
+				'data_type' => 'Bitrix\Main\SiteTable',
+				'reference' => array('=this.SITE_ID' => 'ref.LID'),
 			),
 		);
 	}
@@ -129,24 +141,24 @@ class MailingTable extends Entity\DataManager
 
 		if(array_key_exists('ACTIVE', $data['fields']))
 		{
-			MailingManager::actualizeAgent($data['primary']['ID']);
+			if ($data['fields']['ACTIVE'] === 'Y')
+			{
+				$chain = (new \Bitrix\Sender\Entity\Chain())->load($data['primary']['ID']);
+				foreach ($chain->getList() as $letter)
+				{
+					if (!$letter->getState()->wasStartedSending())
+					{
+						$letter->wait();
+					}
+				}
+			}
+
+			Runtime\Job::actualizeByCampaignId($data['primary']['ID']);
 		}
 
 		if (array_key_exists('ACTIVE', $data['fields']) || array_key_exists('TRIGGER_FIELDS', $data['fields']))
 		{
 			static::updateChainTrigger($data['primary']['ID']);
-		}
-
-		if(!empty($data['fields']['EMAIL_FROM']))
-		{
-			$chainListDb = MailingChainTable::getList(array(
-				'select' => array('ID'),
-				'filter' => array('=MAILING_ID' => $data['primary']['ID'], '=IS_TRIGGER' => 'Y', '=MAILING.IS_TRIGGER' => 'Y',),
-			));
-			while($chain = $chainListDb->fetch())
-			{
-				MailingChainTable::update(array('ID' => $chain['ID']), array('EMAIL_FROM' => $data['fields']['EMAIL_FROM']));
-			}
 		}
 
 		return $result;
@@ -182,6 +194,11 @@ class MailingTable extends Entity\DataManager
 
 		foreach ($event->getResults() as $eventResult)
 		{
+			if ($eventResult->getModuleId() === 'sale')
+			{
+				continue;
+			}
+
 			if ($eventResult->getType() == \Bitrix\Main\EventResult::ERROR)
 			{
 				continue;
@@ -210,20 +227,20 @@ class MailingTable extends Entity\DataManager
 			}
 		}
 
-		$resultListTmp = array();
+		$resultListTmp = Integration\EventHandler::onSenderTriggerCampaignPreset();
 		foreach($resultList as $result)
 		{
 			if(empty($result['TRIGGER']['START']['ENDPOINT']['CODE']))
 				continue;
 
-			$trigger = TriggerManager::getOnce($result['TRIGGER']['START']['ENDPOINT']);
+			$trigger = Trigger\Manager::getOnce($result['TRIGGER']['START']['ENDPOINT']);
 			if(!$trigger)
 				continue;
 
 			$result['TRIGGER']['START']['ENDPOINT']['NAME'] = $trigger->getName();
 			if(!empty($result['TRIGGER']['START']['ENDPOINT']['CODE']))
 			{
-				$trigger = TriggerManager::getOnce($result['TRIGGER']['END']['ENDPOINT']);
+				$trigger = Trigger\Manager::getOnce($result['TRIGGER']['END']['ENDPOINT']);
 				if(!$trigger)
 					$result['TRIGGER']['END']['ENDPOINT']['NAME'] = $trigger->getName();
 			}
@@ -235,7 +252,7 @@ class MailingTable extends Entity\DataManager
 		return $resultListTmp;
 	}
 
-	public static function checkFieldsChain(\Bitrix\Main\Entity\Result $result, $primary = null, array $fields)
+	public static function checkFieldsChain(Entity\Result $result, $primary = null, array $fields)
 	{
 		$id = $primary;
 		$errorList = array();
@@ -253,6 +270,8 @@ class MailingTable extends Entity\DataManager
 				'EMAIL_FROM' => $item['EMAIL_FROM'],
 				'SUBJECT' => $item['SUBJECT'],
 				'MESSAGE' => $item['MESSAGE'],
+				'TEMPLATE_TYPE' => $item['TEMPLATE_TYPE'],
+				'TEMPLATE_ID' => $item['TEMPLATE_ID'],
 				'TIME_SHIFT' => intval($item['TIME_SHIFT']),
 			);
 
@@ -262,20 +281,20 @@ class MailingTable extends Entity\DataManager
 
 			if($chainId > 0)
 			{
-				$chain = \Bitrix\Sender\MailingChainTable::getRowById(array('ID' => $chainId));
-				if($chain && $chain['STATUS'] != \Bitrix\Sender\MailingChainTable::STATUS_WAIT)
+				$chain = MailingChainTable::getRowById(array('ID' => $chainId));
+				if($chain && $chain['STATUS'] != MailingChainTable::STATUS_WAIT)
 				{
 					$chainFields['STATUS'] = $chain['STATUS'];
 				}
 			}
 
 			if(empty($chainFields['STATUS']))
-				$chainFields['STATUS'] = \Bitrix\Sender\MailingChainTable::STATUS_WAIT;
+				$chainFields['STATUS'] = MailingChainTable::STATUS_WAIT;
 
 			$chainFields['ID'] = $chainId;
 
-			$resultItem = new \Bitrix\Main\Entity\Result;
-			\Bitrix\Sender\MailingChainTable::checkFields($resultItem, null, $chainFields);
+			$resultItem = new Entity\Result;
+			MailingChainTable::checkFields($resultItem, null, $chainFields);
 			if($resultItem->isSuccess())
 			{
 
@@ -311,7 +330,7 @@ class MailingTable extends Entity\DataManager
 
 	public static function updateChain($id, array $fields)
 	{
-		$result = new \Bitrix\Main\Entity\Result;
+		$result = new Entity\Result;
 
 		static::checkFieldsChain($result, $id, $fields);
 		if(!$result->isSuccess(true))
@@ -332,15 +351,15 @@ class MailingTable extends Entity\DataManager
 			// default status
 			if($chainId > 0)
 			{
-				$chain = \Bitrix\Sender\MailingChainTable::getRowById(array('ID' => $chainId));
-				if($chain && $chain['STATUS'] != \Bitrix\Sender\MailingChainTable::STATUS_WAIT)
+				$chain = MailingChainTable::getRowById(array('ID' => $chainId));
+				if($chain && $chain['STATUS'] != MailingChainTable::STATUS_WAIT)
 				{
 					$chainFields['STATUS'] = $chain['STATUS'];
 					unset($chainFields['CREATED_BY']);
 				}
 			}
 			if(empty($chainFields['STATUS']))
-				$chainFields['STATUS'] = \Bitrix\Sender\MailingChainTable::STATUS_WAIT;
+				$chainFields['STATUS'] = MailingChainTable::STATUS_WAIT;
 
 
 			// add or update
@@ -348,7 +367,7 @@ class MailingTable extends Entity\DataManager
 			{
 				$existChildIdList[] = $chainId;
 
-				$chainUpdateDb = MailingChainTable::update(array('ID' => $chainId), $chainFields);
+				$chainUpdateDb = Model\LetterTable::update($chainId, $chainFields);
 				if($chainUpdateDb->isSuccess())
 				{
 
@@ -385,7 +404,7 @@ class MailingTable extends Entity\DataManager
 		));
 		while($deleteChain = $deleteChainDb->fetch())
 		{
-			MailingChainTable::delete(array('ID' => $deleteChain['ID']));
+			Model\LetterTable::delete($deleteChain['ID']);
 		}
 
 		static::updateChainTrigger($id);
@@ -403,7 +422,8 @@ class MailingTable extends Entity\DataManager
 			$chainDb = MailingChainTable::getList(array(
 				'select' => array(
 					'ID', 'SUBJECT', 'EMAIL_FROM', 'MESSAGE', 'TIME_SHIFT', 'PARENT_ID',
-					'DATE_INSERT', 'CREATED_BY', 'CREATED_BY_NAME' => 'CREATED_BY_USER.NAME', 'CREATED_BY_LAST_NAME' => 'CREATED_BY_USER.LAST_NAME'
+					'DATE_INSERT', 'PRIORITY', 'LINK_PARAMS', 'TEMPLATE_TYPE', 'TEMPLATE_ID',
+					'CREATED_BY', 'CREATED_BY_NAME' => 'CREATED_BY_USER.NAME', 'CREATED_BY_LAST_NAME' => 'CREATED_BY_USER.LAST_NAME'
 				),
 				'filter' => array('=MAILING_ID' => $id, '=PARENT_ID' => $parentId),
 			));
@@ -462,7 +482,7 @@ class MailingTable extends Entity\DataManager
 					$point['IS_TYPE_START'] = true;
 			}
 
-			$settingsList[] = new \Bitrix\Sender\TriggerSettings($point);
+			$settingsList[] = new Trigger\Settings($point);
 		}
 
 
@@ -470,8 +490,8 @@ class MailingTable extends Entity\DataManager
 		$mailingTriggerList = array();
 		foreach($settingsList as $settings)
 		{
-			/* @var \Bitrix\Sender\TriggerSettings $settings */
-			$trigger = \Bitrix\Sender\TriggerManager::getOnce($settings->getEndpoint());
+			/* @var \Bitrix\Sender\Trigger\Settings $settings */
+			$trigger = Trigger\Manager::getOnce($settings->getEndpoint());
 			if($trigger)
 			{
 				$triggerFindId = $trigger->getFullEventType() . "/" .((int) $settings->isTypeStart());
@@ -506,11 +526,12 @@ class MailingTable extends Entity\DataManager
 
 		foreach($mailingTriggerList as $triggerFindId => $settings)
 		{
+			/** @var array $settings */
 			$settings['MAILING_CHAIN_ID'] = $chainId;
 			MailingTriggerTable::add($settings);
 		}
 
-		TriggerManager::actualizeHandlerForChild();
+		Trigger\Manager::actualizeHandlerForChild();
 	}
 
 	public static function setWasRunForOldData($id, $state)
@@ -541,11 +562,46 @@ class MailingTable extends Entity\DataManager
 		}
 	}
 
+	public static function getPersonalizeList($id)
+	{
+		$result = array();
+
+		// fetch all connectors for getting emails
+		$groupConnectorDb = MailingGroupTable::getList(array(
+			'select' => array(
+				'CONNECTOR_ENDPOINT' => 'GROUP.GROUP_CONNECTOR.ENDPOINT',
+				'GROUP_ID'
+			),
+			'filter' => array(
+				'MAILING_ID' => $id,
+				'INCLUDE' => true,
+			),
+			'order' => array('GROUP_ID' => 'ASC')
+		));
+		while($groupConnector = $groupConnectorDb->fetch())
+		{
+			$connector = null;
+			if(is_array($groupConnector['CONNECTOR_ENDPOINT']))
+			{
+				$connector = Connector\Manager::getConnector($groupConnector['CONNECTOR_ENDPOINT']);
+			}
+
+			if(!$connector)
+			{
+				continue;
+			}
+
+			$result = array_merge($result, $connector->getPersonalizeList());
+		}
+
+		return $result;
+	}
+
 	public static function getChainPersonalizeList($id)
 	{
 		$result = array();
 
-		$mailingDb = \Bitrix\Sender\MailingTable::getList(array(
+		$mailingDb = MailingTable::getList(array(
 			'select' => array('ID', 'TRIGGER_FIELDS'),
 			'filter' => array(
 				//'=ACTIVE' => 'Y',
@@ -580,16 +636,16 @@ class MailingTable extends Entity\DataManager
 					$point['IS_TYPE_START'] = true;
 			}
 
-			$settingsList[] = new \Bitrix\Sender\TriggerSettings($point);
+			$settingsList[] = new Trigger\Settings($point);
 		}
 
 		foreach($settingsList as $settings)
 		{
-			/* @var \Bitrix\Sender\TriggerSettings $settings */
+			/* @var \Bitrix\Sender\Trigger\Settings $settings */
 			if(!$settings->isTypeStart())
 				continue;
 
-			$trigger = \Bitrix\Sender\TriggerManager::getOnce($settings->getEndpoint());
+			$trigger = Trigger\Manager::getOnce($settings->getEndpoint());
 			if($trigger)
 			{
 				$result = array_merge($result, $trigger->getPersonalizeList());
@@ -597,6 +653,18 @@ class MailingTable extends Entity\DataManager
 		}
 
 		return $result;
+	}
+
+	public static function getMailingSiteId($mailingId)
+	{
+		static $cache;
+		if (!$cache[$mailingId])
+		{
+			$mailing = self::getById($mailingId)->fetch();
+			$cache[$mailingId] = $mailing['SITE_ID'];
+		}
+
+		return $cache[$mailingId];
 	}
 }
 
@@ -668,7 +736,10 @@ class MailingSubscriptionTable extends Entity\DataManager
 			),
 			'DATE_INSERT' => array(
 				'data_type' => 'datetime',
-				'default_value' => new Type\DateTime(),
+				'default_value' => new MainType\DateTime(),
+			),
+			'IS_UNSUB' => array(
+				'data_type' => 'string',
 			),
 			'MAILING' => array(
 				'data_type' => 'Bitrix\Sender\MailingTable',
@@ -679,5 +750,76 @@ class MailingSubscriptionTable extends Entity\DataManager
 				'reference' => array('=this.CONTACT_ID' => 'ref.ID'),
 			),
 		);
+	}
+
+	/**
+	 * Get subscription list
+	 *
+	 * @param array $parameters
+	 * @return \Bitrix\Main\DB\Result
+	 */
+	public static function getSubscriptionList(array $parameters = array())
+	{
+		$parameters['filter'] = array('=IS_UNSUB' => 'N') + (!isset($parameters['filter']) ? array() : $parameters['filter']);
+		return parent::getList($parameters);
+	}
+
+	/**
+	 * Get un subscription list
+	 *
+	 * @param array $parameters
+	 * @return \Bitrix\Main\DB\Result
+	 */
+	public static function getUnSubscriptionList(array $parameters = array())
+	{
+		$parameters['filter'] = array('=IS_UNSUB' => 'Y') + (!isset($parameters['filter']) ? array() : $parameters['filter']);
+		return parent::getList($parameters);
+	}
+
+
+	/**
+	 * Ad subscription row
+	 *
+	 * @param array $parameters
+	 * @return bool
+	 */
+	public static function addSubscription(array $parameters = array())
+	{
+		$primary = array('MAILING_ID' => $parameters['MAILING_ID'], 'CONTACT_ID' => $parameters['CONTACT_ID']);
+		$fields = array('IS_UNSUB' => 'N');
+		$row = static::getRowById($primary);
+		if($row)
+		{
+			$result = static::update($primary, array('IS_UNSUB' => 'N'));
+		}
+		else
+		{
+			$result = static::add($fields + $parameters);
+		}
+
+		return $result->isSuccess();
+	}
+
+	/**
+	 * Ad subscription row.
+	 *
+	 * @param array $parameters
+	 * @return bool
+	 */
+	public static function addUnSubscription(array $parameters = array())
+	{
+		$primary = array('MAILING_ID' => $parameters['MAILING_ID'], 'CONTACT_ID' => $parameters['CONTACT_ID']);
+		$fields = array('IS_UNSUB' => 'Y');
+		$row = static::getRowById($primary);
+		if($row)
+		{
+			$result = static::update($primary, $fields);
+		}
+		else
+		{
+			$result = static::add($fields + $parameters);
+		}
+
+		return $result->isSuccess();
 	}
 }

@@ -1,6 +1,7 @@
 <?
 $MESS ['BPFC_PD_ADD'] = "Добавить условие";
 $MESS ['BPFC_PD_AND'] = "И";
+$MESS ['BPFC_PD_OR'] = "ИЛИ";
 $MESS ['BPFC_PD_CALENDAR'] = "Календарь";
 $MESS ['BPFC_PD_CONDITION'] = "Условие";
 $MESS ['BPFC_PD_DELETE'] = "Удалить";
@@ -16,4 +17,8 @@ $MESS ['BPFC_PD_VALUE'] = "Значение";
 $MESS ['BPFC_PD_YES'] = "Да";
 $MESS ['BPFC_PD_IN'] = "содержится в";
 $MESS ['BPFC_PD_CONTAIN'] = "содержит";
+$MESS["BPFC_PD_PARAMS"] = "Параметры";
+$MESS["BPFC_PD_VARS"] = "Переменные";
+$MESS ['BPFC_PD_EMPTY'] = "не заполнено";
+$MESS ['BPFC_PD_NOT_EMPTY'] = "заполнено";
 ?>

@@ -8,7 +8,7 @@ if (($arParent =  $this->GetParent()) !== NULL)
 
 if(empty($arParams['PAGE_VAR']))
 	$arParams['PAGE_VAR'] = 'title';
-if(empty($arParams['PAGE_OPER']))
+if(empty($arParams['OPER_VAR']))
 	$arParams['OPER_VAR'] = 'oper';
 $arParams['PATH_TO_POST'] = trim($arParams['PATH_TO_POST']);
 if(empty($arParams['SEF_MODE']))
@@ -182,7 +182,7 @@ if($this->StartResultCache(false, array($USER->GetGroups(), $arNavigation, $arCa
 {
 	$arResult['USE_REVIEW'] = $arParams['USE_REVIEW'];
 	$arResult['ELEMENT'] = array();
-	$arParams['ELEMENT_NAME'] = urldecode($arParams['ELEMENT_NAME']);
+	$arParams['ELEMENT_NAME'] = rawurldecode($arParams['ELEMENT_NAME']);
 	$arFilter = array(
 		'IBLOCK_ID' => $arParams['IBLOCK_ID'],
 		'CHECK_PERMISSIONS' => 'N',
@@ -263,7 +263,7 @@ if($this->StartResultCache(false, array($USER->GetGroups(), $arNavigation, $arCa
 					LocalRedirect(
 						CComponentEngine::MakePathFromTemplate($arParams['PATH_TO_POST'],
 							array(
-								'wiki_name' => urlencode($arResult['ELEMENT_NEW']['NAME']),
+								'wiki_name' => rawurlencode($arResult['ELEMENT_NEW']['NAME']),
 								'group_id' => CWikiSocnet::$iSocNetId
 							)
 						)
@@ -303,7 +303,7 @@ if($this->StartResultCache(false, array($USER->GetGroups(), $arNavigation, $arCa
 		CComponentEngine::MakePathFromTemplate(
 			$arParams['PATH_TO_HISTORY_DIFF'],
 			array(
-				'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+				'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 				'group_id' => CWikiSocnet::$iSocNetId
 			)
 		),
@@ -343,7 +343,7 @@ if($this->StartResultCache(false, array($USER->GetGroups(), $arNavigation, $arCa
 				CComponentEngine::MakePathFromTemplate(
 					$arParams['PATH_TO_USER'],
 					array(
-						'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+						'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 						'group_id' => CWikiSocnet::$iSocNetId,
 						'user_id' => $arHistory['USER_ID']
 					)
@@ -362,7 +362,7 @@ if($this->StartResultCache(false, array($USER->GetGroups(), $arNavigation, $arCa
 			CComponentEngine::MakePathFromTemplate(
 				$arParams['PATH_TO_DISCUSSION'],
 				array(
-					'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+					'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 					'group_id' => CWikiSocnet::$iSocNetId
 				)
 			),
@@ -373,7 +373,7 @@ if($this->StartResultCache(false, array($USER->GetGroups(), $arNavigation, $arCa
 			CComponentEngine::MakePathFromTemplate(
 				$arParams['PATH_TO_POST'],
 				array(
-					'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+					'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 					'group_id' => CWikiSocnet::$iSocNetId
 				)
 			),
@@ -386,7 +386,7 @@ if($this->StartResultCache(false, array($USER->GetGroups(), $arNavigation, $arCa
 			CComponentEngine::MakePathFromTemplate(
 				$arParams['PATH_TO_HISTORY'],
 				array(
-					'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+					'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 					'group_id' => CWikiSocnet::$iSocNetId
 				)
 			),
@@ -402,7 +402,7 @@ if($this->StartResultCache(false, array($USER->GetGroups(), $arNavigation, $arCa
 				CComponentEngine::MakePathFromTemplate(
 					$arParams['PATH_TO_HISTORY_DIFF'],
 					array(
-						'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+						'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 						'group_id' => CWikiSocnet::$iSocNetId
 					)
 				),
@@ -419,7 +419,7 @@ if($this->StartResultCache(false, array($USER->GetGroups(), $arNavigation, $arCa
 				CComponentEngine::MakePathFromTemplate(
 					$arParams['PATH_TO_HISTORY'],
 					array(
-						'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+						'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 						'group_id' => CWikiSocnet::$iSocNetId
 					)
 				),
@@ -442,7 +442,7 @@ if($this->StartResultCache(false, array($USER->GetGroups(), $arNavigation, $arCa
 				CComponentEngine::MakePathFromTemplate(
 					$arParams['PATH_TO_HISTORY_DIFF'],
 					array(
-						'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+						'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 						'group_id' => CWikiSocnet::$iSocNetId
 					)
 				),

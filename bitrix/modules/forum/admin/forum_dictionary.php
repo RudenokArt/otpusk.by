@@ -3,7 +3,7 @@
 	Profanity dictionary.
 ********************************************************************/
 	require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_before.php");
-	require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/forum/include.php");
+	\Bitrix\Main\Loader::includeModule("forum");
 	$forumModulePermissions = $APPLICATION->GetGroupRight("forum");
 	if ($forumModulePermissions == "D")
 		$APPLICATION->AuthForm(GetMessage("ACCESS_DENIED"));
@@ -106,7 +106,7 @@
 	{
 		$db_res = CFilterDictionary::GetList(array(), array("TYPE"=>"W"));
 		$option = "";
-		$active = COption::GetOptionString("forum", "FILTER_DICT_W", '', SITE);
+		$active = COption::GetOptionString("forum", "FILTER_DICT_W", '', SITE_ID);
 		while ($res = $db_res->GetNext())
 			$option .= "<option value='".$res["ID"].($res["ID"] == $active ? " selected " : "")."'>".$res["TITLE"]."</option>";
 
@@ -146,11 +146,11 @@
 		)
 	);
 	?><form name="form1" method="get" action="<?=$APPLICATION->GetCurPage()?>">
-	<input type="hidden" name="TYPE" value="<?=htmlspecialcharsEx($TYPE)?>"> 
+	<input type="hidden" name="TYPE" value="<?=htmlspecialcharsbx($TYPE)?>">
 	<?$oFilter->Begin();?>
 	<tr valign="center">
 		<td><b><?=GetMessage("FLT_HEAD_TITLE")?>:</b></td>
-		<td><input type="text" name="TITLE" value="<?=htmlspecialcharsEx($TITLE)?>" size="47"></td>
+		<td><input type="text" name="TITLE" value="<?=htmlspecialcharsbx($TITLE)?>" size="47"></td>
 	</tr><?
 	$oFilter->Buttons(
 		array(

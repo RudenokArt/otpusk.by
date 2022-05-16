@@ -1,8 +1,7 @@
-<?
-global $MESS;
-$strPath2Lang = str_replace("\\", "/", __FILE__);
-$strPath2Lang = substr($strPath2Lang, 0, strlen($strPath2Lang)-strlen("/install/index.php"));
-include(GetLangFileName($strPath2Lang."/lang/", "/install/index.php"));
+<?php
+
+use Bitrix\Main\Localization\Loc;
+Loc::loadMessages(__FILE__);
 
 Class socialnetwork extends CModule
 {
@@ -14,7 +13,7 @@ Class socialnetwork extends CModule
 	var $MODULE_CSS;
 	var $MODULE_GROUP_RIGHTS = "Y";
 
-	function socialnetwork()
+	function __construct()
 	{
 		$arModuleVersion = array();
 
@@ -33,8 +32,8 @@ Class socialnetwork extends CModule
 			$this->MODULE_VERSION_DATE = SONET_VERSION_DATE;
 		}
 
-		$this->MODULE_NAME = GetMessage("SONET_INSTALL_NAME");
-		$this->MODULE_DESCRIPTION = GetMessage("SONET_INSTALL_DESCRIPTION");
+		$this->MODULE_NAME = Loc::getMessage("SONET_INSTALL_NAME");
+		$this->MODULE_DESCRIPTION = Loc::getMessage("SONET_INSTALL_DESCRIPTION");
 	}
 
 	function __SetLogFilter($site_id = false)
@@ -134,6 +133,8 @@ Class socialnetwork extends CModule
 		RegisterModuleDependences("search", "OnReindex", "socialnetwork", "CSocNetSearch", "OnSearchReindex");
 		RegisterModuleDependences("search", "OnSearchCheckPermissions", "socialnetwork", "CSocNetSearch", "OnSearchCheckPermissions");
 		RegisterModuleDependences("search", "OnBeforeIndexUpdate", "socialnetwork", "CSocNetSearch", "OnBeforeIndexUpdate");
+		RegisterModuleDependences("search", "BeforeIndex", "socialnetwork", "CSocNetSearch", "BeforeIndexLast", 1000); // later than CSocNetSearch::BeforeIndex
+
 		RegisterModuleDependences("search", "OnAfterIndexAdd", "socialnetwork", "CSocNetSearch", "OnAfterIndexAdd");
 		RegisterModuleDependences("search", "OnSearchPrepareFilter", "socialnetwork", "CSocNetSearch", "OnSearchPrepareFilter");
 		RegisterModuleDependences("main", "OnUserDelete", "socialnetwork", "CSocNetUser", "OnUserDelete");
@@ -150,10 +151,13 @@ Class socialnetwork extends CModule
 		RegisterModuleDependences("photogallery", "OnAfterSectionDrop", "socialnetwork", "CSocNetLogTools", "OnAfterSectionDrop");
 		RegisterModuleDependences("photogallery", "OnAfterSectionEdit", "socialnetwork", "CSocNetLogTools", "OnAfterSectionEdit");
 		RegisterModuleDependences("main", "OnAuthProvidersBuildList", "socialnetwork", "CSocNetGroupAuthProvider", "GetProviders");
+
 		RegisterModuleDependences("im", "OnBeforeConfirmNotify", "socialnetwork", "CSocNetUserToGroup", "OnBeforeConfirmNotify");
 		RegisterModuleDependences("im", "OnBeforeConfirmNotify", "socialnetwork", "CSocNetUserRelations", "OnBeforeConfirmNotify");
 		RegisterModuleDependences("im", "OnBeforeConfirmNotify", "socialnetwork", "CSocNetLogFollow", "OnBeforeConfirmNotify");
 		RegisterModuleDependences("im", "OnGetNotifySchema", "socialnetwork", "CSocNetNotifySchema", "OnGetNotifySchema");
+		RegisterModuleDependences("im", "OnAfterChatMuteNotify", "socialnetwork", "CSocNetSubscription", "OnAfterChatMuteNotify");
+
 		RegisterModuleDependences("pull", "OnGetDependentModule", "socialnetwork", "CSocNetPullSchema", "OnGetDependentModule");
 		RegisterModuleDependences("main", "OnUserInitialize", "socialnetwork", "CSocNetUser", "OnUserInitialize");
 		RegisterModuleDependences("blog", "OnBlogDelete", "socialnetwork", "CSocNetLogComments", "OnBlogDelete", 100);
@@ -166,6 +170,32 @@ Class socialnetwork extends CModule
 		RegisterModuleDependences("main", "OnAfterSetUserGroup", "socialnetwork", "CSocNetUser", "DeleteUserAdminCache");
 		RegisterModuleDependences("main", "OnAfterSetGroupRight", "socialnetwork", "CSocNetUser", "DeleteUserAdminCache");
 		RegisterModuleDependences("main", "OnAfterDelGroupRight", "socialnetwork", "CSocNetUser", "DeleteUserAdminCache");
+
+		RegisterModuleDependences("main", "OnAfterUserAdd", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\UserToGroup", "onAfterUserAdd");
+		RegisterModuleDependences("main", "OnAfterUserUpdate", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\UserToGroup", "onAfterUserUpdate");
+		RegisterModuleDependences("main", "OnGetRatingContentOwner", "socialnetwork", "\\Bitrix\\Socialnetwork\\Integration\\Main\\RatingVote", "onGetRatingContentOwner");
+		RegisterModuleDependences("iblock", "OnBeforeIBlockSectionUpdate", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\Workgroup", "onBeforeIBlockSectionUpdate");
+		RegisterModuleDependences("iblock", "OnAfterIBlockSectionUpdate", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\Workgroup", "onAfterIBlockSectionUpdate");
+		RegisterModuleDependences("iblock", "onBeforeIBlockSectionDelete", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\Workgroup", "onBeforeIBlockSectionDelete");
+		RegisterModuleDependences("iblock", "OnAfterIBlockSectionDelete", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\Workgroup", "onAfterIBlockSectionDelete");
+
+		$eventManager = \Bitrix\Main\EventManager::getInstance();
+		$eventManager->registerEventHandler('mail', 'onReplyReceivedLOG_ENTRY', 'socialnetwork', '\Bitrix\Socialnetwork\Internals\MailHandler', 'handleReplyReceivedLogEntry');
+		$eventManager->registerEventHandler('main', 'OnUISelectorActionProcessAjax', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Main\UISelector\Handler', 'OnUISelectorActionProcessAjax');
+		$eventManager->registerEventHandler('main', 'OnUISelectorEntitiesGetList', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Main\UISelector\Handler', 'OnUISelectorEntitiesGetList');
+		$eventManager->registerEventHandler('main', 'OnUISelectorGetProviderByEntityType', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Main\UISelector\Handler', 'OnUISelectorGetProviderByEntityType');
+		$eventManager->registerEventHandler('tasks', 'onTaskUpdateViewed', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Tasks\Task', 'onTaskUpdateViewed');
+		$eventManager->registerEventHandler('calendar', 'onViewEvent', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Calendar\CalendarEvent', 'onViewEvent');
+		$eventManager->registerEventHandler('main', 'onRatingListViewed', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Main\RatingVoteList', 'onViewed');
+		$eventManager->registerEventHandler('mobile', 'onSetContentView', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Mobile\LogEntry', 'onSetContentView');
+		$eventManager->registerEventHandler('mobile', 'onGetContentId', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Mobile\LogEntry', 'onGetContentId');
+		$eventManager->registerEventHandler('pull', 'onGetMobileCounter', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Pull\Counter', 'onGetMobileCounter');
+		$eventManager->registerEventHandler('pull', 'onGetMobileCounterTypes', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Pull\Counter', 'onGetMobileCounterTypes');
+		$eventManager->registerEventHandler('intranet', 'onEmployeeDepartmentsChanged', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Intranet\Structure\Employee', 'onEmployeeDepartmentsChanged');
+		$eventManager->registerEventHandler('socialnetwork', '\Bitrix\Socialnetwork\Log::'.\Bitrix\Main\Entity\DataManager::EVENT_ON_AFTER_UPDATE, 'socialnetwork', '\Bitrix\Socialnetwork\Item\LogRight', 'OnAfterLogUpdate');
+		$eventManager->registerEventHandler('socialnetwork', '\Bitrix\Socialnetwork\Log::'.\Bitrix\Main\Entity\DataManager::EVENT_ON_AFTER_UPDATE, 'socialnetwork', '\Bitrix\Socialnetwork\Item\LogIndex', 'OnAfterLogUpdate');
+		$eventManager->registerEventHandler('bitrix24', 'OnManualModuleAddDelete', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Bitrix24\Bitrix24Event', 'OnManualModuleAddDelete');
+		$eventManager->registerEventHandler('landing', 'OnBuildSourceList', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Landing\Livefeed', 'onBuildSourceListHandler');
 
 		CAgent::AddAgent("CSocNetMessages::SendEventAgent();", "socialnetwork", "N", 600);
 
@@ -184,8 +214,20 @@ Class socialnetwork extends CModule
 		$this->__SetLogFilter();
 
 		CModule::IncludeModule("socialnetwork");
+		if(strtolower($DB->type) == 'mysql')
+		{
+			$errors = $DB->RunSQLBatch($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/db/".$DBType."/install_ft.sql");
+			if ($errors === false)
+			{
+				\Bitrix\Socialnetwork\WorkgroupTable::getEntity()->enableFullTextIndex("SEARCH_INDEX");
+				\Bitrix\Socialnetwork\LogIndexTable::getEntity()->enableFullTextIndex("CONTENT");
+			}
+		}
+
 		if (CModule::IncludeModule("search"))
+		{
 			CSearch::ReIndexModule("socialnetwork");
+		}
 
 		if($install_smiles == "Y" || $install_wizard)
 		{
@@ -272,7 +314,7 @@ Class socialnetwork extends CModule
 
 					foreach($arSmile as $key => $val)
 					{
-						$arSmile[$key]["LANG"][] = Array("LID" => $arLangs["LID"], "NAME" => GetMessage($val["FICON_SMILE"]));
+						$arSmile[$key]["LANG"][] = Array("LID" => $arLangs["LID"], "NAME" => Loc::getMessage($val["FICON_SMILE"]));
 					}
 				}
 
@@ -314,6 +356,9 @@ Class socialnetwork extends CModule
 				$APPLICATION->ThrowException(implode("", $errors));
 				return false;
 			}
+
+			\Bitrix\Socialnetwork\WorkgroupTable::getEntity()->enableFullTextIndex("SEARCH_INDEX", false);
+			\Bitrix\Socialnetwork\LogIndexTable::getEntity()->enableFullTextIndex("CONTENT", false);
 		}
 
 		CAgent::RemoveAgent("CSocNetMessages::SendEventAgent();", "socialnetwork");
@@ -326,6 +371,8 @@ Class socialnetwork extends CModule
 		UnRegisterModuleDependences("search", "OnBeforeIndexUpdate", "socialnetwork", "CSocNetSearch", "OnBeforeIndexUpdate");
 		UnRegisterModuleDependences("search", "OnAfterIndexAdd", "socialnetwork", "CSocNetSearch", "OnAfterIndexAdd");
 		UnRegisterModuleDependences("search", "OnSearchPrepareFilter", "socialnetwork", "CSocNetSearch", "OnSearchPrepareFilter");
+		UnRegisterModuleDependences("search", "BeforeIndex", "socialnetwork", "CSocNetSearch", "BeforeIndexLast");
+
 		UnRegisterModuleDependences("main", "OnUserDelete", "socialnetwork", "CSocNetUser", "OnUserDelete");
 		UnRegisterModuleDependences("main", "OnBeforeUserUpdate", "socialnetwork", "CSocNetUser", "OnBeforeUserUpdate");
 		UnRegisterModuleDependences("main", "OnAfterUserUpdate", "socialnetwork", "CSocNetUser", "OnAfterUserUpdate");
@@ -338,10 +385,13 @@ Class socialnetwork extends CModule
 		UnRegisterModuleDependences("photogallery", "OnBeforeSectionDrop", "socialnetwork", "CSocNetLogTools", "OnBeforeSectionDrop");
 		UnRegisterModuleDependences("photogallery", "OnAfterSectionEdit", "socialnetwork", "CSocNetLogTools", "OnAfterSectionEdit");
 		UnRegisterModuleDependences("main", "OnAuthProvidersBuildList", "socialnetwork", "CSocNetGroupAuthProvider", "GetProviders");
+
 		UnRegisterModuleDependences("im", "OnBeforeConfirmNotify", "socialnetwork", "CSocNetUserToGroup", "OnBeforeConfirmNotify");
 		UnRegisterModuleDependences("im", "OnBeforeConfirmNotify", "socialnetwork", "CSocNetUserRelations", "OnBeforeConfirmNotify");
 		UnRegisterModuleDependences("im", "OnBeforeConfirmNotify", "socialnetwork", "CSocNetLogFollow", "OnBeforeConfirmNotify");
 		UnRegisterModuleDependences("im", "OnGetNotifySchema", "socialnetwork", "CSocNetNotifySchema", "OnGetNotifySchema");
+		UnRegisterModuleDependences("im", "OnAfterChatMuteNotify", "socialnetwork", "CSocNetSubscription", "OnAfterChatMuteNotify");
+
 		UnRegisterModuleDependences("pull", "OnGetDependentModule", "socialnetwork", "CSocNetPullSchema", "OnGetDependentModule");
 		UnRegisterModuleDependences("main", "OnUserInitialize", "socialnetwork", "CSocNetUser", "OnUserInitialize");
 		UnRegisterModuleDependences("blog", "OnBlogDelete", "socialnetwork", "CSocNetLog", "OnBlogDelete");
@@ -354,6 +404,31 @@ Class socialnetwork extends CModule
 		UnRegisterModuleDependences("main", "OnAfterSetUserGroup", "socialnetwork", "CSocNetUser", "DeleteUserAdminCache");
 		UnRegisterModuleDependences("main", "OnAfterSetGroupRight", "socialnetwork", "CSocNetUser", "DeleteUserAdminCache");
 		UnRegisterModuleDependences("main", "OnAfterDelGroupRight", "socialnetwork", "CSocNetUser", "DeleteUserAdminCache");
+		UnRegisterModuleDependences("main", "OnAfterUserAdd", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\UserToGroup", "onAfterUserAdd");
+		UnRegisterModuleDependences("main", "OnAfterUserUpdate", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\UserToGroup", "onAfterUserUpdate");
+		UnRegisterModuleDependences("main", "OnGetRatingContentOwner", "socialnetwork", "\\Bitrix\\Socialnetwork\\Integration\\Main\\RatingVote", "onGetRatingContentOwner");
+		UnRegisterModuleDependences("iblock", "OnBeforeIBlockSectionUpdate", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\Workgroup", "OnBeforeIBlockSectionUpdate");
+		UnRegisterModuleDependences("iblock", "OnAfterIBlockSectionUpdate", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\Workgroup", "onAfterIBlockSectionUpdate");
+		UnRegisterModuleDependences("iblock", "onBeforeIBlockSectionDelete", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\Workgroup", "onBeforeIBlockSectionDelete");
+		UnRegisterModuleDependences("iblock", "OnAfterIBlockSectionDelete", "socialnetwork", "\\Bitrix\\Socialnetwork\\Item\\Workgroup", "onAfterIBlockSectionDelete");
+
+		$eventManager = \Bitrix\Main\EventManager::getInstance();
+		$eventManager->unregisterEventHandler('mail', 'onReplyReceivedLOG_ENTRY', 'socialnetwork', '\Bitrix\Socialnetwork\Internals\MailHandler', 'handleReplyReceivedLogEntry');
+		$eventManager->unregisterEventHandler('main', 'OnUISelectorActionProcessAjax', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Main\UISelector\Handler', 'OnUISelectorActionProcessAjax');
+		$eventManager->unregisterEventHandler('main', 'OnUISelectorEntitiesGetList', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Main\UISelector\Handler', 'OnUISelectorEntitiesGetList');
+		$eventManager->unregisterEventHandler('main', 'OnUISelectorGetProviderByEntityType', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Main\UISelector\Handler', 'OnUISelectorGetProviderByEntityType');
+		$eventManager->unregisterEventHandler('tasks', 'onTaskUpdateViewed', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Tasks\Task', 'onTaskUpdateViewed');
+		$eventManager->unregisterEventHandler('calendar', 'onViewEvent', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Calendar\CalendarEvent', 'onViewEvent');
+		$eventManager->unregisterEventHandler('main', 'onRatingListViewed', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Main\RatingVoteList', 'onViewed');
+		$eventManager->unregisterEventHandler('mobile', 'onSetContentView', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Mobile\LogEntry', 'onSetContentView');
+		$eventManager->unregisterEventHandler('mobile', 'onGetContentId', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Mobile\LogEntry', 'onGetContentId');
+		$eventManager->unregisterEventHandler('pull', 'onGetMobileCounter', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Pull\Counter', 'onGetMobileCounter');
+		$eventManager->unregisterEventHandler('pull', 'onGetMobileCounterTypes', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Pull\Counter', 'onGetMobileCounterTypes');
+		$eventManager->unregisterEventHandler('intranet', 'onEmployeeDepartmentsChanged', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Intranet\Structure\Employee', 'onEmployeeDepartmentsChanged');
+		$eventManager->unregisterEventHandler('socialnetwork', '\Bitrix\Socialnetwork\Log::'.\Bitrix\Main\Entity\DataManager::EVENT_ON_AFTER_UPDATE, 'socialnetwork', '\Bitrix\Socialnetwork\Item\LogRight', 'OnAfterLogUpdate');
+		$eventManager->unregisterEventHandler('socialnetwork', '\Bitrix\Socialnetwork\Log::'.\Bitrix\Main\Entity\DataManager::EVENT_ON_AFTER_UPDATE, 'socialnetwork', '\Bitrix\Socialnetwork\Item\LogIndex', 'OnAfterLogUpdate');
+		$eventManager->unregisterEventHandler('bitrix24', 'OnManualModuleAddDelete', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Bitrix24\Bitrix24Event', 'OnManualModuleAddDelete');
+		$eventManager->unregisterEventHandler('landing', 'OnBuildSourceList', 'socialnetwork', '\Bitrix\Socialnetwork\Integration\Landing\Livefeed', 'onBuildSourceListHandler');
 
 		UnRegisterModule("socialnetwork");
 		return true;
@@ -361,10 +436,10 @@ Class socialnetwork extends CModule
 
 	function InstallUserFields($id = "all")
 	{
-		global $APPLICATION, $USER_FIELD_MANAGER;
+		global $APPLICATION, $USER_FIELD_MANAGER, $DB;
 		$errors = null;
 
-		$id = (empty($id) ? "all" : (in_array($id, array("all", "webdav", "disk", "vote"/*, "blog"*/)) ? $id : false));
+		$id = (empty($id) ? "all" : (in_array($id, array("all", "webdav", "disk", "vote", "intranet"/*, "blog"*/)) ? $id : false));
 		if (!!$id)
 		{
 			$USER_FIELD_MANAGER->CleanCache();
@@ -419,12 +494,41 @@ Class socialnetwork extends CModule
 						$arImportantPostUF["LIST_FILTER_LABEL"][$arLang["LID"]] = $messages["SONETP_LIST_FILTER_LABEL"];
 					}
 					$arFields[] = $arImportantPostUF;
+
+					$arImportantDateEndUF = array(
+						"USER_TYPE_ID" => "datetime",
+						"ENTITY_ID" => "BLOG_POST",
+						"FIELD_NAME" => "UF_IMPRTANT_DATE_END",
+						"XML_ID" => "UF_IMPRTANT_DATE_END",
+						"MULTIPLE" => "N",
+						"MANDATORY" => "N",
+						"SHOW_FILTER" => "N",
+						"SHOW_IN_LIST" => "N",
+						"EDIT_IN_LIST" => "Y",
+						"IS_SEARCHABLE" => "N",
+						"EDIT_FORM_LABEL" => Array(),
+						"LIST_COLUMN_LABEL" => Array(),
+						"LIST_FILTER_LABEL" => Array());
+
+					$dbLangs = CLanguage::GetList(($b = ""), ($o = ""), array("ACTIVE" => "Y"));
+					while ($arLang = $dbLangs->Fetch())
+					{
+						$messages = IncludeModuleLangFile($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/index.php", $arLang["LID"], true);
+						$arImportantDateEndUF["EDIT_FORM_LABEL"][$arLang["LID"]] = $messages["SONETP_UF_IMPRTANT_DATE_END_EDIT_FORM_LABEL"];
+						$arImportantDateEndUF["LIST_COLUMN_LABEL"][$arLang["LID"]] = $messages["SONETP_UF_IMPRTANT_DATE_END_LIST_COLUMN_LABEL"];
+					}
+					$arFields[] = $arImportantDateEndUF;
 				}
 			}
 
 			if($id == 'all' || $id == 'disk')
 			{
 				$errors = self::installDiskUserFields();
+			}
+
+			if($id == 'all' || $id == 'intranet')
+			{
+				$errors = self::installIntranetUserFields();
 			}
 
 			if (IsModuleInstalled("webdav"))
@@ -457,8 +561,6 @@ Class socialnetwork extends CModule
 
 			if (IsModuleInstalled("vote"))
 			{
-				AddEventHandler("main", "OnUserTypeBuildList", array("CUserTypeVote", "GetUserTypeDescription"));
-				require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/vote/classes/general/usertypevote.php");
 				$arFields[] = array(
 					"USER_TYPE_ID" => "vote",
 					"ENTITY_ID" => "BLOG_POST",
@@ -470,7 +572,7 @@ Class socialnetwork extends CModule
 						"CHANNEL_SYMBOLIC_NAME" => "UF_BLOG_POST_VOTE",
 						"CHANNEL_USE_CAPTCHA" => "N",
 						"NOTIFY" => (IsModuleInstalled("im") ? "I" : "N"),
-						"UNIQUE" => 13,
+						"UNIQUE" => 8,
 						"UNIQUE_IP_DELAY" => array(
 							"DELAY" => "10",
 							"DELAY_TYPE" => "D"
@@ -478,6 +580,30 @@ Class socialnetwork extends CModule
 					)
 				);
 			}
+
+			$arFields[] = array(
+				"USER_TYPE_ID" => 'url_preview',
+				"ENTITY_ID" => "SONET_LOG",
+				"FIELD_NAME" => "UF_SONET_LOG_URL_PRV",
+				"XML_ID" => "UF_SONET_LOG_URL_PRV",
+				"MULTIPLE" => 'N',
+				"MANDATORY" => "N",
+				"SHOW_FILTER" => "N",
+				"SHOW_IN_LIST" => "N",
+				"EDIT_IN_LIST" => "Y",
+			);
+
+			$arFields[] = array(
+				"USER_TYPE_ID" => 'url_preview',
+				"ENTITY_ID" => "SONET_COMMENT",
+				"FIELD_NAME" => "UF_SONET_COM_URL_PRV",
+				"XML_ID" => "UF_SONET_COM_URL_PRV",
+				"MULTIPLE" => 'N',
+				"MANDATORY" => "N",
+				"SHOW_FILTER" => "N",
+				"SHOW_IN_LIST" => "N",
+				"EDIT_IN_LIST" => "Y",
+			);
 
 			$obUserField = new CUserTypeEntity;
 			foreach ($arFields as $arField)
@@ -495,11 +621,20 @@ Class socialnetwork extends CModule
 					}
 					else if (
 						$arField["FIELD_NAME"] == "UF_BLOG_POST_IMPRTNT" 
-						&& $GLOBALS["DB"]->TableExists("b_uts_blog_post") 
-						&& !$GLOBALS["DB"]->IndexExists("b_uts_blog_post", array("UF_BLOG_POST_IMPRTNT", "VALUE_ID"))
+						&& $DB->TableExists("b_uts_blog_post")
+						&& !$DB->IndexExists("b_uts_blog_post", array("UF_BLOG_POST_IMPRTNT", "VALUE_ID"))
 					)
 					{
-						$GLOBALS["DB"]->Query("CREATE INDEX UX_UF_BLOG_POST_IMPRTNT ON b_uts_blog_post(UF_BLOG_POST_IMPRTNT, VALUE_ID)", true);
+						$DB->Query("CREATE INDEX UX_UF_BLOG_POST_IMPRTNT ON b_uts_blog_post(UF_BLOG_POST_IMPRTNT, VALUE_ID)", true);
+					}
+					else if (
+						$arField["FIELD_NAME"] == "UF_IMPRTANT_DATE_END"
+						&& $DB->TableExists("b_uts_blog_post")
+						&& $DB->Query("SELECT UF_BLOG_POST_IMPRTNT FROM b_uts_blog_post WHERE 1=0", true)
+						&& !$DB->IndexExists("b_uts_blog_post", array("UF_IMPRTANT_DATE_END", "UF_BLOG_POST_IMPRTNT", "VALUE_ID"))
+					)
+					{
+						$DB->Query("CREATE INDEX UX_UF_BLOG_POST_IMPRTNT2 ON b_uts_blog_post(UF_IMPRTANT_DATE_END, UF_BLOG_POST_IMPRTNT, VALUE_ID)", true);
 					}
 				}
 				else if ($arField["FIELD_NAME"] == "UF_BLOG_POST_VOTE")
@@ -568,8 +703,99 @@ Class socialnetwork extends CModule
 		return $errors;
 	}
 
+	public static function installIntranetUserFields()
+	{
+		global $APPLICATION, $DB;
+		$errors = null;
+
+		if(!IsModuleInstalled('intranet'))
+		{
+			return null;
+		}
+
+		if(!CModule::IncludeModule('iblock'))
+		{
+			return null;
+		}
+
+		$iblockId = false;
+
+		$res = $DB->Query("select ID from b_iblock where CODE='departments' AND IBLOCK_TYPE_ID='structure'", true);
+		if (
+			($ar = $res->Fetch())
+			&& intval($ar['ID']) > 0
+		)
+		{
+			$iblockId = $ar['ID'];
+		}
+
+		if(intval($iblockId) <= 0)
+		{
+			return null;
+		}
+
+		$arUFSettings = array(
+			'DISPLAY' => 'LIST',
+			'LIST_HEIGHT' => '8',
+			'IBLOCK_ID' => $iblockId,
+			'ACTIVE_FILTER' => 'Y'
+		);
+
+		$props = array(
+			array(
+				"ENTITY_ID" => "SONET_GROUP",
+				"FIELD_NAME" => "UF_SG_DEPT",
+				"USER_TYPE_ID" => "iblock_section",
+				"MULTIPLE" => "Y",
+				"SETTINGS" => $arUFSettings
+			)
+		);
+		$uf = new CUserTypeEntity;
+		foreach ($props as $prop)
+		{
+			$rsData = CUserTypeEntity::getList(array("ID" => "ASC"), array("ENTITY_ID" => $prop["ENTITY_ID"], "FIELD_NAME" => $prop["FIELD_NAME"]));
+			if (!($rsData && ($arRes = $rsData->Fetch())))
+			{
+				$arUFFields = array(
+					"ENTITY_ID" => $prop["ENTITY_ID"],
+					"FIELD_NAME" => $prop["FIELD_NAME"],
+					"XML_ID" => $prop["FIELD_NAME"],
+					"USER_TYPE_ID" => $prop["USER_TYPE_ID"],
+					"SORT" => 100,
+					"MULTIPLE" => $prop["MULTIPLE"],
+					"MANDATORY" => "N",
+					"SHOW_FILTER" => "N",
+					"SHOW_IN_LIST" => "N",
+					"EDIT_IN_LIST" => "Y",
+					"IS_SEARCHABLE" => "N",
+					"SETTINGS" => $prop["SETTINGS"],
+				);
+
+				$dbLangs = CLanguage::GetList(($b = ""), ($o = ""), array("ACTIVE" => "Y"));
+				while ($arLang = $dbLangs->Fetch())
+				{
+					$messages = IncludeModuleLangFile($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/index.php", $arLang["LID"], true);
+					$arUFFields["EDIT_FORM_LABEL"][$arLang["LID"]] = $messages["SONET_".$prop["FIELD_NAME"]."_EDIT_FORM_LABEL"];
+					$arUFFields["LIST_COLUMN_LABEL"][$arLang["LID"]] = $messages["SONET_".$prop["FIELD_NAME"]."_LIST_COLUMN_LABEL"];
+					$arUFFields["LIST_FILTER_LABEL"][$arLang["LID"]] = $messages["SONET_".$prop["FIELD_NAME"]."_LIST_FILTER_LABEL"];
+				}
+
+				$intID = $uf->add($arUFFields, false);
+
+				if (false == $intID && ($strEx = $APPLICATION->getException()))
+				{
+					$errors[] = $strEx->getString();
+				}
+			}
+		}
+
+		return $errors;
+	}
+
 	function UnInstallUserFields($id = "all")
 	{
+		global $DB;
+
 		$id = (empty($id) ? "all" : (in_array($id, array("all", "webdav"/*, "blog"*/)) ? $id : false));
 		if (!!$id)
 		{
@@ -604,6 +830,16 @@ Class socialnetwork extends CModule
 					"FIELD_NAME" => "UF_BLOG_POST_VOTE",
 					"XML_ID" => "UF_BLOG_POST_VOTE"
 				),
+				array(
+					"ENTITY_ID" => "SONET_LOG",
+					"FIELD_NAME" => "UF_SONET_LOG_URL_PRV",
+					"XML_ID" => "UF_SONET_LOG_URL_PRV"
+				),
+				array(
+					"ENTITY_ID" => "SONET_COMMENT",
+					"FIELD_NAME" => "UF_SONET_COM_URL_PRV",
+					"XML_ID" => "UF_SONET_COM_URL_PRV"
+				)
 			);
 
 			if ($id == "webdav")
@@ -627,10 +863,20 @@ Class socialnetwork extends CModule
 				{
 					$ent = new CUserTypeEntity;
 					$ent->Delete($arRes['ID']);
-					if ($arField["FIELD_NAME"] == "UF_BLOG_POST_IMPRTNT" && $GLOBALS["DB"]->TableExists("b_uts_blog_post") &&
-						$GLOBALS["DB"]->IndexExists("b_uts_blog_post", array("UF_BLOG_POST_IMPRTNT", "VALUE_ID")))
+					if (
+						$arField["FIELD_NAME"] == "UF_BLOG_POST_IMPRTNT"
+						&& $DB->TableExists("b_uts_blog_post")
+					)
 					{
-						$GLOBALS["DB"]->Query("DROP INDEX UX_UF_BLOG_POST_IMPRTNT ON b_uts_blog_post", true);
+						if ($DB->IndexExists("b_uts_blog_post", array("UF_BLOG_POST_IMPRTNT", "VALUE_ID")))
+						{
+							$DB->Query("DROP INDEX UX_UF_BLOG_POST_IMPRTNT ON b_uts_blog_post", true);
+						}
+
+						if ($DB->IndexExists("b_uts_blog_post", array("UF_IMPRTANT_DATE_END", "UF_BLOG_POST_IMPRTNT", "VALUE_ID")))
+						{
+							$DB->Query("DROP INDEX UX_UF_BLOG_POST_IMPRTNT2 ON b_uts_blog_post", true);
+						}
 					}
 				}
 			}
@@ -678,6 +924,7 @@ Class socialnetwork extends CModule
 			CopyDirFiles($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/gadgets", $_SERVER["DOCUMENT_ROOT"]."/bitrix/gadgets", true, true);
 			CopyDirFiles($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/tools", $_SERVER["DOCUMENT_ROOT"]."/bitrix/tools", true, true);
 			CopyDirFiles($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/js", $_SERVER["DOCUMENT_ROOT"]."/bitrix/js", true, true);
+			CopyDirFiles($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/activities", $_SERVER["DOCUMENT_ROOT"]."/bitrix/activities", true, true);
 		}
 		return true;
 	}
@@ -721,6 +968,7 @@ Class socialnetwork extends CModule
 		DeleteDirFilesEx("/bitrix/themes/.default/icons/socialnetwork/");//icons
 		DeleteDirFilesEx("/bitrix/images/socialnetwork/");//images
 		DeleteDirFilesEx("/bitrix/sounds/socialnetwork/");//sounds
+		DeleteDirFilesEx("/bitrix/js/socialnetwork/");//javascript
 
 		return true;
 	}
@@ -730,7 +978,7 @@ Class socialnetwork extends CModule
 		global $APPLICATION, $step;
 		$step = IntVal($step);
 		if ($step < 2)
-			$APPLICATION->IncludeAdminFile(GetMessage("SONET_INSTALL_TITLE"), $_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/step1.php");
+			$APPLICATION->IncludeAdminFile(Loc::getMessage("SONET_INSTALL_TITLE"), $_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/step1.php");
 		elseif($step==2)
 		{
 			$this->InstallFiles();
@@ -739,7 +987,7 @@ Class socialnetwork extends CModule
 			$this->InstallPublic();
 			$GLOBALS["errors"] = $this->errors;
 
-			$APPLICATION->IncludeAdminFile(GetMessage("SONET_INSTALL_TITLE"), $_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/step2.php");
+			$APPLICATION->IncludeAdminFile(Loc::getMessage("SONET_INSTALL_TITLE"), $_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/step2.php");
 		}
 	}
 
@@ -748,7 +996,7 @@ Class socialnetwork extends CModule
 		global $APPLICATION, $step;
 		$step = IntVal($step);
 		if($step<2)
-			$APPLICATION->IncludeAdminFile(GetMessage("SONET_INSTALL_TITLE"), $_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/unstep1.php");
+			$APPLICATION->IncludeAdminFile(Loc::getMessage("SONET_INSTALL_TITLE"), $_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/unstep1.php");
 		elseif($step==2)
 		{
 			$this->UnInstallDB(array(
@@ -761,7 +1009,7 @@ Class socialnetwork extends CModule
 
 			$GLOBALS["errors"] = $this->errors;
 
-			$APPLICATION->IncludeAdminFile(GetMessage("SONET_INSTALL_TITLE"), $_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/unstep2.php");
+			$APPLICATION->IncludeAdminFile(Loc::getMessage("SONET_INSTALL_TITLE"), $_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialnetwork/install/unstep2.php");
 		}
 	}
 
@@ -770,14 +1018,24 @@ Class socialnetwork extends CModule
 		$arr = array(
 			"reference_id" => array("D", "K", "R", "W"),
 			"reference" => array(
-					"[D] ".GetMessage("SONETP_PERM_D"),
-					"[K] ".GetMessage("SONETP_PERM_K"),
-					"[R] ".GetMessage("SONETP_PERM_R"),
-					"[W] ".GetMessage("SONETP_PERM_W")
+					"[D] ".Loc::getMessage("SONETP_PERM_D"),
+					"[K] ".Loc::getMessage("SONETP_PERM_K"),
+					"[R] ".Loc::getMessage("SONETP_PERM_R"),
+					"[W] ".Loc::getMessage("SONETP_PERM_W")
 				),
 			"use_site" => array("K", "W")
 			);
 		return $arr;
 	}
+
+	public function migrateToBox()
+	{
+		global $DB;
+
+		$DB->Query('UPDATE b_sonet_log SET EVENT_ID="intranet_new_user" WHERE EVENT_ID="bitrix24_new_user"');
+		$DB->Query('UPDATE b_sonet_log_comment SET EVENT_ID="intranet_new_user_comment" WHERE EVENT_ID="bitrix24_new_user_comment"');
+		$DB->Query('UPDATE b_sonet_log SET ENTITY_TYPE="IN" WHERE ENTITY_TYPE="BN"');
+		$DB->Query('UPDATE b_sonet_log SET RATING_TYPE_ID="INTRANET_NEW_USER" WHERE RATING_TYPE_ID="BITRIX24_NEW_USER"');
+		$DB->Query('UPDATE b_sonet_log SET MODULE_ID="intranet" WHERE EVENT_ID="intranet_new_user"');
+	}
 }
-?>

@@ -10,13 +10,17 @@ class CSocServTwitter extends CSocServAuth
 		return array(
 			array("twitter_key", GetMessage("socserv_tw_key"), "", Array("text", 40)),
 			array("twitter_secret", GetMessage("socserv_tw_secret"), "", Array("text", 40)),
-			array("note"=>GetMessage("socserv_tw_sett_note", array('#URL#'=>CSocServUtil::ServerName()))),
+			array("note"=>GetMessage("socserv_tw_sett_note", array('#URL#'=>\CHTTP::URN2URI("/bitrix/tools/oauth/twitter.php")))),
 		);
 	}
 
 	public function GetFormHtml($arParams)
 	{
+		global $APPLICATION;
+
 		$phrase = ($arParams["FOR_INTRANET"]) ? GetMessage("socserv_tw_note_intranet") : GetMessage("socserv_tw_note");
+
+		$arParams['BACKURL'] = $APPLICATION->GetCurPageParam('', array("logout", "auth_service_error", "auth_service_id", "current_fieldset"));
 
 		$url = $this->getUrl($arParams);
 
@@ -33,7 +37,8 @@ class CSocServTwitter extends CSocServAuth
 
 	public function getUrl($arParams)
 	{
-		return $GLOBALS['APPLICATION']->GetCurPageParam('ncc=1&auth_service_id='.self::ID.'&check_key='.$_SESSION["UNIQUE_KEY"].(isset($arParams['BACKURL']) ? "&backurl=".urlencode($arParams['BACKURL']) : ''), array("logout", "auth_service_error", "auth_service_id", "current_fieldset", "ncc"));
+		// due to something strange reason Twitter does incorrect encoding of oauth_redirect parameters
+		return '/bitrix/tools/oauth/twitter.php?check_key='.$_SESSION["UNIQUE_KEY"].(isset($arParams['BACKURL']) ? "&backurl=".urlencode(urlencode($arParams['BACKURL'])) : '');
 	}
 
 	public function Authorize()
@@ -45,7 +50,7 @@ class CSocServTwitter extends CSocServAuth
 		if(!isset($_REQUEST["oauth_token"]) || $_REQUEST["oauth_token"] == '')
 		{
 			$tw = new CTwitterInterface();
-			$callback = CSocServUtil::GetCurUrl('auth_service_id='.self::ID);
+			$callback = CSocServUtil::GetCurUrl('auth_service_id='.self::ID, false, false);
 
 			if($tw->GetRequestToken($callback))
 			{
@@ -100,13 +105,14 @@ class CSocServTwitter extends CSocServAuth
 
 		if($bSuccess)
 		{
-			CSocServUtil::checkOAuthProxyParams();
-
 			$aRemove = array("logout", "auth_service_error", "auth_service_id", "oauth_token", "oauth_verifier", "check_key", "current_fieldset", "ncc");
 
 			$url = isset($_REQUEST['backurl']) ? $_REQUEST['backurl'] : $GLOBALS['APPLICATION']->GetCurPageParam(($bSuccess === true ? '' : 'auth_service_id='.self::ID.'&auth_service_error='.$bSuccess), $aRemove);
 			if(CModule::IncludeModule("socialnetwork") && strpos($url, "current_fieldset=") === false)
 				$url = (preg_match("/\?/", $url)) ? $url."&current_fieldset=SOCSERV" : $url."?current_fieldset=SOCSERV";
+
+			$url .= (preg_match("/\?/", $url) ? '&' : '?').CSocServUtil::getOAuthProxyString();
+
 			echo '
 <script type="text/javascript">
 if(window.opener)
@@ -147,12 +153,24 @@ window.close();
 		return $result;
 	}
 
+
+	public function setUser($userId)
+	{
+		$this->userId = $userId;
+	}
+
 	public function getFriendsList($limit, &$next)
 	{
 		global $USER;
 
+		$currentUser = $this->userId;
+		if(!$currentUser)
+		{
+			$currentUser = $USER->GetID();
+		}
+
 		$tw = new CTwitterInterface();
-		$userId = self::TwitterUserId($USER->GetID());
+		$userId = self::TwitterUserId($currentUser);
 
 		if($userId > 0)
 		{
@@ -200,8 +218,11 @@ window.close();
 
 	public function TwitterUserId($userId)
 	{
-		$dbSocservUser = CSocServAuthDB::GetList(array(), array('USER_ID' => $userId, 'EXTERNAL_AUTH_ID' => self::ID), false, false, array("ID"));
-		$arOauth = $dbSocservUser->Fetch();
+		$dbSocservUser = \Bitrix\Socialservices\UserTable::getList([
+			'filter' => ['=USER_ID' => intval($userId), "=EXTERNAL_AUTH_ID" => self::ID],
+			'select' => ["ID"]
+		]);
+		$arOauth = $dbSocservUser->fetch();
 		if($arOauth["ID"])
 			return $arOauth["ID"];
 		return false;
@@ -438,8 +459,11 @@ class CTwitterInterface
 
 	public function SetOauthKeys($socServUserId)
 	{
-		$dbSocservUser = CSocServAuthDB::GetList(array(), array('ID' => $socServUserId), false, false, array("OATOKEN", "OASECRET"));
-		while($arOauth = $dbSocservUser->Fetch())
+		$dbSocservUser = \Bitrix\Socialservices\UserTable::getList([
+			'filter' => ['=ID' => $socServUserId],
+			'select' => ["OATOKEN", "OASECRET"]
+		]);
+		while($arOauth = $dbSocservUser->fetch())
 		{
 			$this->token = $arOauth["OATOKEN"];
 			$this->tokenSecret = $arOauth["OASECRET"];
@@ -573,8 +597,14 @@ class CTwitterInterface
 	private function GetUserPerms($userXmlId)
 	{
 		$arUserPermis = array();
-		$dbSocUser = CSocServAuthDB::GetList(array(), array('EXTERNAL_AUTH_ID'=>'Twitter', 'XML_ID'=>$userXmlId), false, false, array("PERMISSIONS"));
-		while($arSocUser = $dbSocUser->Fetch())
+		$dbSocUser = \Bitrix\Socialservices\UserTable::getList([
+			'filter' => [
+				'=EXTERNAL_AUTH_ID'=>'Twitter',
+				'=XML_ID'=>$userXmlId
+			],
+			'select' => ["PERMISSIONS"]
+		]);
+		while($arSocUser = $dbSocUser->fetch())
 		{
 			$arUserPermis = unserialize($arSocUser["PERMISSIONS"]);
 			if(is_array($arUserPermis))

@@ -61,6 +61,8 @@
 
 			this.SetParseBxMode(parseBx);
 
+			this.pasteNodeIndexTmp = BX.clone(this.editor.pasteNodeIndex);
+
 			while (el.firstChild)
 			{
 				firstChild = el.firstChild;
@@ -70,10 +72,10 @@
 				if (newNode)
 				{
 					addInvisibleNodes = !parseBx && this.CheckBlockNode(newNode);
-
-					if (addInvisibleNodes)
+					// mantis: 101249
+					if (BX.browser.IsFirefox() && newNode.nodeName == 'DIV')
 					{
-						//frag.appendChild(this.editor.util.GetInvisibleTextNode());
+						addInvisibleNodes = false;
 					}
 
 					frag.appendChild(newNode);
@@ -91,8 +93,7 @@
 			// Insert new DOM tree
 			el.appendChild(frag);
 
-			content = this.editor.GetInnerHtml(el);
-			content = this.RegexpContentParse(content, parseBx);
+			content = this.RegexpContentParse(this.editor.GetInnerHtml(el), parseBx);
 
 			return content;
 		},
@@ -163,7 +164,9 @@
 						return oldNode.ownerDocument.createTextNode(this.editor.INVISIBLE_CURSOR);
 					}
 
-					bCleanNodeAfterPaste = !oldNode.getAttribute('data-bx-paste-flag');
+					var bxPasteFlag = oldNode.getAttribute('data-bx-paste-flag');
+
+					bCleanNodeAfterPaste = bxPasteFlag !== 'Y' && !this.pasteNodeIndexTmp[bxPasteFlag];
 
 					if (oldNode && oldNode.id)
 					{
@@ -185,6 +188,8 @@
 						oldNodeType = oldNode.nodeType;
 					}
 					oldNode.removeAttribute('data-bx-paste-flag');
+					if (this.pasteNodeIndexTmp[bxPasteFlag])
+						delete this.pasteNodeIndexTmp[bxPasteFlag];
 				}
 				else
 				{
@@ -455,7 +460,6 @@
 				decorNodes = {"B": 1, "STRONG": 1, "I": 1, "EM": 1, "U": 1, "DEL": 1, "S": 1, "STRIKE": 1},
 				cleanEmpty = {"A": 1, "SPAN": 1, "B": 1, "STRONG": 1, "I": 1, "EM": 1, "U": 1, "DEL": 1, "S": 1, "STRIKE": 1, "H1": 1, "H2": 1, "H3": 1, "H4": 1, "H5": 1, "H6": 1, "ABBR": 1, "TIME": 1, "FIGURE": 1,  "FIGCAPTION": 1};
 
-
 			// Clean iframes
 			if (nodeName == 'IFRAME')
 			{
@@ -504,9 +508,9 @@
 				return null;
 			}
 
-			if (nodeName == 'A')
+			if (nodeName === 'A')
 			{
-				// Todo: clean block nodes from link
+				BX.onCustomEvent(this.editor, 'OnAfterLinkInserted', [oldNode.getAttribute('href')]);
 			}
 
 			// Clean class
@@ -528,6 +532,30 @@
 				}
 			}
 
+			//mantis:74639
+			if (nodeName == 'THEAD')
+			{
+				var trs = oldNode.getElementsByTagName('TR'), st;
+				for (i = 0; i < trs.length; i++)
+				{
+					if (trs[i] && trs[i].getAttribute)
+					{
+						st = trs[i].getAttribute('style');
+						if (st
+							&& st.indexOf('mso-yfti-irow') !== -1
+							&& st.indexOf('mso-yfti-irow:0') === -1
+							&& st.indexOf('mso-yfti-irow:-1') === -1
+							&& st.indexOf('mso-yfti-firstrow:yes') === -1
+						)
+						{
+							oldNode.setAttribute('data-bx-new-rule', 'rename_tag');
+							oldNode.setAttribute('data-bx-rename_tag', 'TBODY');
+							break;
+						}
+					}
+				}
+			}
+
 			// Clean pasted div's
 			if (nodeName == 'DIV' || oldNode.style.display == 'block' || nodeName == 'FORM')
 			{
@@ -546,7 +574,7 @@
 				oldNode.setAttribute('data-bx-replace_with_children', '1');
 			}
 
-			// Content pastet from google docs sometimes comes with unused <b style="font-weight: normal"> wrapping
+			// Content pasted from google docs sometimes comes with unused <b style="font-weight: normal"> wrapping
 			if (nodeName == 'B' && oldNode.style.fontWeight == 'normal')
 			{
 				oldNode.setAttribute('data-bx-new-rule', 'replace_with_children');
@@ -679,6 +707,7 @@
 							((nodeName == 'SPAN' || nodeName == 'P') && (styleName == 'width' || styleName == 'height')) || // Sizes for SPAN and P
 							(typeof whiteCssList[styleName] == 'object' && BX.util.in_array(styleValue.toLowerCase(), whiteCssList[styleName])))
 						{
+
 							continue;
 						}
 
@@ -718,7 +747,6 @@
 				node.removeAttribute('style');
 			}
 		},
-
 
 		CheckAltImage: function(img)
 		{
@@ -994,10 +1022,10 @@
 				var fontSizeMap = {
 					1: '9px',
 					2: '13px',
-					3: '9px',
-					4: '9px',
-					5: '9px',
-					6: '9px',
+					3: '16px',
+					4: '18px',
+					5: '24px',
+					6: '32px',
 					7: '48px'
 				};
 				if (fontSizeMap[value])
@@ -1351,11 +1379,10 @@
 			htmlcomment: true,
 			iframe: true,
 			video: true,
+			audio: true,
 			'object': true
 		};
 
-		//if((!this.arConfig["bWithoutPHP"] || this.limit_php_access) && this.arConfig["use_advanced_php_parser"] == 'Y')
-		//{
 		this.bUseAPP = true; // APP - AdvancedPHPParser
 		this.APPConfig =
 		{
@@ -1364,14 +1391,10 @@
 			arTags :
 			{
 				'a' : ['href','title','class','style'],
-				'img' : ['src','alt','class','style','width','height']
+				'img' : ['src','alt','class','style','width','height'],
+				'input' : ['id','name','value']
 			}
 		};
-		//}
-//		else
-//		{
-//			this.bUseAPP = false;
-//		}
 
 		this.customParsers = [];
 		this.arScripts = {}; // object which contains all php codes with indexes
@@ -1379,6 +1402,7 @@
 		this.arHtmlComments = {}; // object which contains all html comments with indexes
 		this.arIframes = {}; // object which contains all iframes with indexes
 		this.arVideos = {}; // object which contains all iframes with emeded videos
+		this.arAudio = {};
 		this.arStyles = {}; // object which contains all <style> tags with indexes
 		this.arObjects = {}; // object which contains all <object> tags with indexes
 		this.surrClass = 'bxhtmled-surrogate';
@@ -1392,6 +1416,7 @@
 			anchor: 1,
 			iframe: 1,
 			video: 1,
+			audio: 1,
 			'object': 1
 		};
 
@@ -1427,6 +1452,8 @@
 			content = this.ReplaceHtmlCommentsBySymCode(content);
 			// Iframe & Video
 			content = this.ReplaceIframeBySymCode(content);
+			// Audio
+			content = this.ReplaceAudioBySymCode(content);
 			// Style
 			content = this.ReplaceStyleBySymCode(content);
 			// Object && embed
@@ -1446,6 +1473,12 @@
 				content = content.replace(/#PHP(\d+)#/g, function(str)
 				{
 					return  _this.GetSurrogateHTML("php_protected", BX.message('BXEdPhpCode') + " *", BX.message('BXEdPhpCodeProtected'), {value : str});
+				});
+
+				content = content.replace(/#BXAPP(\d+)#/g, function(str, appInd)
+				{
+					appInd = parseInt(appInd);
+					return _this.editor.phpParser.AdvancedPhpGetFragmentByIndex(appInd, false);
 				});
 			}
 
@@ -1679,6 +1712,24 @@
 					return _this.GetPattern(index++, false, 'style');
 				}
 			);
+
+			return content;
+		},
+
+		// Example: <audio controls=""><source src="/sound.mp3" type="audio/mpeg"> => #BXAUDIO_0#
+		ReplaceAudioBySymCode: function(content)
+		{
+			this.arAudio = {};
+			var
+				_this = this,
+				index = 0;
+
+			content = content.replace(/<audio[\s\S]*?\/audio>/gi, function(s)
+				{
+					_this.arAudio[index] = s;
+					return _this.GetPattern(index++, false, 'audio');
+				}
+			);
 			return content;
 		},
 
@@ -1707,14 +1758,14 @@
 
 		CheckForVideo: function(str)
 		{
-			var videoRe = /(?:src)\s*=\s*("|')([\s\S]*?((?:youtube.com)|(?:youtu.be)|(?:rutube.ru)|(?:vimeo.com))[\s\S]*?)(\1)/ig;
+			var videoRe = new RegExp('(?:src)\\s*=\\s*("|\')([\\s\\S]*?((?:youtube.com)|(?:youtu.be)|(?:rutube.ru)|(?:vimeo.com)|(?:vk.com)|(?:' + location.host + '))[\\s\\S]*?)(\\1)', 'ig');
 
 			var res = videoRe.exec(str);
 			if (res)
 			{
 				return {
 					src: res[2],
-					provider: this.GetVideoProviderName(res[3])
+					provider: this.GetVideoProviderName(res[3], str)
 				};
 			}
 			else
@@ -1723,10 +1774,14 @@
 			}
 		},
 
-		GetVideoProviderName: function(url)
+		GetVideoProviderName: function(host, url)
 		{
 			var name = '';
-			switch (url)
+			if(!BX.type.isNotEmptyString(url))
+			{
+				url = '';
+			}
+			switch (host)
 			{
 				case 'youtube.com':
 				case 'youtu.be':
@@ -1737,6 +1792,17 @@
 					break;
 				case 'vimeo.com':
 					name = 'Vimeo';
+					break;
+				case 'vk.com':
+					name = 'Vk';
+					break;
+				case location.host:
+					var providerRe = /((?:provider))=([\S]+)(?:&*)/ig;
+					res = providerRe.exec(url);
+					if(res)
+					{
+						name = res[2];
+					}
 					break;
 			}
 			return name;
@@ -1780,6 +1846,9 @@
 				case 'video':
 					code = '#BXVIDEO_';
 					break;
+				case 'audio':
+					code = '#BXAUDIO_';
+					break;
 				case 'object':
 					code = '#BXOBJECT_';
 					break;
@@ -1796,7 +1865,7 @@
 		{
 			var _this = this;
 
-			content = content.replace(/#BX(PHP|JAVASCRIPT|HTMLCOMMENT|IFRAME|STYLE|VIDEO|OBJECT)_(\d+)#/g, function(str, type, ind)
+			content = content.replace(/#BX(PHP|JAVASCRIPT|HTMLCOMMENT|IFRAME|STYLE|VIDEO|AUDIO|OBJECT)_(\d+)#/g, function(str, type, ind)
 			{
 				var res = '';
 				if (_this.IsAllowed(type.toLowerCase()))
@@ -1820,6 +1889,9 @@
 							break;
 						case 'VIDEO':
 							res = _this.GetVideoHTML(_this.arVideos[ind]);
+							break;
+						case 'AUDIO':
+							res = _this.GetAudioHTML(_this.arAudio[ind]);
 							break;
 						case 'OBJECT':
 							res = _this.GetObjectHTML(_this.arObjects[ind]);
@@ -1928,6 +2000,22 @@
 				'</span>';
 
 			return result;
+		},
+
+		GetAudioHTML: function(code)
+		{
+			if (typeof code !== 'string')
+				return null;
+			var
+				title = "Audio",
+				params = this.FetchVideoIframeParams(code);
+
+			if (params && params.src)
+			{
+				title += ': ' + this.GetShortTitle(BX.util.htmlspecialchars(params.src));
+			}
+
+			return this.GetSurrogateHTML("audio", title, "Audio: " + this.GetShortTitle(code), {value : code});
 		},
 
 		GetObjectHTML: function(code)
@@ -2052,7 +2140,7 @@
 		_GetUnParsedContent: function(content)
 		{
 			var _this = this;
-			content = content.replace(/#BX(PHP|JAVASCRIPT|HTMLCOMMENT|IFRAME|STYLE|VIDEO|OBJECT)_(\d+)#/g, function(str, type, ind)
+			content = content.replace(/#BX(PHP|JAVASCRIPT|HTMLCOMMENT|IFRAME|STYLE|VIDEO|AUDIO|OBJECT)_(\d+)#/g, function(str, type, ind)
 			{
 				var res;
 				switch (type)
@@ -2074,6 +2162,9 @@
 						break;
 					case 'VIDEO':
 						res = _this.arVideos[ind].html;
+						break;
+					case 'AUDIO':
+						res = _this.arAudio[ind];
 						break;
 					case 'OBJECT':
 						res = _this.arObjects[ind].html;
@@ -2211,7 +2302,8 @@
 
 			for (j = 0; j < l; j++)
 			{
-				if (prevAr[j].substr(0, 6).toLowerCase()=='array(')
+				if (prevAr[j].substr(0, 6).toLowerCase()=='array('
+				|| prevAr[j].substr(0, 1).toLowerCase()=='[')
 				{
 					prevAr[j] = this.GetArray(prevAr[j]);
 				}
@@ -2229,19 +2321,25 @@
 
 		GetArray: function(str)
 		{
-			var resAr = {};
-			if (str.substr(0, 6).toLowerCase() != 'array(')
-				return str;
+			var
+				php7ArrayStyle = str.substr(0, 1).toLowerCase() == '[',
+				resAr = {};
 
-			str = str.substring(6, str.length-1);
+			if (str.substr(0, 6).toLowerCase() != 'array(' && !php7ArrayStyle)
+			{
+				return str;
+			}
+
+			str = str.substring(php7ArrayStyle ? 1 : 6, str.length - 1);
 			var
 				tempAr = this.GetParams(str),
-				prop_name, prop_val, p,
+				propKey, propValue, p, trimedPropValue,
 				y;
 
 			for (y = 0; y < tempAr.length; y++)
 			{
-				if (tempAr[y].substr(0, 6).toLowerCase()=='array(')
+				if (tempAr[y].substr(0, 6).toLowerCase() == 'array('
+				|| tempAr[y].substr(0, 1).toLowerCase() == '[')
 				{
 					resAr[y] = this.GetArray(tempAr[y]);
 					continue;
@@ -2257,17 +2355,25 @@
 				}
 				else
 				{
-					prop_name = this.TrimQuotes(tempAr[y].substr(0, p));
-					prop_val = tempAr[y].substr(p + 2);
-					if (prop_val == this.TrimQuotes(prop_val))
-						prop_val = this.WrapPhpBrackets(prop_val);
+					propKey = this.TrimQuotes(tempAr[y].substr(0, p));
+					propValue = tempAr[y].substr(p + 2);
+					trimedPropValue = this.TrimQuotes(propValue);
+
+					if (propValue == trimedPropValue)
+					{
+						propValue = this.WrapPhpBrackets(propValue);
+						if (propValue.substr(0, 6).toLowerCase()=='array('
+							|| propValue.substr(0, 1).toLowerCase()=='[')
+						{
+							propValue = this.GetArray(propValue);
+						}
+					}
 					else
-						prop_val = this.TrimQuotes(prop_val);
+					{
+						propValue = this.TrimQuotes(propValue);
+					}
 
-					if (prop_val.substr(0, 6).toLowerCase()=='array(')
-						prop_val = this.GetArray(prop_val);
-
-					resAr[prop_name] = prop_val;
+					resAr[propKey] = propValue;
 				}
 			}
 			return resAr;
@@ -2289,8 +2395,9 @@
 		GetParams: function(params)
 		{
 			var
-				arParams = [],
-				sk = 0, ch, sl, q1 = 1,q2 = 1, i,
+				paramsList = [],
+				bracket = 0,
+				sk = 0, ch, sl, q1 = 1, q2 = 1, i,
 				param_tmp = "";
 
 			for(i = 0; i < params.length; i++)
@@ -2320,7 +2427,15 @@
 					continue;
 				}
 
-				if(ch == "(")
+				if(ch == "[")
+				{
+					bracket++;
+				}
+				else if(ch == "]")
+				{
+					bracket--;
+				}
+				else if(ch == "(")
 				{
 					sk++;
 				}
@@ -2328,22 +2443,27 @@
 				{
 					sk--;
 				}
-				else if(ch == "," && sk == 0)
+				else if(ch == "," && bracket == 0 && sk == 0)
 				{
-					arParams.push(param_tmp);
+					paramsList.push(param_tmp);
 					param_tmp = "";
 					continue;
 				}
 
-				if(sk < 0)
+				if(sk < 0 || bracket < 0)
+				{
 					break;
+				}
 
 				param_tmp += ch;
 			}
-			if(param_tmp != "")
-				arParams.push(param_tmp);
 
-			return arParams;
+			if(param_tmp != "")
+			{
+				paramsList.push(param_tmp);
+			}
+
+			return paramsList;
 		},
 
 		IsNum: function(val)
@@ -2480,6 +2600,12 @@
 						return _this._GetUnParsedContent(params.value);
 					}
 				},
+				audio: {
+					Parse: function(params)
+					{
+						return _this._GetUnParsedContent(params.value);
+					}
+				},
 				object: {
 					Parse: function(params)
 					{
@@ -2602,9 +2728,9 @@
 				surr = surrs[i];
 				if (usedSurrs[surr.id])
 				{
-					if (surr.getAttribute('data-bx-paste-flag') == 'Y' || usedSurrs[surr.id].getAttribute('data-bx-paste-flag') != 'Y')
+					if (surr.getAttribute('data-bx-paste-flag') == 'Y' || !usedSurrs[surr.id].getAttribute('data-bx-paste-flag'))
 						BX.remove(surr);
-					else if (usedSurrs[surr.id].getAttribute('data-bx-paste-flag') == 'Y')
+					else if (usedSurrs[surr.id].getAttribute('data-bx-paste-flag'))
 						BX.remove(usedSurrs[surr.id]);
 				}
 				else
@@ -2998,14 +3124,24 @@
 
 			function replacePhpInAttributes(str, b1, b2, b3, b4, b5, b6)
 			{
+				var appInd, atrValue;
+
+				if (b4.match(/#PHP\d+#/g))
+				{
+					_this.arAPPFragments.push(b4);
+					appInd = _this.arAPPFragments.length - 1;
+					atrValue = '#BXAPP' + appInd + '#';
+					return b1 + b2 + '="' + atrValue + '"' + b5;
+				}
+
 				if (b4.indexOf('#BXPHP_') === -1)
 				{
 					return str;
 				}
 
 				_this.arAPPFragments.push(b4);
-				var appInd = _this.arAPPFragments.length - 1;
-				var atrValue = _this.AdvancedPhpGetFragmentByIndex(appInd, true);
+				appInd = _this.arAPPFragments.length - 1;
+				atrValue = _this.AdvancedPhpGetFragmentByIndex(appInd, true);
 
 				return b1 + b2 + '="' + atrValue + '"' + ' data-bx-app-ex-' + b2 + '=\"#BXAPP' + appInd + '#\"' + b5;
 			}
@@ -3239,6 +3375,10 @@
 			// List
 			content = content.replace(/[\r\n\s\t]*?\[\/list\]/ig, '[/LIST]');
 			content = content.replace(/[\r\n\s\t]*?\[\*\]?/ig, '[*]');
+
+			// Paragraph
+			content = content.replace(/\[p\]/ig, '<p>');
+			content = content.replace(/\[\/p\]\n?/ig, '</p>');
 
 			var
 				arSimpleTags = [
@@ -3479,8 +3619,14 @@
 					res += "[/" + oNode.bbTag + "]";
 				}
 
-				// mantis: #54244
-				if (oNode.breakLineAfterEnd || node.nodeType == 1 && this.editor.util.IsBlockNode(node) && this.editor.util.IsBlockNode(node.nextSibling))
+				if (BX.browser.IsFirefox() && this.editor.util.IsBlockNode(node)
+					&& BX.util.trim(node.innerHTML.replace(/\uFEFF/ig, '')).toLowerCase() == '<br>')
+				{
+					return '\n';
+				}
+
+				// mantis: #54244 & #100442
+				if (oNode.breakLineAfterEnd || node.nodeType == 1 && this.editor.util.IsBlockNode(node) && this.editor.util.IsBlockNode(this.editor.util.GetNextSibling(node)))
 				{
 					res += "\n";
 				}
@@ -3526,6 +3672,11 @@
 						return '';
 					}
 				}
+			}
+
+			if (nodeName == "SCRIPT")
+			{
+				return '';
 			}
 
 			if (nodeName == "IFRAME" && oNode.node.src)
@@ -3597,6 +3748,10 @@
 			}
 			else if(nodeName == 'LI')
 			{
+				if (oNode.node.lastChild && oNode.node.lastChild.nodeName == 'BR')
+				{
+					oNode.node.removeChild(oNode.node.lastChild);
+				}
 				oNode.bbTag = '*';
 				oNode.breakLineBefore = true;
 				oNode.hideRight = true;
@@ -3669,8 +3824,6 @@
 					oNode.hide = !BX.util.in_array(nodeName, this.editor.BBCODE_TAGS);
 				}
 			}
-
-
 			else if(!BX.util.in_array(nodeName, this.editor.BBCODE_TAGS)) //'p', 'u', 'div', 'table', 'tr', 'img', 'td', 'a'
 			{
 				oNode.hide = true;
@@ -3715,13 +3868,14 @@
 			return res;
 		},
 
-		GetVideoSourse: function(src, params, source)
+		GetVideoSourse: function(src, params, source, title)
 		{
+			title = title || BX.message.BXEdVideoTitle;
 			return this.editor.phpParser.GetVideoHTML({
 				params: {
 					width: params.width,
 					height: params.height,
-					title: BX.message.BXEdVideoTitle,
+					title: title,
 					origTitle: '',
 					provider: params.type
 				},

@@ -12,7 +12,7 @@ class CWikiUtils
 
 		$arLinks = array();
 		$arParams['ELEMENT_NAME'] = htmlspecialcharsback($arParams['ELEMENT_NAME']);
-		$arParams['ELEMENT_NAME'] = urlencode($arParams['ELEMENT_NAME']);
+		$arParams['ELEMENT_NAME'] = rawurlencode($arParams['ELEMENT_NAME']);
 
 		if (in_array('categories', $arPage))
 			return array();
@@ -127,7 +127,7 @@ class CWikiUtils
 						'URL' => CHTTP::urlAddParams(
 							CComponentEngine::MakePathFromTemplate($arParams['PATH_TO_POST_EDIT'],
 								array(
-									'wiki_name' => urlencode($arParams['ELEMENT_NAME']),
+									'wiki_name' => rawurlencode($arParams['ELEMENT_NAME']),
 									'group_id' => CWikiSocnet::$iSocNetId
 								)
 							),
@@ -269,12 +269,12 @@ class CWikiUtils
 
 	static function CheckServicePage($NAME, &$SERVICE_NAME)
 	{
-		$arStream = array('category', strtolower(GetMessage('CATEGORY_NAME')));
+		$arStream = array('category', ToLower(GetMessage('CATEGORY_NAME')));
 		$arSplit = explode(':', $NAME);
 
 		if (count($arSplit) >= 2)
 		{
-			$SERVICE_PAGE = strtolower($arSplit[0]);
+			$SERVICE_PAGE = ToLower($arSplit[0]);
 			if (in_array($SERVICE_PAGE, $arStream))
 			{
 				unset($arSplit[0]);
@@ -291,18 +291,80 @@ class CWikiUtils
 	static function IsCategoryPage($NAME, &$CATEGORY_NAME)
 	{
 		$sServiceName = self::CheckServicePage($NAME, $CATEGORY_NAME);
-		return $sServiceName == 'category' || $sServiceName == strtolower(GetMessage('CATEGORY_NAME'));
+		return ($sServiceName == 'category' || $sServiceName == ToLower(GetMessage('CATEGORY_NAME')));
 	}
 
 	static function OnBeforeIndex($arFields)
 	{
+		static $groupSiteList = array();
+
 		$arFields['NAME'] = preg_replace('/^category:/i'.BX_UTF_PCRE_MODIFIER, GetMessage('CATEGORY_NAME').':', $arFields['NAME']);
 		$CWikiParser = new CWikiParser();
 		$arFields['BODY'] = $CWikiParser->parseForSearch($arFields['BODY']);
 
-		if(SITE_DIR != "/") //http://www.jabber.bx/view.php?id=29053
-			if(preg_match("#^".SITE_DIR."#",$arFields['SITE_ID'][SITE_ID]) !== false)
-				$arFields['SITE_ID'][SITE_ID] = preg_replace("#^".SITE_DIR."#","/",$arFields['SITE_ID'][SITE_ID]);
+		if (
+			isset($arFields['MODULE_ID'])
+			&& $arFields['MODULE_ID'] == 'socialnetwork'
+			&& isset($arFields['PARAMS'])
+			&& isset($arFields['PARAMS']['socnet_group'])
+			&& intval($arFields['PARAMS']['socnet_group']) > 0
+			&& \Bitrix\Main\ModuleManager::isModuleInstalled('extranet')
+		)
+		{
+			$url = false;
+			if (
+				is_array($arFields['SITE_ID'])
+				&& count($arFields['SITE_ID']) == 1
+			)
+			{
+				$siteId = key($arFields['SITE_ID']);
+				$url =  $arFields['SITE_ID'][$siteId];
+
+				if (!empty($url))
+				{
+					$url = str_replace(COption::getOptionString("socialnetwork", "workgroups_page", "/workgroups/", $siteId), "#GROUPS_PATH#", $url);
+				}
+			}
+
+			if (!empty($url))
+			{
+				$sonetGroupId = intval($arFields['PARAMS']['socnet_group']);
+
+				$siteIdList = array();
+
+				if (
+					!isset($groupSiteList[$sonetGroupId])
+					&& \Bitrix\Main\Loader::includeModule('socialnetwork')
+				)
+				{
+					$groupSiteList[$sonetGroupId] = array();
+					$res = CSocNetGroup::getSite($sonetGroupId);
+					while ($site = $res->fetch())
+					{
+						$groupSiteList[$sonetGroupId][] = $site['SITE_ID'];
+					}
+				}
+
+				if (isset($groupSiteList[$sonetGroupId]))
+				{
+					$siteIdList = $groupSiteList[$sonetGroupId];
+				}
+
+				$extranetGroup = (
+					!empty($siteIdList)
+					&& \Bitrix\Main\Loader::includeModule('extranet')
+					&& in_array(CExtranet::getExtranetSiteId(), $siteIdList)
+				);
+
+				if ($extranetGroup)
+				{
+					foreach($siteIdList as $siteId)
+					{
+						$arFields['SITE_ID'][$siteId] = str_replace("#GROUPS_PATH#", COption::getOptionString("socialnetwork", "workgroups_page", "/workgroups/", $siteId), $url);
+					}
+				}
+			}
+		}
 
 		return $arFields;
 	}
@@ -336,7 +398,7 @@ class CWikiUtils
 
 	static function htmlspecialcharsback($str, $end = true)
 	{
-		$str = urldecode($str);
+		$str = rawurldecode($str);
 		while(strpos($str, '&amp;') !== false)
 			$str = self::htmlspecialchars_decode($str);
 		if($end)

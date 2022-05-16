@@ -94,6 +94,14 @@ class CIBlockXMLFile
 		return true;
 	}
 
+	public function GetRoot()
+	{
+		global $DB;
+		$rs = $DB->Query("SELECT ID MID from ".$this->_table_name." WHERE PARENT_ID = 0");
+		$ar = $rs->Fetch();
+		return $ar["MID"];
+	}
+
 	/*
 	This function have to called once at the import start.
 
@@ -119,7 +127,7 @@ class CIBlockXMLFile
 
 	function CreateTemporaryTables($with_sess_id = false)
 	{
-		if(!is_object($this) || strlen($this->_table_name) <= 0)
+		if(!isset($this) || !is_object($this) || strlen($this->_table_name) <= 0)
 		{
 			$ob = new CIBlockXMLFile;
 			return $ob->CreateTemporaryTables();
@@ -127,6 +135,9 @@ class CIBlockXMLFile
 		else
 		{
 			global $DB;
+
+			if ($DB->TableExists($this->_table_name))
+				return false;
 
 			if(defined("MYSQL_TABLE_TYPE") && strlen(MYSQL_TABLE_TYPE) > 0)
 				$DB->Query("SET storage_engine = '".MYSQL_TABLE_TYPE."'", true);
@@ -172,6 +183,8 @@ class CIBlockXMLFile
 	{
 		global $DB;
 
+		$parentID = (int)$parentID;
+
 		if (!isset($this) || !is_object($this) || strlen($this->_table_name) <= 0)
 		{
 			$ob = new CIBlockXMLFile;
@@ -196,7 +209,7 @@ class CIBlockXMLFile
 	*/
 	function IndexTemporaryTables($with_sess_id = false)
 	{
-		if(!is_object($this) || strlen($this->_table_name) <= 0)
+		if(!isset($this) || !is_object($this) || strlen($this->_table_name) <= 0)
 		{
 			$ob = new CIBlockXMLFile;
 			return $ob->IndexTemporaryTables();
@@ -668,10 +681,8 @@ class CIBlockXMLFile
 			),
 		);
 	*/
-	function GetAllChildrenArray($arParent)
+	function GetAllChildrenArray($arParent, $handleAttributes = false)
 	{
-		global $DB;
-
 		//We will return
 		$arResult = array();
 
@@ -681,7 +692,8 @@ class CIBlockXMLFile
 			$rs = $this->GetList(
 				array(),
 				array("ID" => $arParent),
-				array("ID", "LEFT_MARGIN", "RIGHT_MARGIN")
+				array("ID", "LEFT_MARGIN", "RIGHT_MARGIN"),
+				$handleAttributes
 			);
 			$arParent = $rs->Fetch();
 			if(!$arParent)
@@ -693,7 +705,9 @@ class CIBlockXMLFile
 		$arIndex = array();
 		$rs = $this->GetList(
 			array("ID" => "asc"),
-			array("><LEFT_MARGIN" => array($arParent["LEFT_MARGIN"]+1, $arParent["RIGHT_MARGIN"]-1))
+			array("><LEFT_MARGIN" => array($arParent["LEFT_MARGIN"]+1, $arParent["RIGHT_MARGIN"]-1)),
+			array(),
+			$handleAttributes
 		);
 		while($ar = $rs->Fetch())
 		{
@@ -728,7 +742,7 @@ class CIBlockXMLFile
 		return $arResult;
 	}
 
-	function GetList($arOrder = array(), $arFilter = array(), $arSelect = array())
+	function GetList($arOrder = array(), $arFilter = array(), $arSelect = array(), $handleAttributes = false)
 	{
 		global $DB;
 
@@ -782,7 +796,15 @@ class CIBlockXMLFile
 			".(count($arOrder)? "order by  ".implode(", ", $arOrder): "")."
 		";
 
-		return $DB->Query($strSql);
+		if ($handleAttributes)
+		{
+			$result = new CCMLResult($DB->Query($strSql));
+		}
+		else
+		{
+			$result = $DB->Query($strSql);
+		}
+		return $result;
 	}
 
 	function Delete($ID)
@@ -791,10 +813,9 @@ class CIBlockXMLFile
 		return $DB->Query("delete from ".$this->_table_name." where ID = ".intval($ID));
 	}
 
-	function UnZip($file_name, $last_zip_entry = "", $start_time = 0, $interval = 0)
+	public static function UnZip($file_name, $last_zip_entry = "", $start_time = 0, $interval = 0)
 	{
 		global $APPLICATION;
-		$io = CBXVirtualIo::GetInstance();
 
 		//Function and securioty checks
 		if(!function_exists("zip_open"))
@@ -804,7 +825,7 @@ class CIBlockXMLFile
 			return false;
 
 		$hZip = zip_open($file_name);
-		if(!$hZip)
+		if(!is_resource($hZip))
 			return false;
 		//Skip from last step
 		if($last_zip_entry)
@@ -835,7 +856,7 @@ class CIBlockXMLFile
 
 				if(!$bBadFile)
 				{
-					$file_name =  $io->GetPhysicalName($dir_name.rel2abs("/", $file_name));
+					$file_name =  $io->GetPhysicalName($dir_name.Rel2Abs("/", $file_name));
 					CheckDirPath($file_name);
 					$fout = fopen($file_name, "wb");
 					if(!$fout)
@@ -862,4 +883,3 @@ class CIBlockXMLFile
 		return true;
 	}
 }
-?>

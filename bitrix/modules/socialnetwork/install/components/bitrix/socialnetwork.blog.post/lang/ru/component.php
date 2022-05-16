@@ -15,7 +15,7 @@ $MESS["B_B_MES_NO_BLOG"] = "Блог не найден";
 $MESS["B_B_MES_NO_POST"] = "Сообщение не найдено";
 $MESS["BLOG_BLOG_BLOG_MES_DELED"] = "Сообщение удалено";
 $MESS["BLOG_BLOG_BLOG_MES_DEL_ERROR"] = "Ошибка удаления сообщения";
-$MESS["BLOG_BLOG_BLOG_MES_DEL_NO_RIGHTS"] = "У вас нет прав не удаление этого сообщения";
+$MESS["BLOG_BLOG_BLOG_MES_DEL_NO_RIGHTS"] = "У вас нет прав на удаление этого сообщения";
 $MESS["BLOG_SONET_MODULE_NOT_AVAIBLE"] = "Блоги недоступны для данного пользователя.";
 $MESS["B_B_MES_NAME_TEMPLATE_DEFAULT"] = "#NOBR##LAST_NAME# #NAME##/NOBR#";
 $MESS["BLOG_BLOG_BLOG_MES_HIDE_ERROR"] = "Ошибка cкрытия сообщения";
@@ -27,4 +27,5 @@ $MESS["B_B_SHARE_ALL"] = "Все сотрудники";
 $MESS["B_B_SHARE_ALL_BUS"] = "Все пользователи";
 $MESS["B_B_SHARE"] = "Новые получатели: ";
 $MESS["B_B_SHARE_1"] = "Новый получатель: ";
+$MESS["SBP_SHARE_PREMODERATION"] = "Добавление получателей невозможно, так как выбрана группа, использующая режим премодерации.";
 ?>

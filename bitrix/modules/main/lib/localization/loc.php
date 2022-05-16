@@ -4,15 +4,18 @@ namespace Bitrix\Main\Localization;
 use Bitrix\Main;
 use Bitrix\Main\IO\Path;
 use Bitrix\Main\Context;
+use Bitrix\Main\Config\Configuration;
+use Bitrix\Main\Text\Encoding;
 
 final class Loc
 {
 	private static $currentLang = null;
 	private static $messages = array();
 	private static $customMessages = array();
-	private static $userMessages = null;
+	private static $userMessages = array();
 	private static $includedFiles = array();
 	private static $lazyLoadFiles = array();
+	private static $triedFiles = array();
 
 	/**
 	 * Returns translation by message code.
@@ -28,10 +31,14 @@ final class Loc
 		if($language === null)
 		{
 			//function call optimization
-			if(static::$currentLang === null)
-				self::getCurrentLang();
-
-			$language = static::$currentLang;
+			if(self::$currentLang === null)
+			{
+				$language = self::getCurrentLang();
+			}
+			else
+			{
+				$language = self::$currentLang;
+			}
 		}
 
 		if(!isset(self::$messages[$language][$code]))
@@ -68,29 +75,41 @@ final class Loc
 		self::$lazyLoadFiles[$file] = $file;
 	}
 
-	private static function getCurrentLang()
+	/**
+	 * @return string
+	 */
+	public static function getCurrentLang()
 	{
 		if(self::$currentLang === null)
 		{
 			$context = Context::getCurrent();
 			if($context !== null)
 			{
-				self::$currentLang = $context->getLanguage();
-			}
-			else
-			{
-				self::$currentLang = 'en';
+				$language = $context->getLanguage();
+				if($language !== null)
+				{
+					self::$currentLang = $language;
+				}
 			}
 		}
-		return self::$currentLang;
+		return (self::$currentLang !== null? self::$currentLang : 'en');
 	}
 
 	public static function setCurrentLang($language)
 	{
-		static::$currentLang = $language;
+		self::$currentLang = $language;
 	}
 
-	private static function includeLangFiles($file, $language)
+	/**
+	 * Loads language messages for specified file and language.
+	 *
+	 * @param string $file File path to look for language translation for its.
+	 * @param string $language Language code.
+	 * @param string $loadedLangFile Certain loaded language file.
+	 *
+	 * @return array
+	 */
+	private static function includeLangFiles($file, $language, &$loadedLangFile)
 	{
 		static $langDirCache = array();
 
@@ -104,12 +123,12 @@ final class Loc
 		else
 		{
 			//let's find language folder
-			$langDir = $fileName = "";
+			$langDir = $fileName = '';
 			$filePath = $file;
-			while(($slashPos = strrpos($filePath, "/")) !== false)
+			while(($slashPos = strrpos($filePath, '/')) !== false)
 			{
 				$filePath = substr($filePath, 0, $slashPos);
-				$langPath = $filePath."/lang";
+				$langPath = $filePath.'/lang';
 				if(is_dir($langPath))
 				{
 					$langDir = $langPath;
@@ -121,24 +140,32 @@ final class Loc
 		}
 
 		$mess = array();
-		if($langDir <> "")
+		if($langDir <> '')
 		{
 			//load messages for default lang first
 			$defaultLang = self::getDefaultLang($language);
 			if($defaultLang <> $language)
 			{
-				$langFile = $langDir."/".$defaultLang.$fileName;
+				$langFile = $langDir. '/'. $defaultLang. $fileName;
+
+				$langFile = Translation::convertLangPath($langFile, $defaultLang);
+
 				if(file_exists($langFile))
 				{
 					$mess = self::includeFile($langFile);
+					$loadedLangFile = $langFile;
 				}
 			}
 
 			//then load messages for specified lang
-			$langFile = $langDir."/".$language.$fileName;
+			$langFile = $langDir. '/'. $language. $fileName;
+
+			$langFile = Translation::convertLangPath($langFile, $language);
+
 			if(file_exists($langFile))
 			{
 				$mess = array_merge($mess, self::includeFile($langFile));
+				$loadedLangFile = $langFile;
 			}
 		}
 
@@ -150,13 +177,19 @@ final class Loc
 	 *
 	 * @param string $file
 	 * @param string $language
+	 * @param bool $normalize
 	 * @return array
 	 */
-	public static function loadLanguageFile($file, $language = null)
+	public static function loadLanguageFile($file, $language = null, $normalize = true)
 	{
 		if($language === null)
 		{
 			$language = self::getCurrentLang();
+		}
+
+		if($normalize)
+		{
+			$file = Path::normalize($file);
 		}
 
 		if(!isset(self::$messages[$language]))
@@ -165,23 +198,34 @@ final class Loc
 		}
 
 		//first time call only for lang
-		if(self::$userMessages === null)
+		if(!isset(self::$userMessages[$language]))
 		{
-			self::$userMessages = self::loadUserMessages($language);
+			self::$userMessages[$language] = self::loadUserMessages($language);
 		}
 
 		//let's find language folder and include lang files
-		$mess = self::includeLangFiles($file, $language);
+		$mess = self::includeLangFiles($file, $language, $langFile);
 
-		foreach($mess as $key => $val)
+		if (!empty($mess))
 		{
-			if(isset(self::$customMessages[$language][$key]))
+			list($convertEncoding, $targetEncoding, $sourceEncoding) = Translation::getEncodings($language, $langFile);
+
+			foreach ($mess as $key => $val)
 			{
-				self::$messages[$language][$key] = $mess[$key] = self::$customMessages[$language][$key];
-			}
-			else
-			{
-				self::$messages[$language][$key] = $val;
+				if (isset(self::$customMessages[$language][$key]))
+				{
+					self::$messages[$language][$key] = $mess[$key] = self::$customMessages[$language][$key];
+				}
+				else
+				{
+					if ($convertEncoding)
+					{
+						$val = Encoding::convertEncoding($val, $sourceEncoding, $targetEncoding);
+						$mess[$key] = $val;
+					}
+
+					self::$messages[$language][$key] = $val;
+				}
 			}
 		}
 
@@ -191,8 +235,8 @@ final class Loc
 	/**
 	 * Loads custom messages from the file to overwrite messages by their IDs.
 	 *
-	 * @param $file
-	 * @param null $language
+	 * @param string $file
+	 * @param string|null $language
 	 */
 	public static function loadCustomMessages($file, $language = null)
 	{
@@ -207,11 +251,21 @@ final class Loc
 		}
 
 		//let's find language folder and include lang files
-		$mess = self::includeLangFiles(Path::normalize($file), $language);
+		$mess = self::includeLangFiles(Path::normalize($file), $language, $langFile);
 
-		foreach($mess as $key => $val)
+		if (!empty($mess))
 		{
-			self::$customMessages[$language][$key] = $val;
+			list($convertEncoding, $targetEncoding, $sourceEncoding) = Translation::getEncodings($language, $langFile);
+
+			foreach ($mess as $key => $val)
+			{
+				if ($convertEncoding)
+				{
+					$val = $mess[$key] = Encoding::convertEncoding($val, $sourceEncoding, $targetEncoding);
+				}
+
+				self::$customMessages[$language][$key] = $val;
+			}
 		}
 	}
 
@@ -222,6 +276,12 @@ final class Loc
 			return;
 		}
 
+		//control of duplicates
+		if(!isset(self::$triedFiles[$language]))
+		{
+			self::$triedFiles[$language] = [];
+		}
+
 		$trace = Main\Diag\Helper::getBackTrace(4, DEBUG_BACKTRACE_IGNORE_ARGS);
 
 		$currentFile = null;
@@ -230,6 +290,9 @@ final class Loc
 			if(stripos($trace[$i]["function"], "GetMessage") === 0)
 			{
 				$currentFile = Path::normalize($trace[$i]["file"]);
+
+				//we suppose there is a language file even if it wasn't registered via loadMessages()
+				self::$lazyLoadFiles[$currentFile] = $currentFile;
 				break;
 			}
 		}
@@ -237,7 +300,11 @@ final class Loc
 		if($currentFile !== null && isset(self::$lazyLoadFiles[$currentFile]))
 		{
 			//in most cases we know the file containing the "code" - load it directly
-			self::loadLanguageFile($currentFile, $language);
+			if(!isset(self::$triedFiles[$language][$currentFile]))
+			{
+				self::loadLanguageFile($currentFile, $language, false);
+				self::$triedFiles[$language][$currentFile] = true;
+			}
 			unset(self::$lazyLoadFiles[$currentFile]);
 		}
 
@@ -249,7 +316,12 @@ final class Loc
 			{
 				do
 				{
-					self::loadLanguageFile($file, $language);
+					if(!isset(self::$triedFiles[$language][$file]))
+					{
+						self::loadLanguageFile($file, $language, false);
+						self::$triedFiles[$language][$file] = true;
+					}
+
 					$unset[] = $file;
 					if(isset(self::$messages[$language][$code]))
 					{
@@ -314,28 +386,50 @@ final class Loc
 		if(!empty(self::$userMessages))
 		{
 			$path = str_replace("\\", "/", realpath($path));
-			if(is_array(self::$userMessages[$path]))
-				foreach(self::$userMessages[$path] as $key => $val)
-					$MESS[$key] = $val;
+
+			//cycle through languages
+			foreach(self::$userMessages as $messages)
+			{
+				if(is_array($messages[$path]))
+				{
+					foreach($messages[$path] as $key => $val)
+					{
+						$MESS[$key] = $val;
+					}
+				}
+			}
 		}
 
 		return $MESS;
 	}
 
 	/**
-	 * Returns default language for specified language. Defualt language is used when translation is not found.
+	 * Returns default language for specified language. Default language is used when translation is not found.
 	 *
 	 * @param string $lang
 	 * @return string
 	 */
 	public static function getDefaultLang($lang)
 	{
-		static $subst = array('ua'=>'ru', 'kz'=>'ru', 'ru'=>'ru');
+		static $subst = array('ua'=>'ru', 'kz'=>'ru', 'by'=>'ru', 'ru'=>'ru', 'en'=>'en', 'de'=>'en');
 		if(isset($subst[$lang]))
+		{
 			return $subst[$lang];
+		}
+
+		$options = Configuration::getValue("default_language");
+		if(isset($options[$lang]))
+		{
+			return $options[$lang];
+		}
+
 		return 'en';
 	}
 
+	/**
+	 * Returns previously included lang files.
+	 * @return array
+	 */
 	public static function getIncludedFiles()
 	{
 		return self::$includedFiles;

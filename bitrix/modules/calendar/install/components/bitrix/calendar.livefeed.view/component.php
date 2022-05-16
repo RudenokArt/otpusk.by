@@ -6,13 +6,13 @@ if (!isset($arParams["CALENDAR_TYPE"]))
 if(!CModule::IncludeModule("calendar") || !class_exists("CCalendar"))
 	return ShowError(GetMessage("EC_CALENDAR_MODULE_NOT_INSTALLED"));
 $arParams['EVENT_ID'] = intval($arParams['EVENT_ID']);
-$arResult['ID'] = 'livefeed'.$arParams['EVENT_ID'];
 $arResult['EVENT'] = false;
-$Events = CCalendarEvent::GetList(
+$arParams['CUR_USER'] = $USER->GetId();
+$events = CCalendarEvent::GetList(
 	array(
 		'arFilter' => array(
 			"ID" => $arParams['EVENT_ID'],
-			"DELETED" => "N"
+			"DELETED" => false
 		),
 		'parseRecursion' => false,
 		'fetchAttendees' => true,
@@ -20,15 +20,70 @@ $Events = CCalendarEvent::GetList(
 		'setDefaultLimit' => false
 	)
 );
-if ($Events && is_array($Events[0]))
-	$arResult['EVENT'] =  $Events[0];
+
+if ($events && is_array($events[0]))
+	$arResult['EVENT'] = $events[0];
+
+if (!$arResult['EVENT'])
+{
+	$events = CCalendarEvent::GetList(
+		array(
+			'arFilter' => array(
+				"ID" => $arParams['EVENT_ID'],
+				"DELETED" => false
+			),
+			'parseRecursion' => false,
+			'checkPermissions' => false,
+			'setDefaultLimit' => false
+		)
+	);
+
+	// Clean damaged event from livefeed
+	if (!$events || !is_array($events[0]))
+		CCalendarLiveFeed::OnDeleteCalendarEventEntry($arParams['EVENT_ID']);
+
+	return false;
+}
+
+if (!is_array($arParams['~LIVEFEED_ENTRY_PARAMS']) || !array_key_exists('COMMENT_XML_ID', $arParams['~LIVEFEED_ENTRY_PARAMS']))
+{
+	$arResult['ID'] = 'livefeed'.$arParams['EVENT_ID'];
+}
+else
+{
+	$arResult['ID'] = 'livefeed_'.$arParams['~LIVEFEED_ENTRY_PARAMS']['COMMENT_XML_ID'];
+	$arResult['ID'] = strtolower(preg_replace('/[^\d|\w_\-]/', '', $arResult['ID']));
+
+	// Instance date for recurcive events, which were commented before
+	$instanceDate = CCalendarEvent::ExtractDateFromCommentXmlId($arParams['~LIVEFEED_ENTRY_PARAMS']['COMMENT_XML_ID']);
+	if ($instanceDate && CCalendarEvent::CheckRecurcion($arResult['EVENT']))
+	{
+		$instanceDateTs = CCalendar::Timestamp($instanceDate);
+		$currentFromTs = CCalendar::Timestamp($arResult['EVENT']['DATE_FROM']);
+		$length = $arResult['EVENT']['DT_LENGTH'];
+
+		$arResult['EVENT']['~DATE_FROM'] = $arResult['EVENT']['DATE_FROM'];
+		$arResult['EVENT']['~DATE_TO'] = $arResult['EVENT']['DATE_TO'];
+
+		if ($arResult['EVENT']['DT_SKIP_TIME'] == 'Y')
+		{
+			$arResult['EVENT']['DATE_FROM'] = CCalendar::Date($instanceDateTs, false);
+			$arResult['EVENT']['DATE_TO'] = CCalendar::Date($instanceDateTs + $length - CCalendar::GetDayLen(), false);
+		}
+		else
+		{
+			$newFromTs = mktime(date("H", $currentFromTs), date("i", $currentFromTs), 0, date("m", $instanceDateTs), date("d", $instanceDateTs), date("Y", $instanceDateTs));
+			$arResult['EVENT']['DATE_FROM'] = CCalendar::Date($newFromTs);
+			$arResult['EVENT']['DATE_TO'] = CCalendar::Date($newFromTs + $length);
+		}
+	}
+}
 
 if ($arResult['EVENT']['LOCATION'] !== '')
 	$arResult['EVENT']['LOCATION'] = CCalendar::GetTextLocation($arResult['EVENT']["LOCATION"]);
 
 global $USER_FIELD_MANAGER;
-$UF = $USER_FIELD_MANAGER->GetUserFields("CALENDAR_EVENT", $arParams['EVENT_ID'], LANGUAGE_ID);
-
+$UF = CCalendarEvent::GetEventUserFields($arResult['EVENT']);
 $arResult['UF_CRM_CAL_EVENT'] = $UF['UF_CRM_CAL_EVENT'];
 if (empty($arResult['UF_CRM_CAL_EVENT']['VALUE']))
 	$arResult['UF_CRM_CAL_EVENT'] = false;
@@ -47,30 +102,42 @@ if (!isset($arParams['EVENT_TEMPLATE_URL']))
 	$arParams['EVENT_TEMPLATE_URL'] = $editUrl.((strpos($editUrl, "?") === false) ? '?' : '&').'EVENT_ID=#EVENT_ID#';
 }
 
-$arResult['EVENT']['FROM_WEEK_DAY'] = FormatDate('D', $arResult['EVENT']['DT_FROM_TS']);
-$arResult['EVENT']['FROM_MONTH_DAY'] = FormatDate('j', $arResult['EVENT']['DT_FROM_TS']);
+
+$fromDateTs = CCalendar::Timestamp($arResult['EVENT']['DATE_FROM']);
+if ($arResult['EVENT']['DT_SKIP_TIME'] !== "Y")
+{
+	$fromDateTs -= $arResult['EVENT']['~USER_OFFSET_FROM'];
+}
+
+$arResult['EVENT']['FROM_WEEK_DAY'] = FormatDate('D', $fromDateTs);
+$arResult['EVENT']['FROM_MONTH_DAY'] = FormatDate('j', $fromDateTs);
+$arResult['ATTENDEES_INDEX'] = [];
+$arResult['EVENT']['ACCEPTED_ATTENDEES'] = [];
+$arResult['EVENT']['DECLINED_ATTENDEES'] = [];
 
 if ($arResult['EVENT']['IS_MEETING'])
 {
-	$arResult['ATTENDEES_INDEX'] = array();
-	$arResult['EVENT']['ACCEPTED_ATTENDEES'] = array();
-	$arResult['EVENT']['DECLINED_ATTENDEES'] = array();
-	foreach ($arResult['EVENT']['~ATTENDEES'] as $i => $att)
+	if (is_array($arResult['EVENT']['ATTENDEE_LIST']))
 	{
-		$arResult['ATTENDEES_INDEX'][$att["USER_ID"]] = array(
-			"STATUS" => $att['STATUS']
-		);
-
-		if ($att['STATUS'] != "Q")
+		$userIndex = CCalendarEvent::getUserIndex();
+		foreach ($arResult['EVENT']['ATTENDEE_LIST'] as $attendee)
 		{
-			$att['AVATAR_SRC'] = CCalendar::GetUserAvatar($att);
-			$att['URL'] = CCalendar::GetUserUrl($att["USER_ID"], $arParams["PATH_TO_USER"]);
-		}
+			if (isset($userIndex[$attendee["id"]]))
+			{
+				$arResult['ATTENDEES_INDEX'][$attendee["id"]] = [
+					"STATUS" => $attendee['status']
+				];
 
-		if ($att['STATUS'] == "Y")
-			$arResult['EVENT']['ACCEPTED_ATTENDEES'][] = $att;
-		elseif($att['STATUS'] == "N")
-			$arResult['EVENT']['DECLINED_ATTENDEES'][] = $att;
+				if ($attendee['STATUS'] == "Y")
+				{
+					$arResult['EVENT']['ACCEPTED_ATTENDEES'][] = $userIndex[$attendee["id"]];
+				}
+				elseif($attendee['STATUS'] == "N")
+				{
+					$arResult['EVENT']['DECLINED_ATTENDEES'][] = $userIndex[$attendee["id"]];
+				}
+			}
+		}
 	}
 }
 

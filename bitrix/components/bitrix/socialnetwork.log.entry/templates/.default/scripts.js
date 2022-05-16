@@ -243,6 +243,7 @@ window["__logBuildRating"] = function(comm, commFormat, anchor_id) {
 			});
 		}
 	}
+
 	if (!!ratingNode)
 	{
 		ratingNode = BX.create('span', { children : [ ratingNode ] } );
@@ -259,104 +260,20 @@ window["__logBuildRating"] = function(comm, commFormat, anchor_id) {
 
 	}
 	return ratingNode;
-}
+};
 window["__logShowCommentForm"] = function(xmlId)
 {
 	if (!!window["UC"][xmlId])
 		window["UC"][xmlId].reply();
-}
+};
 
 var waitTimeout = null;
 var waitDiv = null;
 var	waitPopup = null;
 var waitTime = 500;
 
-
-function __logEventExpand(node)
-{
-	if (BX(node))
-	{
-		BX(node).style.display = "none";
-
-		var tmpNode = BX.findParent(BX(node), {'tag': 'div', 'className': 'feed-post-text-block'});
-		if (tmpNode)
-		{
-			var contentContrainer = BX.findChild(tmpNode, {'tag': 'div', 'className': 'feed-post-text-block-inner'}, true);
-			var contentNode = BX.findChild(tmpNode, {'tag': 'div', 'className': 'feed-post-text-block-inner-inner'}, true);
-
-			if (contentContrainer && contentNode)
-			{
-				fxStart = 300;
-				fxFinish = contentNode.offsetHeight;
-
-				(new BX.fx({
-					time: 1.0 * (contentNode.offsetHeight - fxStart) / (1200 - fxStart),
-					step: 0.05,
-					type: 'linear',
-					start: fxStart,
-					finish: fxFinish,
-					callback: BX.delegate(__logEventExpandSetHeight, contentContrainer),
-					callback_complete: BX.delegate(function()
-					{
-						contentContrainer.style.maxHeight = 'none';
-						BX.LazyLoad.showImages(true);
-					})
-				})).start();
-			}
-		}
-	}
-}
-
-function __logCommentExpand(node)
-{
-	if (!BX.type.isDomNode(node))
-		node = BX.proxy_context;
-
-	if (BX(node))
-	{
-		var topContrainer = BX.findParent(BX(node), {'tag': 'div', 'className': 'feed-com-text'});
-		if (topContrainer)
-		{
-			BX.remove(node);
-			var contentContrainer = BX.findChild(topContrainer, {'tag': 'div', 'className': 'feed-com-text-inner'}, true);
-			var contentNode = BX.findChild(topContrainer, {'tag': 'div', 'className': 'feed-com-text-inner-inner'}, true);
-
-			if (contentNode && contentContrainer)
-			{
-				fxStart = 200;
-				fxFinish = contentNode.offsetHeight;
-
-				var time = 1.0 * (fxFinish - fxStart) / (2000 - fxStart);
-				if(time < 0.3)
-					time = 0.3;
-				if(time > 0.8)
-					time = 0.8;
-
-				(new BX.fx({
-					time: time,
-					step: 0.05,
-					type: 'linear',
-					start: fxStart,
-					finish: fxFinish,
-					callback: BX.delegate(__logEventExpandSetHeight, contentContrainer),
-					callback_complete: BX.delegate(function()
-					{
-						contentContrainer.style.maxHeight = 'none';
-					})
-				})).start();
-			}
-		}
-	}
-}
-
-function __logEventExpandSetHeight(height)
-{
-	this.style.maxHeight = height + 'px';
-}
-
 function __logShowHiddenDestination(log_id, created_by_id, bindElement)
 {
-
 	var sonetLXmlHttpSet6 = new XMLHttpRequest();
 
 	sonetLXmlHttpSet6.open("POST", BX.message('sonetLESetPath'), true);
@@ -396,7 +313,7 @@ function __logShowHiddenDestination(log_id, created_by_id, bindElement)
 								if (typeof (arDestinations[i]['TITLE']) != 'undefined' && arDestinations[i]['TITLE'].length > 0)
 								{
 									cont.appendChild(BX.create('SPAN', {
-										html: ',&nbsp;'
+										html: ', '
 									}));
 
 									if (typeof (arDestinations[i]['CRM_PREFIX']) != 'undefined' && arDestinations[i]['CRM_PREFIX'].length > 0)
@@ -437,13 +354,12 @@ function __logShowHiddenDestination(log_id, created_by_id, bindElement)
 							)
 							{
 								data["iDestinationsHidden"] = parseInt(data["iDestinationsHidden"]);
-								if (
+								var suffix = (
 									(data["iDestinationsHidden"] % 100) > 10
 									&& (data["iDestinationsHidden"] % 100) < 20
-								)
-									var suffix = 5;
-								else
-									var suffix = data["iDestinationsHidden"] % 10;
+										? 5
+										: data["iDestinationsHidden"] % 10
+								);
 
 								cont.appendChild(BX.create('SPAN', {
 									html: '&nbsp;' + BX.message('sonetLDestinationHidden' + suffix).replace("#COUNT#", data["iDestinationsHidden"])
@@ -458,7 +374,7 @@ function __logShowHiddenDestination(log_id, created_by_id, bindElement)
 				// error!
 			}
 		}
-	}
+	};
 
 	sonetLXmlHttpSet6.send("r=" + Math.floor(Math.random() * 1000)
 		+ "&" + BX.message('sonetLSessid')
@@ -477,51 +393,49 @@ function __logShowHiddenDestination(log_id, created_by_id, bindElement)
 
 function __logSetFollow(log_id)
 {
-	var strFollowOld = (BX("log_entry_follow_" + log_id, true).getAttribute("data-follow") == "Y" ? "Y" : "N");
-	var strFollowNew = (strFollowOld == "Y" ? "N" : "Y");	
+	var
+		strFollowOld = (BX("log_entry_follow_" + log_id).getAttribute("data-follow") == "Y" ? "Y" : "N"),
+		strFollowNew = (strFollowOld == "Y" ? "N" : "Y"),
+		followNode = BX("log_entry_follow_" + log_id);
 
-	if (BX("log_entry_follow_" + log_id, true))
+	if (followNode)
 	{
-		BX.findChild(BX("log_entry_follow_" + log_id, true), { tagName: 'a' }).innerHTML = BX.message('sonetLFollow' + strFollowNew);
-		BX("log_entry_follow_" + log_id, true).setAttribute("data-follow", strFollowNew);
+		BX.findChild(followNode, { tagName: 'a' }).innerHTML = BX.message('sonetLFollow' + strFollowNew);
+		followNode.setAttribute("data-follow", strFollowNew);
 	}
-				
-	BX.ajax({
-		url: BX.message('sonetLSetPath'),
-		method: 'POST',
-		dataType: 'json',
+
+	BX.ajax.runAction('socialnetwork.api.livefeed.changeFollow', {
 		data: {
-			"log_id": log_id,
-			"action": "change_follow",
-			"follow": strFollowNew,
-			"sessid": BX.bitrix_sessid(),
-			"site": BX.message('sonetLSiteId')
+			logId: log_id,
+			value: strFollowNew
 		},
-		onsuccess: function(data) {
-			if (
-				data["SUCCESS"] != "Y"
-				&& BX("log_entry_follow_" + log_id, true)
-			)
-			{
-				BX.findChild(BX("log_entry_follow_" + log_id, true), { tagName: 'a' }).innerHTML = BX.message('sonetLFollow' + strFollowOld);
-				BX("log_entry_follow_" + log_id, true).setAttribute("data-follow", strFollowOld);
-			}
-		},
-		onfailure: function(data) {
-			if (BX("log_entry_follow_" +log_id, true))
-			{
-				BX.findChild(BX("log_entry_follow_" + log_id, true), { tagName: 'a' }).innerHTML = BX.message('sonetLFollow' + strFollowOld);
-				BX("log_entry_follow_" + log_id, true).setAttribute("data-follow", strFollowOld);
-			}		
+		analyticsLabel: {
+			b24statAction: (strFollowNew == 'Y' ? 'setFollow' : 'setUnfollow')
+		}
+	}).then(function(response) {
+		if (
+			!response.data.success
+			&& followNode
+		)
+		{
+			BX.findChild(followNode, { tagName: 'a' }).innerHTML = BX.message('sonetLFollow' + strFollowOld);
+			followNode.setAttribute("data-follow", strFollowOld);
+		}
+	}, function(response) {
+		if (followNode)
+		{
+			BX.findChild(followNode, { tagName: 'a' }).innerHTML = BX.message('sonetLFollow' + strFollowOld);
+			followNode.setAttribute("data-follow", strFollowOld);
 		}
 	});
+
 	return false;
 }
 
 function __logRefreshEntry(params)
 {
-	var entryNode = (params.node !== undefined ? BX(params.node) : false)
-	var logId = (params.logId !== undefined ? parseInt(params.logId) : 0)
+	var entryNode = (params.node !== undefined ? BX(params.node) : false);
+	var logId = (params.logId !== undefined ? parseInt(params.logId) : 0);
 
 	if (
 		!entryNode
@@ -610,6 +524,45 @@ window.__logEditComment = function(entityXmlId, key, postId)
 		},
 		onfailure: function(data) {}
 	});
-	
-
 };
+
+(function(){
+	BX.SocialnetworkLogEntry = {
+	};
+
+	BX.SocialnetworkLogEntry.registerViewAreaList = function(params)
+	{
+		if (
+			typeof params == 'undefined'
+			|| typeof params.containerId == 'undefined'
+			|| typeof params.className == 'undefined'
+		)
+		{
+			return;
+		}
+
+		if (BX(params.containerId))
+		{
+			var
+				viewAreaList = BX.findChildren(BX(params.containerId), {'tag':'div', 'className': params.className}, true),
+				fullContentArea = null;
+
+			for (var i = 0, length = viewAreaList.length; i < length; i++)
+			{
+				if (viewAreaList[i].id.length > 0)
+				{
+					fullContentArea = null;
+					if (BX.type.isNotEmptyString(params.fullContentClassName))
+					{
+						fullContentArea = BX.findChild(viewAreaList[i], {
+							className: params.fullContentClassName
+						});
+					}
+
+					BX.UserContentView.registerViewArea(viewAreaList[i].id, (fullContentArea ? fullContentArea : null));
+				}
+			}
+		}
+	};
+})();
+

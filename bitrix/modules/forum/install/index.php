@@ -149,8 +149,8 @@ Class forum extends CModule
 	var $MODULE_DESCRIPTION;
 	var $MODULE_CSS;
 	var $MODULE_GROUP_RIGHTS = "Y";
-	
-	function forum()
+
+	function __construct()
 	{
 		$arModuleVersion = array();
 
@@ -223,11 +223,17 @@ Class forum extends CModule
 		RegisterModuleDependences("im", "OnGetNotifySchema", "forum", "CForumNotifySchema", "OnGetNotifySchema");
 
 		RegisterModuleDependences("main", "OnAfterRegisterModule", "main", "forum", "InstallUserFields", 100, "/modules/forum/install/index.php");
+		RegisterModuleDependences("rest", "OnRestServiceBuildDescription", "forum", "CForumRestService", "OnRestServiceBuildDescription");
 
 		RegisterModuleDependences('conversion', 'OnGetCounterTypes' , 'forum', '\Bitrix\Forum\Internals\ConversionHandlers', 'onGetCounterTypes');
 		RegisterModuleDependences('conversion', 'OnGetRateTypes' , 'forum', '\Bitrix\Forum\Internals\ConversionHandlers', 'onGetRateTypes');
 		RegisterModuleDependences('forum', 'onAfterTopicAdd', 'forum', '\Bitrix\Forum\Internals\ConversionHandlers', 'onTopicAdd');
 		RegisterModuleDependences('forum', 'onAfterMessageAdd', 'forum', '\Bitrix\Forum\Internals\ConversionHandlers', 'onMessageAdd');
+
+		$eventManager = \Bitrix\Main\EventManager::getInstance();
+		$eventManager->registerEventHandler('socialnetwork', 'onLogIndexGetContent', 'forum', '\Bitrix\Forum\Integration\Socialnetwork\Log', 'onIndexGetContent');
+		$eventManager->registerEventHandler('socialnetwork', 'onLogCommentIndexGetContent', 'forum', '\Bitrix\Forum\Integration\Socialnetwork\LogComment', 'onIndexGetContent');
+		$eventManager->registerEventHandler('socialnetwork', 'onContentViewed', 'forum', '\Bitrix\Forum\Integration\Socialnetwork\ContentViewHandler', 'onContentViewed');
 
 		if ($GLOBALS["DB"]->TableExists("b_forum_pm_folder") || $GLOBALS["DB"]->TableExists("B_FORUM_PM_FOLDER"))
 		{
@@ -284,6 +290,7 @@ Class forum extends CModule
 		}
 		COption::SetOptionString("forum", "FILTER", "N");
 		$this->InstallUserFields();
+
 		return true;
 	}
 	
@@ -355,6 +362,12 @@ Class forum extends CModule
 		UnRegisterModuleDependences('forum', 'onAfterMessageAdd', 'forum', '\Bitrix\Forum\Internals\ConversionHandlers', 'onMessageAdd');
 
 		UnRegisterModuleDependences("main", "OnAfterUserUpdate", "forum", "CForumUser", "OnAfterUserUpdate");
+		UnRegisterModuleDependences("rest", "OnRestServiceBuildDescription", "forum", "CForumRestService", "OnRestServiceBuildDescription");
+
+		$eventManager = \Bitrix\Main\EventManager::getInstance();
+		$eventManager->unregisterEventHandler('socialnetwork', 'onLogIndexGetContent', 'forum', '\Bitrix\Forum\Integration\Socialnetwork\Log', 'onIndexGetContent');
+		$eventManager->unregisterEventHandler('socialnetwork', 'onLogCommentIndexGetContent', 'forum', '\Bitrix\Forum\Integration\Socialnetwork\LogComment', 'onIndexGetContent');
+		$eventManager->unregisterEventHandler('socialnetwork', 'onContentViewed', 'forum', '\Bitrix\Forum\Integration\Socialnetwork\ContentViewHandler', 'onContentViewed');
 
 		CAgent::RemoveAgent("CForumTopic::CleanUp();","forum");
 		CAgent::RemoveAgent("CForumStat::CleanUp();","forum");
@@ -487,6 +500,34 @@ Class forum extends CModule
 						$errors = $strEx->getString();
 					}
 				}
+			}
+		}
+		$fields = array(
+			array(
+				"ENTITY_ID" => "FORUM_MESSAGE",
+				"FIELD_NAME" => "UF_FORUM_MES_URL_PRV"
+			),
+		);
+
+		$uf = new CUserTypeEntity;
+		foreach($fields as $field)
+		{
+			$fieldData = CUserTypeEntity::GetList(array($by=>$order), $field);
+			if(!$fieldData->Fetch())
+			{
+				$uf->add(array(
+					"ENTITY_ID" => $field["ENTITY_ID"],
+					"FIELD_NAME" => $field["FIELD_NAME"],
+					"XML_ID" => $field["FIELD_NAME"],
+					"USER_TYPE_ID" => 'url_preview',
+					"SORT" => 100,
+					"MULTIPLE" => 'N',
+					"MANDATORY" => "N",
+					"SHOW_FILTER" => "N",
+					"SHOW_IN_LIST" => "N",
+					"EDIT_IN_LIST" => "Y",
+					"IS_SEARCHABLE" => "N"
+				), false);
 			}
 		}
 		return $errors;

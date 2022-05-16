@@ -271,14 +271,14 @@ $map = Adv\YandexBannerTable::getMap();
 unset($map['GROUP']);
 unset($map['CAMPAIGN']);
 
-$campaignList = Adv\YandexBannerTable::getList(array(
+$bannerList = Adv\YandexBannerTable::getList(array(
 	'order' => array($by => $order),
 	'filter' => array(
 		"=ENGINE_ID" => $engine->getId(),
 		"=CAMPAIGN_ID" => $campaign['ID'],
 		'=ACTIVE' => $archive ? Adv\YandexBannerTable::INACTIVE : Adv\YandexBannerTable::ACTIVE,
 	),
-	"select" => array_keys($map),
+	"select" => ['*'],
 /*
 	'runtime' => array(
 		new Entity\ExpressionField(
@@ -290,7 +290,7 @@ $campaignList = Adv\YandexBannerTable::getList(array(
 */
 ));
 
-$data = new \CAdminResult($campaignList, $tableID);
+$data = new \CAdminResult($bannerList, $tableID);
 $data->NavStart();
 
 $arHeaders = array(
@@ -420,7 +420,7 @@ while($banner = $data->NavNext())
 				$rowActions[] = array(
 					"ICON" => "moderate",
 					"TEXT" => Loc::getMessage("SEO_BANNER_MODERATE"),
-					"ACTION" => $adminList->ActionDoGroup($banner['ID'], 'moderate', 'campaign='.$campaignId),
+					"ACTION" => "BX.adminPanel.showWait(BX('banner_update_button_".$banner['ID']."'));".$adminList->ActionDoGroup($banner['ID'], 'moderate', 'campaign='.$campaignId),
 				);
 			}
 			else
@@ -430,7 +430,7 @@ while($banner = $data->NavNext())
 					$rowActions[] = array(
 						"ICON" => "stop",
 						"TEXT" => Loc::getMessage("SEO_BANNER_STOP"),
-						"ACTION" => $adminList->ActionDoGroup($banner['ID'], 'stop', 'campaign='.$campaignId),
+						"ACTION" => "BX.adminPanel.showWait(BX('banner_update_button_".$banner['ID']."'));".$adminList->ActionDoGroup($banner['ID'], 'stop', 'campaign='.$campaignId),
 					);
 				}
 				else
@@ -438,7 +438,7 @@ while($banner = $data->NavNext())
 					$rowActions[] = array(
 						"ICON" => "start",
 						"TEXT" => Loc::getMessage("SEO_BANNER_RESUME"),
-						"ACTION" => $adminList->ActionDoGroup($banner['ID'], 'resume', 'campaign='.$campaignId),
+						"ACTION" => "BX.adminPanel.showWait(BX('banner_update_button_".$banner['ID']."'));".$adminList->ActionDoGroup($banner['ID'], 'resume', 'campaign='.$campaignId),
 					);
 				}
 			}

@@ -157,12 +157,6 @@ $arComponentParameters = array(
 				"VARIABLES" => array(),
 			),
 
-			"mail" => array(
-				"NAME" => GetMessage("SONET_SEF_PATH_MAIL"),
-				"DEFAULT" => "mail/",
-				"VARIABLES" => array(),
-			),
-
 			"message_form" => array(
 				"NAME" => GetMessage("SONET_SEF_PATH_MESSAGE_FORM"),
 				"DEFAULT" => "messages/form/#user_id#/",
@@ -330,20 +324,6 @@ $arComponentParameters = array(
 			"MULTIPLE" => "N",
 			"DEFAULT" => "/bitrix/images/blog/smile/",
 		),
-		"PATH_TO_FORUM_SMILE" => Array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_PATH_TO_FORUM_SMILE"),
-			"TYPE" => "STRING",
-			"MULTIPLE" => "N",
-			"DEFAULT" => "/bitrix/images/forum/smile/",
-		),
-		"SONET_PATH_TO_FORUM_ICON" => Array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_PATH_TO_FORUM_ICON"),
-			"TYPE" => "STRING",
-			"MULTIPLE" => "N",
-			"DEFAULT" => "/bitrix/images/forum/icon/",
-		),
 		"CACHE_TIME"  =>  Array("DEFAULT" => 3600),
 		"SET_TITLE" => Array(),
 		"CACHE_TIME_LONG" => array(
@@ -399,94 +379,118 @@ $arComponentParameters = array(
 			"VALUE" => "Y",
 			"DEFAULT" =>(IsModuleInstalled("intranet") ? "N" : "Y"),
 			"PARENT" => "VISUAL",
-		),
-		"USER_FIELDS_MAIN" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_USER_FIELDS_MAIN"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp1,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array(),
-		),
-		"USER_PROPERTY_MAIN" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_USER_PROPERTY_MAIN"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array(),
-		),
-		"USER_FIELDS_CONTACT" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_USER_FIELDS_CONTACT"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp1,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array(),
-		),
-		"USER_PROPERTY_CONTACT" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_USER_PROPERTY_CONTACT"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array(),
-		),
-		"USER_FIELDS_PERSONAL" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_USER_FIELDS_PERSONAL"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp1,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array(),
-		),
-		"USER_PROPERTY_PERSONAL" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_USER_PROPERTY_PERSONAL"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array(),
-		),
-		"SET_NAV_CHAIN" => Array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_SET_NAVCHAIN"),
-			"TYPE" => "CHECKBOX",
-			"DEFAULT" => "Y"
-		),
-		"PATH_TO_GROUP" => Array(
-			"NAME" => GetMessage("SONET_PATH_TO_GROUP"),
-			"TYPE" => "STRING",
-			"MULTIPLE" => "N",
-			"DEFAULT" => "",
-			"COLS" => 25,
-			"PARENT" => "URL_TEMPLATES",
-		),
-		"PATH_TO_GROUP_SUBSCRIBE" => Array(
-			"NAME" => GetMessage("SONET_PATH_TO_GROUP_SUBSCRIBE"),
-			"TYPE" => "STRING",
-			"MULTIPLE" => "N",
-			"DEFAULT" => "",
-			"COLS" => 25,
-			"PARENT" => "URL_TEMPLATES",
-		),
+		)
+	)
+);
 
-		"PATH_TO_GROUP_SEARCH" => Array(
-			"NAME" => GetMessage("SONET_PATH_TO_GROUP_SEARCH"),
-			"TYPE" => "STRING",
-			"MULTIPLE" => "N",
-			"DEFAULT" => "",
-			"COLS" => 25,
-			"PARENT" => "URL_TEMPLATES",
-		),
-		"PATH_TO_SEARCH_EXTERNAL" => Array(
-			"NAME" => GetMessage("SONET_PATH_TO_SEARCH_EXTERNAL"),
-			"TYPE" => "STRING",
-			"MULTIPLE" => "N",
-			"DEFAULT" => "",
-			"COLS" => 25,
-			"PARENT" => "URL_TEMPLATES",
-		),
+$viewFields = \Bitrix\Main\Config\Option::get("intranet", "user_profile_view_fields", false, $tmp_site_id);
+$editFields = \Bitrix\Main\Config\Option::get("intranet", "user_profile_edit_fields", false, $tmp_site_id);
+
+if ($viewFields === false)
+{
+	$arComponentParameters["PARAMETERS"]["ALLOWALL_USER_PROFILE_FIELDS"] = array(
+		"PARENT" => "ADDITIONAL_SETTINGS",
+		"NAME" => GetMessage("SONET_USER_ALLOWALL_USER_PROFILE_FIELDS"),
+		"TYPE" => "CHECKBOX",
+		"MULTIPLE" => "N",
+		"VALUE" => "Y",
+		"DEFAULT" =>(IsModuleInstalled("bitrix24") ? "Y" : "N"),
+		"REFRESH" => "Y",
+	);
+}
+
+if (
+	$arCurrentValues["ALLOWALL_USER_PROFILE_FIELDS"] != 'Y'
+	&& $viewFields === false
+)
+{
+	$arComponentParameters["PARAMETERS"]["USER_FIELDS_MAIN"] = array(
+		"PARENT" => "ADDITIONAL_SETTINGS",
+		"NAME" => GetMessage("SONET_USER_FIELDS_MAIN"),
+		"TYPE" => "LIST",
+		"VALUES" => $userProp1,
+		"MULTIPLE" => "Y",
+		"DEFAULT" => array(),
+	);
+	$arComponentParameters["PARAMETERS"]["USER_PROPERTY_MAIN"] = array(
+		"PARENT" => "ADDITIONAL_SETTINGS",
+		"NAME" => GetMessage("SONET_USER_PROPERTY_MAIN"),
+		"TYPE" => "LIST",
+		"VALUES" => $userProp,
+		"MULTIPLE" => "Y",
+		"DEFAULT" => array(),
+	);
+	$arComponentParameters["PARAMETERS"]["USER_FIELDS_CONTACT"] = array(
+		"PARENT" => "ADDITIONAL_SETTINGS",
+		"NAME" => GetMessage("SONET_USER_FIELDS_CONTACT"),
+		"TYPE" => "LIST",
+		"VALUES" => $userProp1,
+		"MULTIPLE" => "Y",
+		"DEFAULT" => array(),
+	);
+	$arComponentParameters["PARAMETERS"]["USER_PROPERTY_CONTACT"] = array(
+		"PARENT" => "ADDITIONAL_SETTINGS",
+		"NAME" => GetMessage("SONET_USER_PROPERTY_CONTACT"),
+		"TYPE" => "LIST",
+		"VALUES" => $userProp,
+		"MULTIPLE" => "Y",
+		"DEFAULT" => array(),
+	);
+	$arComponentParameters["PARAMETERS"]["USER_FIELDS_PERSONAL"] = array(
+		"PARENT" => "ADDITIONAL_SETTINGS",
+		"NAME" => GetMessage("SONET_USER_FIELDS_PERSONAL"),
+		"TYPE" => "LIST",
+		"VALUES" => $userProp1,
+		"MULTIPLE" => "Y",
+		"DEFAULT" => array(),
+	);
+	$arComponentParameters["PARAMETERS"]["USER_PROPERTY_PERSONAL"] = array(
+		"PARENT" => "ADDITIONAL_SETTINGS",
+		"NAME" => GetMessage("SONET_USER_PROPERTY_PERSONAL"),
+		"TYPE" => "LIST",
+		"VALUES" => $userProp,
+		"MULTIPLE" => "Y",
+		"DEFAULT" => array(),
+	);
+}
+$arComponentParameters["PARAMETERS"]["SET_NAV_CHAIN"] = Array(
+	"PARENT" => "ADDITIONAL_SETTINGS",
+	"NAME" => GetMessage("SONET_SET_NAVCHAIN"),
+	"TYPE" => "CHECKBOX",
+	"DEFAULT" => "Y"
+);
+$arComponentParameters["PARAMETERS"]["PATH_TO_GROUP"] = Array(
+	"NAME" => GetMessage("SONET_PATH_TO_GROUP"),
+	"TYPE" => "STRING",
+	"MULTIPLE" => "N",
+	"DEFAULT" => "",
+	"COLS" => 25,
+	"PARENT" => "URL_TEMPLATES",
+);
+$arComponentParameters["PARAMETERS"]["PATH_TO_GROUP_SUBSCRIBE"] = Array(
+	"NAME" => GetMessage("SONET_PATH_TO_GROUP_SUBSCRIBE"),
+	"TYPE" => "STRING",
+	"MULTIPLE" => "N",
+	"DEFAULT" => "",
+	"COLS" => 25,
+	"PARENT" => "URL_TEMPLATES",
+);
+$arComponentParameters["PARAMETERS"]["PATH_TO_GROUP_SEARCH"] = Array(
+	"NAME" => GetMessage("SONET_PATH_TO_GROUP_SEARCH"),
+	"TYPE" => "STRING",
+	"MULTIPLE" => "N",
+	"DEFAULT" => "",
+	"COLS" => 25,
+	"PARENT" => "URL_TEMPLATES",
+);
+$arComponentParameters["PARAMETERS"]["PATH_TO_SEARCH_EXTERNAL"] = Array(
+	"NAME" => GetMessage("SONET_PATH_TO_SEARCH_EXTERNAL"),
+	"TYPE" => "STRING",
+	"MULTIPLE" => "N",
+	"DEFAULT" => "",
+	"COLS" => 25,
+	"PARENT" => "URL_TEMPLATES",
+);
 /*
 		"AJAX_LONG_TIMEOUT" => array(
 			"PARENT" => "ADDITIONAL_SETTINGS",
@@ -496,91 +500,93 @@ $arComponentParameters = array(
 		),
 		"AJAX_MODE" => Array(),
 */
-		"EDITABLE_FIELDS"=>array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_EDITABLE_FIELDS"),
-			"TYPE" => "LIST",
-			"VALUES" => array_merge($userPropEdit, $userProp),
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array('LOGIN', 'NAME', 'SECOND_NAME', 'LAST_NAME', 'EMAIL', 'PERSONAL_BIRTHDAY', 'PERSONAL_CITY', 'PERSONAL_COUNTRY', 'PERSONAL_FAX', 'PERSONAL_GENDER', 'PERSONAL_ICQ', 'PERSONAL_MAILBOX', 'PERSONAL_MOBILE', 'PERSONAL_PAGER', 'PERSONAL_PHONE', 'PERSONAL_PHOTO', 'PERSONAL_STATE', 'PERSONAL_STREET', 'PERSONAL_WWW', 'PERSONAL_ZIP'),
-		),
-		"SHOW_YEAR" => Array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_SHOW_YEAR"),
-			"TYPE" => "LIST",
-			"VALUES" => array(
-				"Y" => GetMessage("SONET_SHOW_YEAR_VALUE_Y"),
-				"M" => GetMessage("SONET_SHOW_YEAR_VALUE_M"),
-				"N" => GetMessage("SONET_SHOW_YEAR_VALUE_N")
-			),
-			"MULTIPLE" => "N",
-			"DEFAULT" => "Y"
-		),
-		"USER_FIELDS_SEARCH_SIMPLE" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_USER_FIELDS_SEARCH_SIMPLE"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp1,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array("PERSONAL_GENDER", "PERSONAL_CITY"),
-		),
-		"USER_PROPERTIES_SEARCH_SIMPLE" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_USER_PROPERTIES_SEARCH_SIMPLE"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array(),
-		),
-		"USER_FIELDS_SEARCH_ADV" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_USER_FIELDS_SEARCH_ADV"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp1,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array("PERSONAL_GENDER", "PERSONAL_CITY", "PERSONAL_COUNTRY"),
-		),
-		"USER_PROPERTIES_SEARCH_ADV" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_USER_PROPERTIES_SEARCH_ADV"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array(),
-		),
-		"SONET_USER_FIELDS_LIST" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_SONET_USER_FIELDS_LIST"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp1,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array("PERSONAL_GENDER", "PERSONAL_BIRTHDAY", "PERSONAL_CITY"),
-		),
-		"SONET_USER_PROPERTY_LIST" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_SONET_USER_PROPERTY_LIST"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array(),
-		),
-		"SONET_USER_FIELDS_SEARCHABLE" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_SONET_USER_FIELDS_SEARCHABLE"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp1,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array("NAME", "SECOND_NAME", "LAST_NAME", "LOGIN", "PERSONAL_BIRTHDAY", "PERSONAL_BIRTHDAY_YEAR", "PERSONAL_BIRTHDAY_DAY", "PERSONAL_PROFESSION", "PERSONAL_GENDER", "PERSONAL_COUNTRY", "PERSONAL_STATE", "PERSONAL_CITY", "PERSONAL_ZIP", "PERSONAL_STREET", "PERSONAL_MAILBOX", "WORK_COMPANY", "WORK_DEPARTMENT", "WORK_POSITION", "WORK_COUNTRY", "WORK_STATE", "WORK_CITY", "WORK_ZIP", "WORK_STREET", "WORK_MAILBOX"),
-		),
-		"SONET_USER_PROPERTY_SEARCHABLE" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("SONET_SONET_USER_PROPERTY_SEARCHABLE"),
-			"TYPE" => "LIST",
-			"VALUES" => $userProp,
-			"MULTIPLE" => "Y",
-			"DEFAULT" => array(),
-		),
+if ($editFields === false)
+{
+	$arComponentParameters["PARAMETERS"]["EDITABLE_FIELDS"] = array(
+		"PARENT" => "ADDITIONAL_SETTINGS",
+		"NAME" => GetMessage("SONET_EDITABLE_FIELDS"),
+		"TYPE" => "LIST",
+		"VALUES" => array_merge($userPropEdit, $userProp),
+		"MULTIPLE" => "Y",
+		"DEFAULT" => array('LOGIN', 'NAME', 'SECOND_NAME', 'LAST_NAME', 'EMAIL', 'PERSONAL_BIRTHDAY', 'PERSONAL_CITY', 'PERSONAL_COUNTRY', 'PERSONAL_FAX', 'PERSONAL_GENDER', 'PERSONAL_ICQ', 'PERSONAL_MAILBOX', 'PERSONAL_MOBILE', 'PERSONAL_PAGER', 'PERSONAL_PHONE', 'PERSONAL_PHOTO', 'PERSONAL_STATE', 'PERSONAL_STREET', 'PERSONAL_WWW', 'PERSONAL_ZIP'),
+	);
+}
+
+$arComponentParameters["PARAMETERS"]["SHOW_YEAR"] = Array(
+	"PARENT" => "ADDITIONAL_SETTINGS",
+	"NAME" => GetMessage("SONET_SHOW_YEAR"),
+	"TYPE" => "LIST",
+	"VALUES" => array(
+		"Y" => GetMessage("SONET_SHOW_YEAR_VALUE_Y"),
+		"M" => GetMessage("SONET_SHOW_YEAR_VALUE_M"),
+		"N" => GetMessage("SONET_SHOW_YEAR_VALUE_N")
 	),
+	"MULTIPLE" => "N",
+	"DEFAULT" => "Y"
+);
+$arComponentParameters["PARAMETERS"]["USER_FIELDS_SEARCH_SIMPLE"] = array(
+	"PARENT" => "ADDITIONAL_SETTINGS",
+	"NAME" => GetMessage("SONET_USER_FIELDS_SEARCH_SIMPLE"),
+	"TYPE" => "LIST",
+	"VALUES" => $userProp1,
+	"MULTIPLE" => "Y",
+	"DEFAULT" => array("PERSONAL_GENDER", "PERSONAL_CITY"),
+);
+$arComponentParameters["PARAMETERS"]["USER_PROPERTIES_SEARCH_SIMPLE"] = array(
+	"PARENT" => "ADDITIONAL_SETTINGS",
+	"NAME" => GetMessage("SONET_USER_PROPERTIES_SEARCH_SIMPLE"),
+	"TYPE" => "LIST",
+	"VALUES" => $userProp,
+	"MULTIPLE" => "Y",
+	"DEFAULT" => array(),
+);
+$arComponentParameters["PARAMETERS"]["USER_FIELDS_SEARCH_ADV"] = array(
+	"PARENT" => "ADDITIONAL_SETTINGS",
+	"NAME" => GetMessage("SONET_USER_FIELDS_SEARCH_ADV"),
+	"TYPE" => "LIST",
+	"VALUES" => $userProp1,
+	"MULTIPLE" => "Y",
+	"DEFAULT" => array("PERSONAL_GENDER", "PERSONAL_CITY", "PERSONAL_COUNTRY"),
+);
+$arComponentParameters["PARAMETERS"]["USER_PROPERTIES_SEARCH_ADV"] = array(
+	"PARENT" => "ADDITIONAL_SETTINGS",
+	"NAME" => GetMessage("SONET_USER_PROPERTIES_SEARCH_ADV"),
+	"TYPE" => "LIST",
+	"VALUES" => $userProp,
+	"MULTIPLE" => "Y",
+	"DEFAULT" => array(),
+);
+$arComponentParameters["PARAMETERS"]["SONET_USER_FIELDS_LIST"] = array(
+	"PARENT" => "ADDITIONAL_SETTINGS",
+	"NAME" => GetMessage("SONET_SONET_USER_FIELDS_LIST"),
+	"TYPE" => "LIST",
+	"VALUES" => $userProp1,
+	"MULTIPLE" => "Y",
+	"DEFAULT" => array("PERSONAL_GENDER", "PERSONAL_BIRTHDAY", "PERSONAL_CITY"),
+);
+$arComponentParameters["PARAMETERS"]["SONET_USER_PROPERTY_LIST"] = array(
+	"PARENT" => "ADDITIONAL_SETTINGS",
+	"NAME" => GetMessage("SONET_SONET_USER_PROPERTY_LIST"),
+	"TYPE" => "LIST",
+	"VALUES" => $userProp,
+	"MULTIPLE" => "Y",
+	"DEFAULT" => array(),
+);
+$arComponentParameters["PARAMETERS"]["SONET_USER_FIELDS_SEARCHABLE"] = array(
+	"PARENT" => "ADDITIONAL_SETTINGS",
+	"NAME" => GetMessage("SONET_SONET_USER_FIELDS_SEARCHABLE"),
+	"TYPE" => "LIST",
+	"VALUES" => $userProp1,
+	"MULTIPLE" => "Y",
+	"DEFAULT" => array("NAME", "SECOND_NAME", "LAST_NAME", "LOGIN", "PERSONAL_BIRTHDAY", "PERSONAL_BIRTHDAY_YEAR", "PERSONAL_BIRTHDAY_DAY", "PERSONAL_PROFESSION", "PERSONAL_GENDER", "PERSONAL_COUNTRY", "PERSONAL_STATE", "PERSONAL_CITY", "PERSONAL_ZIP", "PERSONAL_STREET", "PERSONAL_MAILBOX", "WORK_COMPANY", "WORK_DEPARTMENT", "WORK_POSITION", "WORK_COUNTRY", "WORK_STATE", "WORK_CITY", "WORK_ZIP", "WORK_STREET", "WORK_MAILBOX"),
+);
+$arComponentParameters["PARAMETERS"]["SONET_USER_PROPERTY_SEARCHABLE"] = array(
+	"PARENT" => "ADDITIONAL_SETTINGS",
+	"NAME" => GetMessage("SONET_SONET_USER_PROPERTY_SEARCHABLE"),
+	"TYPE" => "LIST",
+	"VALUES" => $userProp,
+	"MULTIPLE" => "Y",
+	"DEFAULT" => array(),
 );
 
 if (CModule::IncludeModule("intranet"))
@@ -924,66 +930,7 @@ if (CModule::IncludeModule("intranet"))
 		"PARENT" => "URL_TEMPLATES",
 	);
 
-	$arIBlockTypeTask = array();
-	$rsIBlockTypeTask = CIBlockType::GetList(array("sort"=>"asc"), array("ACTIVE"=>"Y"));
-	while ($arrTask=$rsIBlockTypeTask->Fetch())
-	{
-		if($arTask=CIBlockType::GetByIDLang($arrTask["ID"], LANGUAGE_ID))
-			$arIBlockTypeTask[$arrTask["ID"]] = "[".$arrTask["ID"]."] ".$arTask["NAME"];
-	}
-
-	$arIBlockTask=array();
-	$rsIBlockTask = CIBlock::GetList(Array("sort" => "asc"), Array("TYPE" => $arCurrentValues["TASK_IBLOCK_TYPE"], "ACTIVE"=>"Y"));
-	while($arrTask=$rsIBlockTask->Fetch())
-		$arIBlockTask[$arrTask["ID"]] = "[".$arrTask["ID"]."] ".$arrTask["NAME"];
-
-	$arTasksFields = array(
-		"ID" => "[ID] ".GetMessage("INTL_TF_ID"),
-		"NAME" => "[NAME] ".GetMessage("INTL_TF_NAME"),
-		"CODE" => "[CODE] ".GetMessage("INTL_TF_CODE"),
-		"XML_ID" => "[XML_ID] ".GetMessage("INTL_TF_XML_ID"),
-		"MODIFIED_BY" => "[MODIFIED_BY] ".GetMessage("INTL_TF_MODIFIED_BY"),
-		"DATE_CREATE" => "[DATE_CREATE] ".GetMessage("INTL_TF_DATE_CREATE"),
-		"CREATED_BY" => "[CREATED_BY] ".GetMessage("INTL_TF_CREATED_BY"),
-		"DATE_ACTIVE_FROM" => "[DATE_ACTIVE_FROM] ".GetMessage("INTL_TF_DATE_ACTIVE_FROM"),
-		"DATE_ACTIVE_TO" => "[DATE_ACTIVE_TO] ".GetMessage("INTL_TF_DATE_ACTIVE_TO"),
-		"IBLOCK_SECTION" => "[IBLOCK_SECTION] ".GetMessage("INTL_TF_IBLOCK_SECTION"),
-		"DETAIL_TEXT" => "[DETAIL_TEXT] ".GetMessage("INTL_TF_DETAIL_TEXT"),
-	);
-
-	$dbTasksCustomProps = CIBlockProperty::GetList(
-		array("sort" => "asc", "name" => "asc"),
-		array("ACTIVE" => "Y", "IBLOCK_ID" => $arCurrentValues["TASK_IBLOCK_ID"])
-	);
-	while ($arTasksCustomProp = $dbTasksCustomProps->Fetch())
-	{
-		$ind = ((StrLen($arTasksCustomProp["CODE"]) > 0) ? $arTasksCustomProp["CODE"] : $arTasksCustomProp["ID"]);
-		$arTasksFields[StrToUpper($ind)] = "[".$ind."] ".$arTasksCustomProp["NAME"];
-	}
-
 	$arComponentParameters["GROUPS"]["TASKS"] = array("NAME" => GetMessage("INT_TASKS_GROUP"));
-
-	$arComponentParameters["PARAMETERS"]["TASK_IBLOCK_TYPE"] = Array(
-		"PARENT" => "TASKS",
-		"NAME" => GetMessage("INTL_TASK_IBLOCK_TYPE"),
-		"TYPE" => "LIST",
-		"VALUES" => $arIBlockTypeTask,
-		"REFRESH" => "Y",
-	);
-	$arComponentParameters["PARAMETERS"]["TASK_IBLOCK_ID"] = array(
-		"PARENT" => "TASKS",
-		"NAME" => GetMessage("INTL_TASK_IBLOCK"),
-		"TYPE" => "LIST",
-		"VALUES" => $arIBlockTask,
-		"REFRESH" => "Y",
-	);
-	$arComponentParameters["PARAMETERS"]["TASKS_FIELDS_SHOW"] = array(
-		"PARENT" => "TASKS",
-		"NAME" => GetMessage("INTL_TASKS_FIELDS_SHOW"),
-		"TYPE" => "LIST",
-		"MULTIPLE" => "Y",
-		"VALUES" => $arTasksFields,
-	);
 
 	if (CModule::IncludeModule("forum"))
 	{
@@ -1209,13 +1156,13 @@ if(CModule::IncludeModule("blog"))
 	$arComponentParameters["PARAMETERS"]["BLOG_IMAGE_MAX_WIDTH"] = Array(
 				"NAME" => GetMessage("BPC_IMAGE_MAX_WIDTH"),
 				"TYPE" => "STRING",
-				"DEFAULT" => 800,
+				"DEFAULT" => COption::GetOptionString('blog', 'image_max_width'),
 				"PARENT" => "BLOG_SETTINGS",
 			);
 	$arComponentParameters["PARAMETERS"]["BLOG_IMAGE_MAX_HEIGHT"] = Array(
 				"NAME" => GetMessage("BPC_IMAGE_MAX_HEIGHT"),
 				"TYPE" => "STRING",
-				"DEFAULT" => 800,
+				"DEFAULT" => COption::GetOptionString('blog', 'image_max_height'),
 				"PARENT" => "BLOG_SETTINGS",
 			);
 	$arComponentParameters["PARAMETERS"]["BLOG_COMMENT_AJAX_POST"] = Array(
@@ -1370,8 +1317,7 @@ if (CModule::IncludeModule("forum"))
 				$rVoteChannels = CAllVoteChannel::GetList($by, $order, array('ACTIVE' => 'Y'), $is_filtered);
 				if ($rVoteChannels)
 				{
-
-					__IncludeLang($_SERVER["DOCUMENT_ROOT"].BX_PERSONAL_ROOT."/components/bitrix/voting.current/lang/".LANGUAGE_ID."/.parameters.php");
+					\Bitrix\Main\Localization\Loc::loadLanguageFile($_SERVER["DOCUMENT_ROOT"].BX_PERSONAL_ROOT."/components/bitrix/voting.current/.parameters.php");
 
 					$defaultVoteChannel = -1;
 					while ($arVoteChannel = $rVoteChannels->Fetch())

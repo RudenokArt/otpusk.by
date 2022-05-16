@@ -7,316 +7,241 @@ use Bitrix\Bizproc\FieldType;
 use Bitrix\Disk\File;
 use Bitrix\Main\Loader;
 
-class UserTypePropertyDiskFile extends UserTypeProperty
+if (Loader::requireModule('bizproc'))
 {
-	/**
-	 * @return string
-	 */
-	public static function getType()
+	class UserTypePropertyDiskFile extends UserTypeProperty
 	{
-		return FieldType::INT;
-	}
-
-	public static function formatValueMultiple(FieldType $fieldType, $value, $format = 'printable')
-	{
-		if (!is_array($value) || is_array($value) && \CBPHelper::isAssociativeArray($value))
-			$value = array($value);
-
-		foreach ($value as $k => $v)
+		/**
+		 * @return string
+		 */
+		public static function getType()
 		{
-			$value[$k] = static::formatValuePrintable($fieldType, $v);
+			return FieldType::INT;
 		}
 
-		return implode(static::getFormatSeparator($format), $value);
-	}
-
-	public static function formatValueSingle(FieldType $fieldType, $value, $format = 'printable')
-	{
-		return static::formatValueMultiple($fieldType, $value, $format);
-	}
-
-	/**
-	 * @param FieldType $fieldType
-	 * @param $value
-	 * @return string
-	 */
-	protected static function formatValuePrintable(FieldType $fieldType, $value)
-	{
-		if(!Loader::includeModule('disk'))
+		public static function formatValueMultiple(FieldType $fieldType, $value, $format = 'printable')
 		{
-			return '';
+			if (!is_array($value) || is_array($value) && \CBPHelper::isAssociativeArray($value))
+				$value = array($value);
+
+			foreach ($value as $k => $v)
+			{
+				$value[$k] = static::formatValuePrintable($fieldType, $v);
+			}
+
+			return implode(static::getFormatSeparator($format), $value);
 		}
 
-		$userFieldManager = \Bitrix\Disk\Driver::getInstance()->getUserFieldManager();
-		list($connectorClass, $moduleId) = $userFieldManager->getConnectorDataByEntityType('lists_workflow');
-		$documentType = $fieldType->getDocumentType();
-		$iblockId = str_replace('iblock_', '', $documentType[2]);
-
-		$attachedModel = \Bitrix\Disk\AttachedObject::load(array(
-			'OBJECT_ID' => $value,
-			'=ENTITY_TYPE' => $connectorClass,
-			'=ENTITY_ID' => $iblockId,
-			'=MODULE_ID' => $moduleId
-		));
-		if(!$attachedModel)
+		public static function formatValueSingle(FieldType $fieldType, $value, $format = 'printable')
 		{
-			return '';
+			return static::formatValueMultiple($fieldType, $value, $format);
 		}
 
-		global $USER;
-		$userId = $USER->getID();
-		if($userId)
+		/**
+		 * @param FieldType $fieldType
+		 * @param $value
+		 * @return string
+		 */
+		protected static function formatValuePrintable(FieldType $fieldType, $value)
 		{
-			if(!$attachedModel->canRead($userId))
+			$iblockId = self::getIblockId($fieldType);
+
+			$property = static::getUserType($fieldType);
+			if (array_key_exists('GetUrlAttachedFileWorkflow', $property))
+			{
+				return call_user_func_array($property['GetUrlAttachedFileWorkflow'], array($iblockId, $value));
+			}
+			else
 			{
 				return '';
 			}
 		}
 
-		$file = $attachedModel->getFile();
-		if(!$file)
-		{
-			return '';
-		}
-
-		$driver = \Bitrix\Disk\Driver::getInstance();
-		$urlManager = $driver->getUrlManager();
-
-		return '[url='.$urlManager->getUrlUfController('download', array('attachedId' => $attachedModel->getId())
-			).']'.htmlspecialcharsbx($file->getName()).'[/url]';
-	}
-
-	/**
-	 * @param FieldType $fieldType Document field object.
-	 * @param mixed $value Field value.
-	 * @param string $toTypeClass Type class manager name.
-	 * @return null|mixed
-	 */
-	public static function convertTo(FieldType $fieldType, $value, $toTypeClass)
-	{
-		if (is_subclass_of($toTypeClass, '\Bitrix\Iblock\BizprocType\UserTypePropertyDiskFile'))
-		{
-			return $value;
-		}
-
-		if (is_array($value) && isset($value['VALUE']))
-			$value = $value['VALUE'];
-
-		$value = (int) $value;
-
-		/** @var Base $toTypeClass */
-		$type = $toTypeClass::getType();
-		switch ($type)
-		{
-			case FieldType::FILE:
-				$diskFile = File::getById($value);
-				$value = $diskFile? $diskFile->getFileId() : null;
-				break;
-			default:
-				$value = null;
-		}
-
-		return $value;
-	}
-
-	/**
-	 * @param FieldType $fieldType Document field object.
-	 * @param array $field Form field information.
-	 * @param mixed $value Field value.
-	 * @param bool $allowSelection Allow selection flag.
-	 * @param int $renderMode Control render mode.
-	 * @return string
-	 */
-	public static function renderControlSingle(FieldType $fieldType, array $field, $value, $allowSelection, $renderMode)
-	{
-		return static::renderControlMultiple($fieldType, $field, $value, $allowSelection, $renderMode);
-	}
-
-	/**
-	 * @param FieldType $fieldType Document field object.
-	 * @param array $field Form field information.
-	 * @param mixed $value Field value.
-	 * @param bool $allowSelection Allow selection flag.
-	 * @param int $renderMode Control render mode.
-	 * @return string
-	 */
-	public static function renderControlMultiple(FieldType $fieldType, array $field, $value, $allowSelection, $renderMode)
-	{
-		if ($allowSelection)
-		{
-			$selectorValue = null;
-			if(is_array($value))
-			{
-				$value = current($value);
-			}
-			if (\CBPActivity::isExpression($value))
-			{
-				$selectorValue = $value;
-				$value = null;
-			}
-			return static::renderControlSelector($field, $selectorValue, true);
-		}
-
-		if ($renderMode & FieldType::RENDER_MODE_DESIGNER)
-			return '';
-
-		$userType = static::getUserType($fieldType);
-		$documentType = $fieldType->getDocumentType();
-		$iblockId = str_replace('iblock_', '', $documentType[2]);
-
-		if (!empty($userType['GetPublicEditHTML']))
+		/**
+		 * @param FieldType $fieldType Document field object.
+		 * @param mixed $value Field value.
+		 * @param string $toTypeClass Type class manager name.
+		 * @return null|mixed
+		 */
+		public static function convertTo(FieldType $fieldType, $value, $toTypeClass)
 		{
 			if (is_array($value) && isset($value['VALUE']))
 				$value = $value['VALUE'];
 
-			$fieldName = static::generateControlName($field);
-			$renderResult = call_user_func_array(
-				$userType['GetPublicEditHTML'],
+			$value = (int) $value;
+
+			/** @var Base $toTypeClass */
+			$type = $toTypeClass::getType();
+			switch ($type)
+			{
+				case FieldType::FILE:
+					$diskFile = File::getById($value);
+					$value = $diskFile? $diskFile->getFileId() : null;
+					break;
+				default:
+					$value = null;
+			}
+
+			return $value;
+		}
+
+		/**
+		 * Return conversion map for current type.
+		 * @return array Map.
+		 */
+		public static function getConversionMap()
+		{
+			return array(
 				array(
-					array(
-						'IBLOCK_ID' => $iblockId,
-						'IS_REQUIRED' => $fieldType->isRequired()? 'Y' : 'N',
-						'PROPERTY_USER_TYPE' => $userType
-					),
-					array('VALUE' => $value),
-					array(
-						'FORM_NAME' => $field['Form'],
-						'VALUE' => $fieldName,
-						'DESCRIPTION' => '',
-					),
-					true
+					FieldType::FILE
 				)
 			);
 		}
-		else
-			$renderResult = static::renderControl($fieldType, $field, $value, $allowSelection, $renderMode);
 
-		return $renderResult;
-	}
-
-	public static function extractValueSingle(FieldType $fieldType, array $field, array $request)
-	{
-		return static::extractValueMultiple($fieldType, $field, $request);
-	}
-
-	public static function extractValue(FieldType $fieldType, array $field, array $request)
-	{
-		if(!Loader::includeModule('disk'))
+		/**
+		 * @param FieldType $fieldType Document field object.
+		 * @param array $field Form field information.
+		 * @param mixed $value Field value.
+		 * @param bool $allowSelection Allow selection flag.
+		 * @param int $renderMode Control render mode.
+		 * @return string
+		 */
+		public static function renderControlSingle(FieldType $fieldType, array $field, $value, $allowSelection, $renderMode)
 		{
-			return null;
+			return static::renderControlMultiple($fieldType, $field, $value, $allowSelection, $renderMode);
 		}
 
-		$value = parent::extractValue($fieldType, $field, $request);
-		if (is_array($value) && isset($value['VALUE']))
+		/**
+		 * @param FieldType $fieldType Document field object.
+		 * @param array $field Form field information.
+		 * @param mixed $value Field value.
+		 * @param bool $allowSelection Allow selection flag.
+		 * @param int $renderMode Control render mode.
+		 * @return string
+		 */
+		public static function renderControlMultiple(FieldType $fieldType, array $field, $value, $allowSelection, $renderMode)
 		{
-			$value = $value['VALUE'];
-		}
-
-		if(!$value)
-		{
-			return null;
-		}
-
-		// Attach file disk
-		$userFieldManager = \Bitrix\Disk\Driver::getInstance()->getUserFieldManager();
-		list($connectorClass, $moduleId) = $userFieldManager->getConnectorDataByEntityType('lists_workflow');
-		list($type, $realId) = \Bitrix\Disk\Uf\FileUserType::detectType($value);
-
-		if($type != \Bitrix\Disk\Uf\FileUserType::TYPE_NEW_OBJECT)
-		{
-			return null;
-		}
-
-		$errorCollection = new \Bitrix\Disk\Internals\Error\ErrorCollection();
-		$fileModel = \Bitrix\Disk\File::loadById($realId, array('STORAGE'));
-		if(!$fileModel)
-		{
-			return null;
-		}
-
-		$documentType = $fieldType->getDocumentType();
-		$iblockId = intval(substr($documentType[2], strlen("iblock_")));
-		$attachedModel = \Bitrix\Disk\AttachedObject::load(array(
-			'OBJECT_ID' => $fileModel->getId(),
-			'=ENTITY_TYPE' => $connectorClass,
-			'=ENTITY_ID' => $iblockId,
-			'=MODULE_ID' => $moduleId
-		));
-		if($attachedModel)
-		{
-			return $fileModel->getId();
-		}
-
-
-		$securityContext = $fileModel->getStorage()->getCurrentUserSecurityContext();
-
-		if(!$fileModel->canRead($securityContext))
-		{
-			return null;
-		}
-
-		$canUpdate = $fileModel->canUpdate($securityContext);
-
-		global $USER;
-
-		$attachedModel = \Bitrix\Disk\AttachedObject::add(array(
-			'MODULE_ID' => $moduleId,
-			'OBJECT_ID' => $fileModel->getId(),
-			'ENTITY_ID' => $iblockId,
-			'ENTITY_TYPE' => $connectorClass,
-			'IS_EDITABLE' => (int)$canUpdate,
-			'ALLOW_EDIT' => (int) ($canUpdate && (int)\Bitrix\Main\Application::getInstance()->getContext()->getRequest()->getPost('DISK_FILE_'.$iblockId.'_DISK_ATTACHED_OBJECT_ALLOW_EDIT')),
-			'CREATED_BY' => $USER->getId(),
-		), $errorCollection);
-		if(!$attachedModel || $errorCollection->hasErrors())
-		{
-			return null;
-		}
-
-		return $fileModel->getId();
-	}
-
-	public static function clearValueSingle(FieldType $fieldType, $value)
-	{
-		static::clearValueMultiple($fieldType, $value);
-	}
-
-	public static function clearValueMultiple(FieldType $fieldType, $values)
-	{
-		if(!Loader::includeModule('disk'))
-		{
-			return;
-		}
-
-		if(!is_array($values))
-		{
-			$values = array($values);
-		}
-
-		$userFieldManager = \Bitrix\Disk\Driver::getInstance()->getUserFieldManager();
-		list($connectorClass, $moduleId) = $userFieldManager->getConnectorDataByEntityType('lists_workflow');
-		$documentType = $fieldType->getDocumentType();
-		$iblockId = intval(substr($documentType[2], strlen("iblock_")));
-		if(!$iblockId)
-		{
-			return;
-		}
-
-		foreach($values as $value)
-		{
-			$attachedModel = \Bitrix\Disk\AttachedObject::load(array(
-				'OBJECT_ID' => $value,
-				'=ENTITY_TYPE' => $connectorClass,
-				'=ENTITY_ID' => $iblockId,
-				'=MODULE_ID' => $moduleId
-			));
-			if(!$attachedModel)
+			if ($allowSelection)
 			{
-				continue;
+				$selectorValue = null;
+				if(is_array($value))
+				{
+					$value = current($value);
+				}
+				if (\CBPActivity::isExpression($value))
+				{
+					$selectorValue = $value;
+					$value = null;
+				}
+				return static::renderControlSelector($field, $selectorValue, true, '', $fieldType);
 			}
 
-			if($userFieldManager->belongsToEntity($attachedModel, "lists_workflow", $iblockId))
-				\Bitrix\Disk\AttachedObject::detachByFilter(array('ID' => $attachedModel->getId()));
+			if ($renderMode & FieldType::RENDER_MODE_DESIGNER)
+				return '';
+
+			$userType = static::getUserType($fieldType);
+			$iblockId = self::getIblockId($fieldType);
+
+			if (!empty($userType['GetPublicEditHTML']))
+			{
+				if (is_array($value) && isset($value['VALUE']))
+					$value = $value['VALUE'];
+
+				$fieldName = static::generateControlName($field);
+				$renderResult = call_user_func_array(
+					$userType['GetPublicEditHTML'],
+					array(
+						array(
+							'IBLOCK_ID' => $iblockId,
+							'IS_REQUIRED' => $fieldType->isRequired()? 'Y' : 'N',
+							'PROPERTY_USER_TYPE' => $userType
+						),
+						array('VALUE' => $value),
+						array(
+							'FORM_NAME' => $field['Form'],
+							'VALUE' => $fieldName,
+							'DESCRIPTION' => '',
+						),
+						true
+					)
+				);
+			}
+			else
+				$renderResult = static::renderControl($fieldType, $field, $value, $allowSelection, $renderMode);
+
+			return $renderResult;
 		}
+
+		public static function extractValueSingle(FieldType $fieldType, array $field, array $request)
+		{
+			return static::extractValueMultiple($fieldType, $field, $request);
+		}
+
+		private static function getIblockId(FieldType $fieldType)
+		{
+			$documentType = $fieldType->getDocumentType();
+			$type = explode('_', $documentType[2]);
+			return intval($type[1]);
+		}
+
+		public static function extractValue(FieldType $fieldType, array $field, array $request)
+		{
+			$value = parent::extractValue($fieldType, $field, $request);
+			if (is_array($value) && isset($value['VALUE']))
+			{
+				$value = $value['VALUE'];
+			}
+
+			if(!$value)
+			{
+				return null;
+			}
+
+			$property = static::getUserType($fieldType);
+			$iblockId = self::getIblockId($fieldType);
+
+			if (array_key_exists('AttachFilesWorkflow', $property))
+			{
+				return call_user_func_array($property['AttachFilesWorkflow'], array($iblockId, $value));
+			}
+
+			return null;
+		}
+
+		public static function clearValueSingle(FieldType $fieldType, $value)
+		{
+			static::clearValueMultiple($fieldType, $value);
+		}
+
+		public static function clearValueMultiple(FieldType $fieldType, $values)
+		{
+			if(!is_array($values))
+			{
+				$values = array($values);
+			}
+
+			$property = static::getUserType($fieldType);
+			$iblockId = self::getIblockId($fieldType);
+
+			if (array_key_exists('DeleteAttachedFiles', $property))
+			{
+				call_user_func_array($property['DeleteAttachedFiles'], array($iblockId, $values));
+			}
+		}
+
+		public static function toSingleValue(FieldType $fieldType, $value)
+		{
+			if (is_array($value) && isset($value['VALUE']))
+			{
+				$value = $value['VALUE'];
+			}
+			if (is_array($value) && isset($value[0]))
+			{
+				$value = $value[0];
+			}
+
+			return $value;
+		}
+
 	}
 }

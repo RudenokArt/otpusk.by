@@ -1,7 +1,21 @@
 <?
 if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
+/** @var CBitrixComponent $this */
+/** @var array $arParams */
+/** @var array $arResult */
+/** @var string $componentPath */
+/** @var string $componentName */
+/** @var string $componentTemplate */
+/** @global CDatabase $DB */
+/** @global CUser $USER */
+/** @global CMain $APPLICATION */
+/** @global CCacheManager $CACHE_MANAGER */
+/** @global CUserTypeManager $USER_FIELD_MANAGER */
+global $CACHE_MANAGER, $USER_FIELD_MANAGER;
 
-if (!CModule::IncludeModule("socialnetwork"))
+use Bitrix\Main\Loader;
+
+if (!Loader::includeModule("socialnetwork"))
 {
 	ShowError(GetMessage("SONET_MODULE_NOT_INSTALL"));
 	return;
@@ -102,24 +116,39 @@ if (
 	{
 		$arResult["Group"] = $arGroup;
 
-		if (CModule::IncludeModule("extranet") && !CExtranet::IsExtranetSite() && in_array(CExtranet::GetExtranetSiteID(), $arGroupSites))
-			$arResult["Group"]["IS_EXTRANET"] = "Y";
-
-		if ($arResult["Group"]["CLOSED"] == "Y" && COption::GetOptionString("socialnetwork", "work_with_closed_groups", "N") != "Y")
-			$arResult["HideArchiveLinks"] = true;
-		
-		$arResult["CurrentUserPerms"] = CSocNetUserToGroup::InitUserPerms($GLOBALS["USER"]->GetID(), $arResult["Group"], CSocNetUser::IsCurrentUserModuleAdmin());
-
-		if ($arResult["CurrentUserPerms"] != false && $arResult["CurrentUserPerms"]["UserCanViewGroup"])
+		if (
+			Loader::includeModule("extranet")
+			&& !CExtranet::IsExtranetSite()
+			&& in_array(CExtranet::GetExtranetSiteID(), $arGroupSites)
+		)
 		{
-			if (in_array($arResult["CurrentUserPerms"]["UserRole"], array(SONET_ROLES_OWNER, SONET_ROLES_MODERATOR, SONET_ROLES_USER)))
-				$arResult["bSubscribed"] = CSocNetSubscription::IsUserSubscribed($GLOBALS["USER"]->GetID(), "SG".$arParams["GROUP_ID"]);
-			else
-				$arResult["bSubscribed"] = false;
+			$arResult["Group"]["IS_EXTRANET"] = "Y";
+		}
+
+		if (
+			$arResult["Group"]["CLOSED"] == "Y"
+			&& COption::GetOptionString("socialnetwork", "work_with_closed_groups", "N") != "Y"
+		)
+		{
+			$arResult["HideArchiveLinks"] = true;
+		}
+
+		$arResult["CurrentUserPerms"] = CSocNetUserToGroup::InitUserPerms($USER->GetID(), $arResult["Group"], CSocNetUser::IsCurrentUserModuleAdmin());
+
+		if (
+			$arResult["CurrentUserPerms"] != false
+			&& $arResult["CurrentUserPerms"]["UserCanViewGroup"]
+		)
+		{
+			$arResult["bSubscribed"] = (
+				in_array($arResult["CurrentUserPerms"]["UserRole"], \Bitrix\Socialnetwork\UserToGroupTable::getRolesMember())
+					? CSocNetSubscription::IsUserSubscribed($USER->GetID(), "SG".$arParams["GROUP_ID"])
+					: false
+			);
 
 			$arResult["Urls"]["Edit"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_GROUP_EDIT"], array("group_id" => $arResult["Group"]["ID"]));
 			$arResult["Urls"]["View"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_GROUP"], array("group_id" => $arResult["Group"]["ID"]));
-			$arResult["Urls"]["UserRequestGroup"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_REQUEST_GROUP"], array("group_id" => $arResult["Group"]["ID"], "user_id" => $GLOBALS["USER"]->GetID()));
+			$arResult["Urls"]["UserRequestGroup"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_REQUEST_GROUP"], array("group_id" => $arResult["Group"]["ID"], "user_id" => $USER->GetID()));
 			$arResult["Urls"]["GroupRequestSearch"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_GROUP_REQUEST_SEARCH"], array("group_id" => $arResult["Group"]["ID"]));
 			$arResult["Urls"]["GroupRequests"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_GROUP_REQUESTS"], array("group_id" => $arResult["Group"]["ID"]));
 			$arResult["Urls"]["GroupMods"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_GROUP_MODS"], array("group_id" => $arResult["Group"]["ID"]));
@@ -141,14 +170,13 @@ if (
 				"group_id" => $arResult["Group"]["ID"], "path" => ""));
 
 			$arResult["Urls"]["content_search"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_GROUP_CONTENT_SEARCH"], array("group_id" => $arResult["Group"]["ID"]));
-			
-			$arResult["ActiveFeatures"] = CSocNetFeatures::GetActiveFeaturesNames(SONET_ENTITY_GROUP, $arResult["Group"]["ID"]);
 
+			$arResult["ActiveFeatures"] = CSocNetFeatures::GetActiveFeaturesNames(SONET_ENTITY_GROUP, $arResult["Group"]["ID"]);
 
 			$arResult["CanView"]["files"] = array_key_exists("files", $arResult["ActiveFeatures"]);
 			if($arResult["CanView"]["files"])
 			{
-				$diskEnabled = CModule::includeModule('disk') && \Bitrix\Disk\Driver::isSuccessfullyConverted();
+				$diskEnabled = (Loader::includeModule('disk') && \Bitrix\Disk\Driver::isSuccessfullyConverted());
 				if($diskEnabled)
 				{
 					$arResult["Urls"]["Files"] = CComponentEngine::makePathFromTemplate($arParams["PATH_TO_GROUP_DISK"], array(
@@ -158,13 +186,13 @@ if (
 				}
 			}
 
-			$arResult["CanView"]["tasks"] = (array_key_exists("tasks", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($GLOBALS["USER"]->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "tasks", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
-			$arResult["CanView"]["calendar"] = (array_key_exists("calendar", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($GLOBALS["USER"]->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "calendar", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
-			$arResult["CanView"]["forum"] = (array_key_exists("forum", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($GLOBALS["USER"]->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "forum", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
-			$arResult["CanView"]["microblog"] = (array_key_exists("microblog", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($GLOBALS["USER"]->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "blog", "view_post", CSocNetUser::IsCurrentUserModuleAdmin()));
-			$arResult["CanView"]["blog"] = (array_key_exists("blog", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($GLOBALS["USER"]->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "blog", "view_post", CSocNetUser::IsCurrentUserModuleAdmin()));
-			$arResult["CanView"]["photo"] = (array_key_exists("photo", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($GLOBALS["USER"]->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "photo", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
-			$arResult["CanView"]["content_search"] = (array_key_exists("search", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($GLOBALS["USER"]->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "search", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
+			$arResult["CanView"]["tasks"] = (array_key_exists("tasks", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($USER->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "tasks", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
+			$arResult["CanView"]["calendar"] = (array_key_exists("calendar", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($USER->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "calendar", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
+			$arResult["CanView"]["forum"] = (array_key_exists("forum", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($USER->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "forum", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
+			$arResult["CanView"]["microblog"] = (array_key_exists("microblog", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($USER->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "blog", "view_post", CSocNetUser::IsCurrentUserModuleAdmin()));
+			$arResult["CanView"]["blog"] = (array_key_exists("blog", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($USER->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "blog", "view_post", CSocNetUser::IsCurrentUserModuleAdmin()));
+			$arResult["CanView"]["photo"] = (array_key_exists("photo", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($USER->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "photo", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
+			$arResult["CanView"]["content_search"] = (array_key_exists("search", $arResult["ActiveFeatures"]) && CSocNetFeaturesPerms::CanPerformOperation($USER->GetID(), SONET_ENTITY_GROUP, $arResult["Group"]["ID"], "search", "view", CSocNetUser::IsCurrentUserModuleAdmin()));
 
 			$arResult["Title"]["blog"] = ((array_key_exists("blog", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["blog"]) > 0) ? $arResult["ActiveFeatures"]["blog"] : GetMessage("SONET_UM_BLOG"));
 			$arResult["Title"]["microblog"] = ((array_key_exists("microblog", $arResult["ActiveFeatures"]) && StrLen($arResult["ActiveFeatures"]["microblog"]) > 0) ? $arResult["ActiveFeatures"]["microblog"] : GetMessage("SONET_UM_MICROBLOG"));
@@ -177,7 +205,9 @@ if (
 
 			$a = array_keys($arResult["Urls"]);
 			foreach ($a as $v)
+			{
 				$arResult["Urls"][strtolower($v)] = $arResult["Urls"][$v];
+			}
 
 			if (
 				!empty($this->__parent)
@@ -191,7 +221,45 @@ if (
 
 			$events = GetModuleEvents("socialnetwork", "OnFillSocNetMenu");
 			while ($arEvent = $events->Fetch())
+			{
 				ExecuteModuleEventEx($arEvent, array(&$arResult, array("ENTITY_TYPE" => SONET_ENTITY_GROUP, "ENTITY_ID" => $arResult["Group"]["ID"])));
+			}
+
+			if (Loader::includeModule('rest'))
+			{
+				$arResult["CanView"]['marketplace'] = array_key_exists('marketplace', $arResult["ActiveFeatures"]);
+				$arResult["Title"]['marketplace'] = (
+					array_key_exists('marketplace', $arResult["ActiveFeatures"])
+					&& strLen($arResult["ActiveFeatures"]['marketplace']) > 0
+						? $arResult["ActiveFeatures"]['marketplace']
+						: Bitrix\Main\Localization\Loc::getMessage('SONET_UM_MARKETPLACE')
+				);
+				$arResult["Urls"]['marketplace'] = $arResult["Urls"]["view"]."marketplace/";
+
+				$placementHandlerList = \Bitrix\Rest\PlacementTable::getHandlersList('SONET_GROUP_DETAIL_TAB');
+
+				if(is_array($placementHandlerList))
+				{
+					foreach($placementHandlerList as $placementHandler)
+					{
+						$tabId = 'placement_'.$placementHandler['ID'];
+
+						$arResult["CanView"][$tabId] = array_key_exists($tabId, $arResult["ActiveFeatures"]);
+						$arResult["Title"][$tabId] = (
+							array_key_exists($tabId, $arResult["ActiveFeatures"])
+							&& strLen($arResult["ActiveFeatures"][$tabId]) > 0
+									? $arResult["ActiveFeatures"][$tabId]
+									: (
+										!empty($placementHandler['TITLE']) > 0
+											? $placementHandler['TITLE']
+											: $placementHandler['APP_NAME']
+									)
+						);
+						$arResult["Urls"][$tabId] = $arResult["Urls"]["view"]."app/".$placementHandler['ID']."/";
+					}
+				}
+			}
+
 			$this->IncludeComponentTemplate();
 		}
 	}

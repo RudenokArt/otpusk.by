@@ -319,7 +319,8 @@ if (($arParams["MESSAGE_TYPE"]=="NEW" || $arParams["MESSAGE_TYPE"]=="REPLY") && 
 }
 
 if ($arParams["MESSAGE_TYPE"]=="NEW" || $arParams["MESSAGE_TYPE"]=="EDIT" &&
-	CForumTopic::CanUserUpdateTopic($arParams["TID"], $USER->GetUserGroupArray(), $USER->GetID()))
+	CForumTopic::CanUserUpdateTopic($arParams["TID"], $USER->GetUserGroupArray(), $USER->GetID()) &&
+	$arResult["MESSAGE"]["NEW_TOPIC"] == "Y")
 {
 	$arResult["SHOW_PANEL_NEW_TOPIC"] = "Y";
 	$arResult["ForumPrintIconsList"] = ForumPrintIconsList(7, $arResult["TOPIC"]["ICON"]);
@@ -404,26 +405,35 @@ foreach ($arResult["MESSAGE"] as $key => $val):
 	$arResult["~str_".$key] = $val;
 endforeach;
 foreach ($arResult["TOPIC"] as $key => $val):
-	$arResult["TOPIC"][$key] = htmlspecialcharsEx($val);
+	$arResult["TOPIC"][$key] = htmlspecialcharsbx($val);
 	$arResult["TOPIC"]["~".$key] = $val;
 	$arResult["str_".$key] = htmlspecialcharsbx($val);
 	$arResult["~str_".$key] = $val;
 endforeach;
-if (!empty($arResult["MESSAGE"]["FILES"])):
-	foreach ($arResult["MESSAGE"]["FILES"] as $key => $val):
-		$arResult["MESSAGE"]["FILES"][$key] = htmlspecialcharsEx($val);
-//		$arResult["MESSAGE"]["FILES"]["~".$key] = $val;
-	endforeach;
-endif;
+if (!empty($arResult["MESSAGE"]["FILES"]))
+{
+	foreach ($arResult["MESSAGE"]["FILES"] as &$file)
+	{
+		foreach ($file as $k => $val)
+		{
+			if (is_string($val))
+			{
+				$file[$k] = htmlspecialcharsbx($val);
+			}
+		}
+	}
+}
 foreach ($arResult["QUESTIONS"] as $key => $arQuestion):
 	foreach ($arQuestion as $keyq => $valq):
 		if (is_string($valq)):
-			$arResult["QUESTIONS"][$key][$keyq] = htmlspecialcharsEx($valq);
+			$arResult["QUESTIONS"][$key][$keyq] = htmlspecialcharsbx($valq);
 			$arResult["QUESTIONS"][$key]["~".$keyq] = $valq;
 		elseif (is_array($valq) && $keyq == "ANSWERS"):
-			foreach ($valq as $keya => $vala):
-				$arResult["QUESTIONS"][$key]["ANSWERS"][$keya] = htmlspecialcharsEx($vala);
-				$arResult["QUESTIONS"][$key]["~ANSWERS"][$keya] = $vala;
+			foreach ($valq as $keyAnswer => $valAnswer):
+				foreach ($valAnswer as $k => $v):
+					$arResult["QUESTIONS"][$key]["ANSWERS"][$keyAnswer][$k] = htmlspecialcharsbx($v);
+					$arResult["QUESTIONS"][$key]["~ANSWERS"][$keyAnswer][$k] = $v;
+				endforeach;
 			endforeach;
 		endif;
 	endforeach;

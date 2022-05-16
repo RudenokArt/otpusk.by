@@ -359,8 +359,14 @@ $lAdmin->AddHeaders(array(
 	),
 ));
 
+$arVisibleColumns = $lAdmin->GetVisibleHeaderColumns();
+if($_REQUEST["mode"] == "excel")
+	$arNavParams = false;
+else
+	$arNavParams = array("nPageSize"=>CAdminUiResult::GetNavSize($sTableID));
+
 $cData = new CPosting;
-$rsData = $cData->GetList(array($by=>$order), $arFilter);
+$rsData = $cData->GetList(array($by=>$order), $arFilter, $arVisibleColumns, $arNavParams);
 $rsData = new CAdminResult($rsData, $sTableID);
 $rsData->NavStart();
 $lAdmin->NavText($rsData->GetNavPrint(GetMessage("post_nav")));
@@ -417,11 +423,18 @@ while($arRes = $rsData->NavNext(true, "f_")):
 			"ACTION"=>$lAdmin->ActionRedirect("posting_edit.php?ID=".$f_ID."&amp;action=copy")
 	);
 	if(($f_STATUS!="P") && $POST_RIGHT=="W")
+	{
 		$arActions[] = array(
 			"ICON"=>"delete",
 			"TEXT"=>GetMessage("post_act_del"),
 			"ACTION"=>"if(confirm('".GetMessage("post_act_del_conf")."')) ".$lAdmin->ActionDoGroup($f_ID, "delete")
 		);
+	}
+	$arActions[] = array(
+		"ICON"=>"",
+		"TEXT"=>GetMessage("post_report"),
+		"ACTION"=>"jsUtils.OpenWindow('posting_bcc.php?ID=".$f_ID."&lang=".LANG."', 600, 500);"
+	);
 
 	$arActions[] = array("SEPARATOR"=>true);
 

@@ -100,6 +100,19 @@ if ($queryType == "M")
 	elseif ($loadResult == "F")
 	{
 		CUpdateClient::AddMessage2Log("Finish - NOUPDATES", "STEP");
+
+		$bIntranet = CModule::IncludeModule('intranet');
+		if ($bIntranet)
+		{
+			CAdminNotify::Add(array(
+				'MODULE_ID' => 'main',
+				'TAG' => 'checklist_cp',
+				'MESSAGE' => GetMessage("SUPC_NOTIFY_CHECKLIST", array("#LANG#" => LANG)),
+				'NOTIFY_TYPE' => CAdminNotify::TYPE_NORMAL,
+				'PUBLIC_SECTION' => 'N',
+			));
+		}
+
 		die("FIN");
 	}
 
@@ -124,7 +137,8 @@ if ($queryType == "M")
 
 	if (strlen($errorMessage) <= 0)
 	{
-		if (!CUpdateClient::UpdateStepModules($temporaryUpdatesDir, $errorMessage, defined("US_BITRIX24_MODE") && US_BITRIX24_MODE))
+		$isB24Mode = defined("US_BITRIX24_MODE") && US_BITRIX24_MODE;
+		if (!CUpdateClient::UpdateStepModules($temporaryUpdatesDir, $errorMessage, $isB24Mode, $isB24Mode))
 		{
 			$errorMessage .= "[CL04] ".GetMessage("SUPC_ME_UPDATE").". ";
 			CUpdateClient::AddMessage2Log(GetMessage("SUPC_ME_UPDATE"), "CL04");
@@ -163,6 +177,8 @@ if ($queryType == "M")
 			echo ($bFirst ? "" : ", ").$arUpdateDescription["DATA"]["#"]["ITEM"][$i]["@"]["NAME"].(($arUpdateDescription["DATA"]["#"]["ITEM"][$i]["@"]["VALUE"] != "0") ? " (".$arUpdateDescription["DATA"]["#"]["ITEM"][$i]["@"]["VALUE"].")" : "");
 			$bFirst = False;
 		}
+
+		CUpdateClient::finalizeModuleUpdate($arUpdateDescription["DATA"]["#"]["ITEM"]);
 	}
 }
 elseif ($queryType == "L")
@@ -198,7 +214,7 @@ elseif ($queryType == "L")
 		CUpdateClient::AddMessage2Log("Finish - NOUPDATES", "STEP");
 		die("FIN");
 	}
-	
+
 	/*if (!CUpdateClient::GetNextStepLangUpdates($errorMessage, LANG, $arRequestedLangs))
 	{
 		$errorMessage .= "[CL01] ".GetMessage("SUPC_ME_LOAD").". ";
@@ -333,6 +349,8 @@ elseif ($queryType == "L")
 					echo ($bFirst ? "" : ", ").$key.((StrLen($value) > 0) ? "(".$value.")" : "");
 					$bFirst = False;
 				}
+
+				CUpdateClient::finalizeLanguageUpdate($arItemsUpdated);
 			}
 		}
 	}

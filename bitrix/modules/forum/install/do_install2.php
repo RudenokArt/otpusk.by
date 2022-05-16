@@ -16,7 +16,7 @@ if ($_REQUEST["INSTALL_PUBLIC"] == "Y" && is_array($_REQUEST["PUBLIC_INFO"]) && 
 			continue;
 		// Errors
 		$res["ID"] = intVal($res["ID"]);
-		$res["PATH"] = htmlspecialcharsEx(trim($res["PATH"]));
+		$res["PATH"] = htmlspecialcharsbx(trim($res["PATH"]));
 		$res["MODE"] = ($res["MODE"] == "sef" ? "sef" : "nsef");
 		if (strLen($res["PATH"]) <= 0)
 		{
@@ -48,7 +48,7 @@ if ($_REQUEST["INSTALL_PUBLIC"] == "Y" && is_array($_REQUEST["PUBLIC_INFO"]) && 
 				"ID" => "bitrix:forum",
 				"PATH" => $res["~PATH"]."index.php"
 			);
-			CUrlRewriter::Add($arFields);
+			Bitrix\Main\UrlRewriter::add(CSite::GetDefSite(), $arFields);
 		}
 		?><p><a href="<?=$res["~PATH"]?>"><?=$res["~PATH"]?></a></p><?
 	}

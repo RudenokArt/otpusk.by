@@ -1,8 +1,12 @@
 <?php
 namespace Bitrix\Main\Analytics;
 
+use Bitrix\Main\Application;
+use Bitrix\Main\IO\Directory;
 use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\Config\Configuration;
 use Bitrix\Main\Config\Option;
+use Bitrix\Main\ModuleManager;
 
 Loc::loadMessages(__FILE__);
 
@@ -54,18 +58,74 @@ class SiteSpeed
 		}
 	}
 
-	public static function isLicenseAccepted()
+	/**
+	 * @return bool
+	 */
+	public static function isRussianSiteManager()
 	{
-		return Option::get("main", "~new_license14_9_sign", "") === "Y";
+		if (ModuleManager::isModuleInstalled("bitrix24"))
+		{
+			return false;
+		}
+
+		return (
+			Directory::isDirectoryExists(Application::getDocumentRoot()."/bitrix/modules/main/lang/ru")
+			|| Directory::isDirectoryExists(Application::getDocumentRoot()."/bitrix/modules/main/lang/ua")
+		);
+	}
+
+	/**
+	 * @param $siteId
+	 * @return bool
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 * @throws \Bitrix\Main\ObjectPropertyException
+	 * @throws \Bitrix\Main\SystemException
+	 */
+	public static function isIntranetSite($siteId)
+	{
+		if (defined("ADMIN_SECTION") && ADMIN_SECTION === true)
+		{
+			return false;
+		}
+
+		$portalSiteList = [];
+		$siteList = \Bitrix\Main\SiteTable::getList([
+			"select" => ["LID"],
+		])->fetchAll();
+		foreach ($siteList as $site)
+		{
+			if (Option::get("main", "wizard_firstportal_".$site["LID"], false, $site["LID"]) !== false)
+			{
+				$portalSiteList[] = $site["LID"];
+			}
+		}
+
+		if ($extranetSiteId = Option::get("extranet", "extranet_site", false))
+		{
+			$portalSiteList[] = $extranetSiteId;
+		}
+
+		return in_array($siteId, $portalSiteList);
 	}
 
 	public static function canGatherStat()
 	{
-		return Option::get("main", "gather_user_stat", "Y") === "Y" && defined("LICENSE_KEY") && LICENSE_KEY !== "DEMO";
+		$enabled = (defined("LICENSE_KEY") && LICENSE_KEY !== "DEMO");
+		if($enabled)
+		{
+			$settings = Configuration::getValue("analytics_counter");
+			if(isset($settings["enabled"]) && $settings["enabled"] === false)
+			{
+				$enabled = false;
+			}
+		}
+		return $enabled;
 	}
 
 	public static function isOn()
 	{
-		return self::isLicenseAccepted() && self::canGatherStat();
+		return self::isRussianSiteManager() && self::canGatherStat();
 	}
-} 
+}

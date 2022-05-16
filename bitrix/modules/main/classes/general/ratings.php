@@ -4,8 +4,15 @@ IncludeModuleLangFile($_SERVER["DOCUMENT_ROOT"].BX_ROOT."/modules/main/classes/g
 
 class CAllRatings
 {
+	const REACTION_DEFAULT = 'like';
+	const REACTION_KISS = 'kiss';
+	const REACTION_LAUGH = 'laugh';
+	const REACTION_ANGRY = 'angry';
+	const REACTION_WONDER = 'wonder';
+	const REACTION_CRY = 'cry';
+
 	// get specified rating record
-	function GetByID($ID)
+	public static function GetByID($ID)
 	{
 		global $DB;
 
@@ -28,7 +35,7 @@ class CAllRatings
 			false, $err_mess.__LINE__));
 	}
 
-	function GetArrayByID($ID)
+	public static function GetArrayByID($ID)
 	{
 		global $DB;
 
@@ -80,7 +87,7 @@ class CAllRatings
 	}
 
 	// get rating record list
-	function GetList($arSort=array(), $arFilter=Array())
+	public static function GetList($arSort=array(), $arFilter=Array())
 	{
 		global $DB;
 
@@ -168,7 +175,7 @@ class CAllRatings
 		return $res;
 	}
 
-	function GetRatingValueInfo($ratingId)
+	public static function GetRatingValueInfo($ratingId)
 	{
 		global $DB;
 		$err_mess = (CRatings::err_mess())."<br>Function: GetRatingValueInfo<br>Line: ";
@@ -186,7 +193,7 @@ class CAllRatings
 	}
 
 	//Addition rating
-	function Add($arFields)
+	public static function Add($arFields)
 	{
 		global $DB, $stackCacheManager;
 
@@ -231,7 +238,7 @@ class CAllRatings
 	}
 
 	//Update rating
-	function Update($ID, $arFields)
+	public static function Update($ID, $arFields)
 	{
 		global $DB, $stackCacheManager;
 
@@ -297,7 +304,7 @@ class CAllRatings
 	}
 
 	// delete rating
-	function Delete($ID)
+	public static function Delete($ID)
 	{
 		global $DB, $stackCacheManager;
 
@@ -321,7 +328,7 @@ class CAllRatings
 	}
 
 	// start calculation rating-component
-	function Calculate($ID, $bForceRecalc = false)
+	public static function Calculate($ID, $bForceRecalc = false)
 	{
 		global $DB;
 
@@ -341,11 +348,13 @@ class CAllRatings
 		$res = $DB->Query($strSql, false, $err_mess.__LINE__);
 		while($arRes = $res->Fetch())
 		{
-			if(CModule::IncludeModule(strtolower($arRes['MODULE_ID']))) {
+			if(CModule::IncludeModule(strtolower($arRes['MODULE_ID'])))
+			{
 				$arRes['CONFIG'] = unserialize($arRes['CONFIG']);
 				// If the type is automatic calculation of parameters * global vote weight
 				$sRatingWeightType = COption::GetOptionString("main", "rating_weight_type", "auto");
-				if ($sRatingWeightType == 'auto') {
+				if ($sRatingWeightType == 'auto')
+				{
 					$voteWeight = COption::GetOptionString("main", "rating_vote_weight", 1);
 					$arRes['CONFIG']['COEFFICIENT'] = $arRes['CONFIG']['COEFFICIENT']*$voteWeight;
 				}
@@ -355,14 +364,20 @@ class CAllRatings
 					{
 						$exceptionText = call_user_func(array($arRes['CLASS'], $arRes['EXCEPTION_METHOD']));
 						if ($exceptionText === false)
+						{
 							if (method_exists($arRes['CLASS'],  $arRes['CALC_METHOD']))
+							{
 								$result = call_user_func(array($arRes['CLASS'], $arRes['CALC_METHOD']), $arRes);
+							}
+						}
 					}
 				}
 				else
 				{
 					if (method_exists($arRes['CLASS'],  $arRes['CALC_METHOD']))
+					{
 						$result = call_user_func(array($arRes['CLASS'], $arRes['CALC_METHOD']), $arRes);
+					}
 				}
 			}
 		}
@@ -373,7 +388,7 @@ class CAllRatings
 	}
 
 	// queries modules and get all the available objects
-	function GetRatingObjects()
+	public static function GetRatingObjects()
 	{
 		$arObjects = array();
 
@@ -388,7 +403,7 @@ class CAllRatings
 	}
 
 	// queries modules and get all the available entity types
-	function GetRatingEntityTypes($objectType = null)
+	public static function GetRatingEntityTypes($objectType = null)
 	{
 		$arEntityTypes = array();
 
@@ -419,7 +434,7 @@ class CAllRatings
 	}
 
 	// queries modules and assemble an array of settings
-	function GetRatingConfigs($objectType = null, $withRatingType = true)
+	public static function GetRatingConfigs($objectType = null, $withRatingType = true)
 	{
 		$arConfigs = array();
 
@@ -460,22 +475,22 @@ class CAllRatings
 		return $arConfigs;
 	}
 
-	function GetRatingVoteResult($entityTypeId, $entityId, $user_id = false)
+	public static function GetRatingVoteResult($entityTypeId, $entityId, $user_id = false)
 	{
-		global $DB, $CACHE_MANAGER;
-		$err_mess = (CRatings::err_mess())."<br>Function: GetRatingVoteResult<br>Line: ";
+		global $USER;
 
 		$arResult = array();
 		$user_id = intval($user_id);
 
 		if ($user_id == 0)
-			$user_id = $GLOBALS["USER"]->GetID();
+			$user_id = $USER->GetID();
 
-		$bReturnEntityArray = true;
 		if (is_array($entityId))
 		{
 			foreach ($entityId as $currentEntityId)
+			{
 				$arResult[$currentEntityId] = self::GetRatingVoteResultCache($entityTypeId, $currentEntityId, $user_id);
+			}
 		}
 		else
 		{
@@ -485,7 +500,7 @@ class CAllRatings
 		return $arResult;
 	}
 
-	function GetRatingVoteResultCache($entityTypeId, $entityId, $user_id = false)
+	public static function GetRatingVoteResultCache($entityTypeId, $entityId, $user_id = false)
 	{
 		global $DB, $CACHE_MANAGER;
 		$err_mess = (CRatings::err_mess())."<br>Function: GetRatingVoteResultCache<br>Line: ";
@@ -511,6 +526,8 @@ class CAllRatings
 		}
 		else
 		{
+			$total = array();
+
 			$sql_str = "SELECT
 							RVG.ID,
 							RVG.ENTITY_ID,
@@ -529,23 +546,86 @@ class CAllRatings
 			{
 				$arResult[$row['ENTITY_ID']] = array(
 					'USER_VOTE' => 0,
+					'USER_REACTION' => false,
 					'USER_HAS_VOTED' => 'N',
-					'USER_VOTE_LIST' => Array(),
+					'USER_VOTE_LIST' => array(),
+					'USER_REACTION_LIST' => array(),
 					'TOTAL_VALUE' => $row['TOTAL_VALUE'],
 					'TOTAL_VOTES' => intval($row['TOTAL_VOTES']),
 					'TOTAL_POSITIVE_VOTES' => intval($row['TOTAL_POSITIVE_VOTES']),
 					'TOTAL_NEGATIVE_VOTES' => intval($row['TOTAL_NEGATIVE_VOTES']),
+					'REACTIONS_LIST' => array(
+						self::REACTION_DEFAULT => intval($row['TOTAL_POSITIVE_VOTES'])
+					)
 				);
+
+				if (!isset($total[$row['ENTITY_ID']]))
+				{
+					$total[$row['ENTITY_ID']] = intval($row['TOTAL_POSITIVE_VOTES']);
+				}
 			}
 
-			$sql = "SELECT RVG.ENTITY_ID, RVG.USER_ID, RVG.VALUE
+			$count = array();
+			$foundDefault = array();
+			$entityIdList = array();
+
+			$sql_str = "SELECT
+							RVGR.ENTITY_ID,
+							RVGR.REACTION,
+							RVGR.TOTAL_VOTES
+						FROM
+							b_rating_voting_reaction RVGR
+						WHERE
+							RVGR.ENTITY_TYPE_ID = '".$DB->ForSql($entityTypeId)."'
+						and RVGR.ENTITY_ID between ".($bucket*$bucket_size)." AND ".(($bucket+1)*$bucket_size-1);
+			$res = $DB->Query($sql_str, false, $err_mess.__LINE__);
+			while($row = $res->Fetch())
+			{
+				if (!in_array($row['ENTITY_ID'], $entityIdList))
+				{
+					$entityIdList[] = $row['ENTITY_ID'];
+				}
+
+				$arResult[$row['ENTITY_ID']]['REACTIONS_LIST'][$row['REACTION']] = intval($row['TOTAL_VOTES']);
+
+				if (!isset($count[$row['ENTITY_ID']]))
+				{
+					$count[$row['ENTITY_ID']] = 0;
+				}
+				$count[$row['ENTITY_ID']] += (intval($row['TOTAL_VOTES']) >= 0 ? intval($row['TOTAL_VOTES']) : 0);
+
+				if (
+					!isset($foundDefault[$row['ENTITY_ID']])
+					&& $row['REACTION'] == self::REACTION_DEFAULT
+				)
+				{
+					$foundDefault[$row['ENTITY_ID']] = true;
+				}
+			}
+
+			foreach($entityIdList as $eId)
+			{
+				if (
+					!isset($foundDefault[$eId])
+					&& isset($count[$eId])
+					&& isset($total[$eId])
+					&& $count[$eId] >= $total[$eId]
+				)
+				{
+					$arResult[$eId]['REACTIONS_LIST'][self::REACTION_DEFAULT] = 0;
+				}
+			}
+
+			$sql = "SELECT RVG.ENTITY_ID, RVG.USER_ID, RVG.VALUE, RVG.REACTION
 					FROM b_rating_vote RVG
 					WHERE RVG.ENTITY_TYPE_ID = '".$DB->ForSql($entityTypeId)."'
 					and RVG.ENTITY_ID between ".($bucket*$bucket_size)." AND ".(($bucket+1)*$bucket_size-1);
-
 			$res = $DB->Query($sql, false, $err_mess.__LINE__);
 			while($row = $res->Fetch())
+			{
 				$arResult[$row['ENTITY_ID']]['USER_VOTE_LIST'][$row['USER_ID']] = $row['VALUE'];
+				$arResult[$row['ENTITY_ID']]['USER_REACTION_LIST'][$row['USER_ID']] = (!empty($row['REACTION']) ? $row['REACTION'] : self::REACTION_DEFAULT);
+			}
 
 			$CACHE_MANAGER->Set($cache_id, $arResult);
 		}
@@ -553,13 +633,18 @@ class CAllRatings
 		if (isset($arResult[$entityId]['USER_VOTE_LIST'][$user_id]))
 		{
 			$arResult[$entityId]['USER_VOTE'] = $arResult[$entityId]['USER_VOTE_LIST'][$user_id];
+			$arResult[$entityId]['USER_REACTION'] = (
+				!empty($arResult[$entityId]['USER_REACTION_LIST'][$user_id])
+					? $arResult[$entityId]['USER_REACTION_LIST'][$user_id]
+					: self::REACTION_DEFAULT
+			);
 			$arResult[$entityId]['USER_HAS_VOTED'] = 'Y';
 		}
 
 		return isset($arResult[$entityId])? $arResult[$entityId]: Array();
 	}
 
-	function GetRatingResult($ID, $entityId)
+	public static function GetRatingResult($ID, $entityId)
 	{
 		global $DB;
 		$err_mess = (CRatings::err_mess())."<br>Function: GetRatingResult<br>Line: ";
@@ -640,8 +725,7 @@ class CAllRatings
 		return $arResult;
 	}
 
-
-	function AddRatingVote($arParam)
+	public static function AddRatingVote($arParam)
 	{
 		global $DB, $CACHE_MANAGER;
 
@@ -654,6 +738,7 @@ class CAllRatings
 		}
 
 		$arParam['ENTITY_TYPE_ID'] = substr($arParam['ENTITY_TYPE_ID'], 0, 50);
+		$arParam['REACTION'] = (strlen($arParam['REACTION']) > 0 ? $arParam['REACTION'] : self::REACTION_DEFAULT);
 
 		CRatings::CancelRatingVote($arParam);
 
@@ -712,23 +797,66 @@ class CAllRatings
 			$arRV = $rsRV->Fetch();
 			$arParam['RATING_VOTING_ID'] = $arRV['ID'];
 			$arParam['TOTAL_POSITIVE_VOTES'] = $arRV['TOTAL_POSITIVE_VOTES'];
+			$arParam['REACTIONS_LIST'] = array(
+				self::REACTION_DEFAULT => intval($arParam['TOTAL_POSITIVE_VOTES'])
+			);
+
+			if ($votePlus)
+			{
+				$rsRVR = $DB->Query("SELECT TOTAL_VOTES FROM b_rating_voting_reaction WHERE ENTITY_TYPE_ID='".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."' AND ENTITY_ID='".intval($arParam['ENTITY_ID'])."'", false, $err_mess.__LINE__);
+				if (!($arRVR = $rsRVR->fetch())) // reactions not initialized
+				{
+					$arFields = array(
+						"ENTITY_TYPE_ID" => "'".$DB->ForSql($arParam["ENTITY_TYPE_ID"])."'",
+						"ENTITY_ID" => intval($arParam['ENTITY_ID']),
+						"REACTION" => "'".$DB->ForSql(self::REACTION_DEFAULT)."'",
+						"TOTAL_VOTES" => $arRV['TOTAL_POSITIVE_VOTES']
+					);
+					$DB->Insert("b_rating_voting_reaction", $arFields, $err_mess.__LINE__);
+				}
+
+				$DB->Query("INSERT INTO b_rating_voting_reaction (ENTITY_TYPE_ID, ENTITY_ID, REACTION, TOTAL_VOTES) ".
+					"VALUES ('".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."', ".intval($arParam['ENTITY_ID']).", '".$DB->ForSql($arParam['REACTION'])."', 1)" .
+					"ON DUPLICATE KEY UPDATE TOTAL_VOTES = TOTAL_VOTES + 1", false, $err_mess.__LINE__);
+			}
 		}
 		else
 		{
 			$arFields = array(
-				"ENTITY_TYPE_ID"		=> "'".$DB->ForSql($arParam["ENTITY_TYPE_ID"])."'",
-				"ENTITY_ID"				=> intval($arParam['ENTITY_ID']),
-				"OWNER_ID"				=> intval($arParam['OWNER_ID']),
-				"ACTIVE"					=> "'Y'",
-				"CREATED"				=> $DB->GetNowFunction(),
-				"LAST_CALCULATED"		=> $DB->GetNowFunction(),
-				"TOTAL_VOTES"			=> 1,
-				"TOTAL_VALUE"			=> floatval($arParam['VALUE']),
-				"TOTAL_POSITIVE_VOTES"	=> ($votePlus ? 1 : 0),
-				"TOTAL_NEGATIVE_VOTES"	=> ($votePlus ? 0 : 1)
+				"ENTITY_TYPE_ID" => "'".$DB->ForSql($arParam["ENTITY_TYPE_ID"])."'",
+				"ENTITY_ID" => intval($arParam['ENTITY_ID']),
+				"OWNER_ID" => intval($arParam['OWNER_ID']),
+				"ACTIVE" => "'Y'",
+				"CREATED" => $DB->GetNowFunction(),
+				"LAST_CALCULATED" => $DB->GetNowFunction(),
+				"TOTAL_VOTES" => 1,
+				"TOTAL_VALUE" => floatval($arParam['VALUE']),
+				"TOTAL_POSITIVE_VOTES" => ($votePlus ? 1 : 0),
+				"TOTAL_NEGATIVE_VOTES" => ($votePlus ? 0 : 1)
 			);
 			$arParam['RATING_VOTING_ID'] = $DB->Insert("b_rating_voting", $arFields, $err_mess.__LINE__);
 			$arParam['TOTAL_POSITIVE_VOTES'] = ($votePlus ? 1 : 0);
+
+			$arParam['REACTIONS_LIST'] = array(
+				self::REACTION_DEFAULT => intval($arParam['TOTAL_POSITIVE_VOTES'])
+			);
+
+			if ($votePlus)
+			{
+				$arFields = array(
+					"ENTITY_TYPE_ID" => "'".$DB->ForSql($arParam["ENTITY_TYPE_ID"])."'",
+					"ENTITY_ID" => intval($arParam['ENTITY_ID']),
+					'REACTION' => "'".$DB->ForSql($arParam['REACTION'])."'",
+					'TOTAL_VOTES' => 1
+				);
+				$DB->Insert("b_rating_voting_reaction", $arFields, $err_mess.__LINE__);
+			}
+		}
+
+		$rsRVR = $DB->Query("SELECT REACTION, TOTAL_VOTES FROM b_rating_voting_reaction WHERE ENTITY_TYPE_ID='".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."' AND ENTITY_ID='".intval($arParam['ENTITY_ID'])."'", false, $err_mess.__LINE__);
+		while($arRVR = $rsRVR->fetch())
+		{
+			$arParam['REACTIONS_LIST'][$arRVR['REACTION']] = $arRVR['TOTAL_VOTES'];
 		}
 
 		$arFields = array(
@@ -741,12 +869,14 @@ class CAllRatings
 			"USER_ID"			=> intval($arParam['USER_ID']),
 			"USER_IP"			=> "'".$DB->ForSql($arParam["USER_IP"])."'",
 			"OWNER_ID"			=> intval($arParam['OWNER_ID']),
+			"REACTION"			=> "'".$DB->ForSql($arParam["REACTION"])."'"
 		);
 		$ID = $DB->Insert("b_rating_vote", $arFields, $err_mess.__LINE__);
 
 		foreach(GetModuleEvents("main", "OnAddRatingVote", true) as $arEvent)
 			ExecuteModuleEventEx($arEvent, array(intval($ID), $arParam));
 
+		$userData = \CAllRatings::getUserData(intval($arParam['USER_ID']), floatval($arParam['VALUE']));
 		if (CModule::IncludeModule('pull'))
 		{
 			CPullStack::AddShared(Array(
@@ -759,6 +889,9 @@ class CAllRatings
 					"ENTITY_ID" => intval($arParam['ENTITY_ID']),
 					"TOTAL_POSITIVE_VOTES" => $arParam['TOTAL_POSITIVE_VOTES'],
 					"RESULT" => $votePlus? 'PLUS': 'MINUS',
+					"USER_DATA" => $userData,
+					"REACTION" => $arParam['REACTION'],
+					"REACTIONS_LIST" => $arParam['REACTIONS_LIST']
 				)
 			));
 		}
@@ -772,10 +905,149 @@ class CAllRatings
 			$CACHE_MANAGER->Clean("b_rvg_".$DB->ForSql($arParam["ENTITY_TYPE_ID"]).$bucket, "b_rating_voting");
 		}
 
-		return true;
+		return $userData;
 	}
 
-	function CancelRatingVote($arParam)
+	public static function ChangeRatingVote($arParam)
+	{
+		global $DB, $CACHE_MANAGER;
+
+		$arParam['ENTITY_TYPE_ID'] = substr($arParam['ENTITY_TYPE_ID'], 0, 50);
+		$arParam['REACTION'] = (strlen($arParam['REACTION']) > 0 ? $arParam['REACTION'] : self::REACTION_DEFAULT);
+		$userData = \CAllRatings::getUserData(intval($arParam['USER_ID']), floatval($arParam['VALUE']));
+
+		$err_mess = (CRatings::err_mess())."<br>Function: ChangeRatingVote<br>Line: ";
+
+		$sqlStr = "
+			SELECT
+				RVG.ID,
+				RV.ID AS VOTE_ID,
+				RV.REACTION AS REACTION,
+				RV.VALUE AS VOTE_VALUE,
+				RVG.TOTAL_POSITIVE_VOTES
+			FROM
+				b_rating_voting RVG,
+				b_rating_vote RV
+			WHERE
+				RVG.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
+			and RVG.ENTITY_ID = ".intval($arParam['ENTITY_ID'])."
+			and RVG.ID = RV.RATING_VOTING_ID
+			and RV.USER_ID = ".intval($arParam['USER_ID']);
+
+		$res = $DB->Query($sqlStr, false, $err_mess.__LINE__);
+		if ($arVote = $res->Fetch())
+		{
+			// GetOwnerDocument
+			$arParam['OWNER_ID'] = 0;
+			foreach(GetModuleEvents("main", "OnGetRatingContentOwner", true) as $arEvent)
+			{
+				$result = ExecuteModuleEventEx($arEvent, array($arParam));
+				if ($result !== false)
+					$arParam['OWNER_ID'] = IntVal($result);
+			}
+
+			$votePlus = $arVote['VOTE_VALUE'] >= 0 ? true : false;
+			$arVote['REACTION_OLD'] = (strlen($arVote['REACTION']) > 0 ? $arVote['REACTION'] : self::REACTION_DEFAULT);
+
+			if (!$votePlus)
+			{
+				return false;
+			}
+
+			$rsRV = $DB->Query("SELECT ID, TOTAL_POSITIVE_VOTES FROM b_rating_voting WHERE ENTITY_TYPE_ID='".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."' AND ENTITY_ID='".intval($arParam['ENTITY_ID'])."'", false, $err_mess.__LINE__);
+			if ($arRV = $rsRV->Fetch())
+			{
+				$arParam['RATING_VOTING_ID'] = $arRV['ID'];
+				$arParam['TOTAL_POSITIVE_VOTES'] = $arRV['TOTAL_POSITIVE_VOTES'];
+				$arParam['REACTIONS_LIST'] = array(
+					self::REACTION_DEFAULT => intval($arParam['TOTAL_POSITIVE_VOTES'])
+				);
+			}
+			else
+			{
+				return false;
+			}
+
+			$rsRVR = $DB->Query("SELECT TOTAL_VOTES FROM b_rating_voting_reaction WHERE ENTITY_TYPE_ID='".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."' AND ENTITY_ID='".intval($arParam['ENTITY_ID'])."'", false, $err_mess.__LINE__);
+			if (!($arRVR = $rsRVR->fetch())) // reactions not initialized
+			{
+				$arFields = array(
+					"ENTITY_TYPE_ID" => "'".$DB->ForSql($arParam["ENTITY_TYPE_ID"])."'",
+					"ENTITY_ID" => intval($arParam['ENTITY_ID']),
+					"REACTION" => "'".self::REACTION_DEFAULT."'",
+					"TOTAL_VOTES" => $arRV['TOTAL_POSITIVE_VOTES']
+				);
+				$DB->Insert("b_rating_voting_reaction", $arFields, $err_mess.__LINE__);
+			}
+
+			$DB->Query("INSERT INTO b_rating_voting_reaction (ENTITY_TYPE_ID, ENTITY_ID, REACTION, TOTAL_VOTES) ".
+				"VALUES ('".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."', ".intval($arParam['ENTITY_ID']).", '".$DB->ForSql($arParam['REACTION'])."', 1)" .
+				"ON DUPLICATE KEY UPDATE TOTAL_VOTES = TOTAL_VOTES + 1", false, $err_mess.__LINE__);
+
+			if (!empty($arVote['REACTION_OLD']))
+			{
+				$DB->Query("UPDATE b_rating_voting_reaction SET TOTAL_VOTES = TOTAL_VOTES - 1 WHERE ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."' AND ENTITY_ID = '".intval($arParam['ENTITY_ID'])."' AND REACTION = '".$DB->ForSql($arVote['REACTION_OLD'])."'", false, $err_mess.__LINE__);
+			}
+
+			$rsRVR = $DB->Query("SELECT REACTION, TOTAL_VOTES FROM b_rating_voting_reaction WHERE ENTITY_TYPE_ID='".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."' AND ENTITY_ID='".intval($arParam['ENTITY_ID'])."'", false, $err_mess.__LINE__);
+			while($arRVR = $rsRVR->fetch())
+			{
+				$arParam['REACTIONS_LIST'][$arRVR['REACTION']] = $arRVR['TOTAL_VOTES'];
+			}
+
+			$arFields = array(
+				"CREATED" => $DB->GetNowFunction(),
+				"USER_IP" => "'".$DB->ForSql($arParam["USER_IP"])."'",
+				"REACTION" => "'".$DB->ForSql($arParam["REACTION"])."'"
+			);
+
+			$ID = $DB->Update("b_rating_vote", $arFields, "WHERE RATING_VOTING_ID=".intval($arParam['RATING_VOTING_ID'])." AND USER_ID=".intval($arParam['USER_ID']), $err_mess.__LINE__);
+			if (!$ID)
+			{
+				return false;
+			}
+
+			foreach(GetModuleEvents("main", "OnChangeRatingVote", true) as $arEvent)
+			{
+				ExecuteModuleEventEx($arEvent, array(intval($ID), $arParam));
+			}
+
+			if (CModule::IncludeModule('pull'))
+			{
+				CPullStack::AddShared(Array(
+					'module_id' => 'main',
+					'command' => 'rating_vote',
+					'params' => Array(
+						"TYPE" => "CHANGE",
+						"USER_ID" => intval($arParam['USER_ID']),
+						"ENTITY_TYPE_ID" => $arParam["ENTITY_TYPE_ID"],
+						"ENTITY_ID" => intval($arParam['ENTITY_ID']),
+						"TOTAL_POSITIVE_VOTES" => $arParam['TOTAL_POSITIVE_VOTES'],
+						"RESULT" => 'CHANGE',
+						"USER_DATA" => $userData,
+						"REACTION" => $arParam['REACTION'],
+						"REACTION_OLD" => $arVote['REACTION'],
+						"REACTIONS_LIST" => $arParam['REACTIONS_LIST']
+					)
+				));
+			}
+
+			if (CACHED_b_rating_vote!==false)
+			{
+				$bucket_size = intval(CACHED_b_rating_bucket_size);
+				if($bucket_size <= 0)
+				{
+					$bucket_size = 100;
+				}
+				$bucket = intval(intval($arParam['ENTITY_ID'])/$bucket_size);
+				$CACHE_MANAGER->Clean("b_rvg_".$DB->ForSql($arParam["ENTITY_TYPE_ID"]).$bucket, "b_rating_voting");
+			}
+		}
+
+		return $userData;
+	}
+
+	public static function CancelRatingVote($arParam)
 	{
 		global $DB, $CACHE_MANAGER;
 
@@ -785,6 +1057,7 @@ class CAllRatings
 			SELECT
 				RVG.ID,
 				RV.ID AS VOTE_ID,
+				RV.REACTION AS REACTION,
 				RV.VALUE AS VOTE_VALUE,
 				RVG.TOTAL_POSITIVE_VOTES
 			FROM
@@ -800,6 +1073,24 @@ class CAllRatings
 		if ($arVote = $res->Fetch())
 		{
 			$votePlus = $arVote['VOTE_VALUE'] >= 0 ? true : false;
+			$arVote['REACTION'] = (strlen($arVote['REACTION']) > 0 ? $arVote['REACTION'] : self::REACTION_DEFAULT);
+
+			if ($votePlus)
+			{
+				$rsRVR = $DB->Query("SELECT TOTAL_VOTES FROM b_rating_voting_reaction WHERE ENTITY_TYPE_ID='".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."' AND ENTITY_ID='".intval($arParam['ENTITY_ID'])."'", false, $err_mess.__LINE__);
+				if (!($arRVR = $rsRVR->fetch())) // reactions not initialized
+				{
+					$arFields = array(
+						"ENTITY_TYPE_ID" => "'".$DB->ForSql($arParam["ENTITY_TYPE_ID"])."'",
+						"ENTITY_ID" => intval($arParam['ENTITY_ID']),
+						"REACTION" => "'".$DB->ForSql(self::REACTION_DEFAULT)."'",
+						"TOTAL_VOTES" => $arVote['TOTAL_POSITIVE_VOTES']
+					);
+
+					$DB->Insert("b_rating_voting_reaction", $arFields, $err_mess.__LINE__);
+				}
+			}
+
 			$arFields = array(
 				'TOTAL_VOTES' => "TOTAL_VOTES-1",
 				'TOTAL_VALUE' => "TOTAL_VALUE".($votePlus ? '-'.floatval($arVote['VOTE_VALUE']) : '+'.floatval(-1*$arVote['VOTE_VALUE'])),
@@ -807,10 +1098,25 @@ class CAllRatings
 			);
 			$arFields[($votePlus ? 'TOTAL_POSITIVE_VOTES' : 'TOTAL_NEGATIVE_VOTES')] = ($votePlus ? 'TOTAL_POSITIVE_VOTES-1' : 'TOTAL_NEGATIVE_VOTES-1');
 			$DB->Update("b_rating_voting", $arFields, "WHERE ID=".intval($arVote['ID']), $err_mess.__LINE__);
+			if ($votePlus)
+			{
+				$DB->Query("INSERT INTO b_rating_voting_reaction (ENTITY_TYPE_ID, ENTITY_ID, REACTION, TOTAL_VOTES)".
+					"VALUES ('".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."', ".intval($arParam['ENTITY_ID']).", '".$DB->ForSql($arVote['REACTION'])."', 0)".
+					"ON DUPLICATE KEY UPDATE TOTAL_VOTES = TOTAL_VOTES - 1", false, $err_mess.__LINE__);
+			}
 			$DB->Query("DELETE FROM b_rating_vote WHERE ID=".intval($arVote['VOTE_ID']), false, $err_mess.__LINE__);
+
+			$arParam['REACTIONS_LIST'] = array();
+			$rsRVR = $DB->Query("SELECT REACTION, TOTAL_VOTES FROM b_rating_voting_reaction WHERE ENTITY_TYPE_ID='".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."' AND ENTITY_ID='".intval($arParam['ENTITY_ID'])."'", false, $err_mess.__LINE__);
+			while($arRVR = $rsRVR->fetch())
+			{
+				$arParam['REACTIONS_LIST'][$arRVR['REACTION']] = $arRVR['TOTAL_VOTES'];
+			}
 
 			foreach(GetModuleEvents("main", "OnCancelRatingVote", true) as $arEvent)
 				ExecuteModuleEventEx($arEvent, array(intval($arVote['VOTE_ID']), $arParam));
+
+			$userData = \CAllRatings::getUserData(intval($arParam['USER_ID']), floatval($arVote['VOTE_VALUE']));
 
 			if (CModule::IncludeModule('pull'))
 			{
@@ -824,6 +1130,9 @@ class CAllRatings
 						"ENTITY_ID" => intval($arParam['ENTITY_ID']),
 						"TOTAL_POSITIVE_VOTES" => intval($arVote['TOTAL_POSITIVE_VOTES']+($votePlus? -1: 1)),
 						"RESULT" => $votePlus? 'PLUS': 'MINUS',
+						"USER_DATA" => $userData,
+						"REACTION" => $arVote['REACTION'],
+						"REACTIONS_LIST" => $arParam['REACTIONS_LIST']
 					)
 				));
 			}
@@ -837,13 +1146,13 @@ class CAllRatings
 				$CACHE_MANAGER->Clean("b_rvg_".$DB->ForSql($arParam["ENTITY_TYPE_ID"]).$bucket, "b_rating_voting");
 			}
 
-			return true;
+			return $userData;
 		}
 
 		return false;
 	}
 
-	function UpdateRatingUserBonus($arParam)
+	public static function UpdateRatingUserBonus($arParam)
 	{
 		global $DB;
 		$err_mess = (CRatings::err_mess())."<br>Function: AddRatingBonus<br>Line: ";
@@ -883,7 +1192,7 @@ class CAllRatings
 		return true;
 	}
 
-	function GetRatingUserProp($ratingId, $entityId)
+	public static function GetRatingUserProp($ratingId, $entityId)
 	{
 		global $DB;
 		$err_mess = (CRatings::err_mess())."<br>Function: GetRatingUserProp<br>Line: ";
@@ -945,7 +1254,7 @@ class CAllRatings
 		return $arResult;
 	}
 
-	function GetRatingUserPropEx($ratingId, $entityId)
+	public static function GetRatingUserPropEx($ratingId, $entityId)
 	{
 		global $DB, $CACHE_MANAGER;
 		$err_mess = (CRatings::err_mess())."<br>Function: GetRatingUserPropEx<br>Line: ";
@@ -991,7 +1300,7 @@ class CAllRatings
 		return isset($arResult[$entityId])? $arResult[$entityId]: $arDefaultResult;
 	}
 
-	function GetAuthorityRating()
+	public static function GetAuthorityRating()
 	{
 		global $DB;
 
@@ -1008,7 +1317,7 @@ class CAllRatings
 		return $authorityRatingId;
 	}
 
-	function GetWeightList($arSort=array(), $arFilter=Array())
+	public static function GetWeightList($arSort=array(), $arFilter=Array())
 	{
 		global $DB;
 
@@ -1080,7 +1389,7 @@ class CAllRatings
 		return $res;
 	}
 
-	function SetWeight($arConfigs)
+	public static function SetWeight($arConfigs)
 	{
 		global $DB;
 		$err_mess = (CRatings::err_mess())."<br>Function: SetWeight<br>Line: ";
@@ -1115,7 +1424,7 @@ class CAllRatings
 		return true;
 	}
 
-	function SetVoteGroup($arGroupId, $type)
+	public static function SetVoteGroup($arGroupId, $type)
 	{
 		global $DB, $CACHE_MANAGER;
 		$err_mess = (CRatings::err_mess())."<br>Function: SetVoteGroup<br>Line: ";
@@ -1145,7 +1454,7 @@ class CAllRatings
 		return true;
 	}
 
-	function GetVoteGroup($type = '')
+	public static function GetVoteGroup($type = '')
 	{
 		global $DB;
 		$err_mess = (CRatings::err_mess())."<br>Function: GetVoteGroup<br>Line: ";
@@ -1162,7 +1471,7 @@ class CAllRatings
 		return $DB->Query($strSql, false, $err_mess.__LINE__);
 	}
 
-	function GetVoteGroupEx($type = '')
+	public static function GetVoteGroupEx($type = '')
 	{
 		global $DB, $CACHE_MANAGER;
 		$err_mess = (CRatings::err_mess())."<br>Function: GetVoteGroupEx<br>Line: ";
@@ -1193,7 +1502,7 @@ class CAllRatings
 		return $arResult;
 	}
 
-	function ClearData()
+	public static function ClearData()
 	{
 		global $DB, $CACHE_MANAGER;
 		$err_mess = (CRatings::err_mess())."<br>Function: ClearData<br>Line: ";
@@ -1206,6 +1515,7 @@ class CAllRatings
 
 		$DB->Query("TRUNCATE TABLE b_rating_vote", false, $err_mess.__LINE__);
 		$DB->Query("TRUNCATE TABLE b_rating_voting", false, $err_mess.__LINE__);
+		$DB->Query("TRUNCATE TABLE b_rating_voting_reaction", false, $err_mess.__LINE__);
 
 		$DB->Query("UPDATE b_rating_user SET VOTE_WEIGHT = 0, VOTE_COUNT = 0", false, $err_mess.__LINE__);
 
@@ -1215,13 +1525,13 @@ class CAllRatings
 		return true;
 	}
 
-	function OnUserDelete($ID)
+	public static function OnUserDelete($ID)
 	{
 		CRatings::DeleteByUser($ID);
 		return true;
 	}
 
-	function OnAfterUserRegister($arFields)
+	public static function OnAfterUserRegister($arFields)
 	{
 		global $DB;
 		$err_mess = (CRatings::err_mess())."<br>Function: OnAfterUserRegister<br>Line: ";
@@ -1257,16 +1567,13 @@ class CAllRatings
 					return false;
 
 				$arGroups = array();
-				$res = CUser::GetUserGroupList($userId);
-				while($res_arr = $res->Fetch())
-					$arGroups[] = array("GROUP_ID"=>$res_arr["GROUP_ID"], "DATE_ACTIVE_FROM"=>$res_arr["DATE_ACTIVE_FROM"], "DATE_ACTIVE_TO"=>$res_arr["DATE_ACTIVE_TO"]);
-
 				if ($assignRatingGroup > 0)
-					$arGroups[] = array("GROUP_ID"=>intval($assignRatingGroup));
+					$arGroups[] = intval($assignRatingGroup);
 				if ($assignAuthorityGroup > 0 && $assignRatingGroup != $assignAuthorityGroup)
-					$arGroups[] = array("GROUP_ID"=>intval($assignAuthorityGroup));
+					$arGroups[] = intval($assignAuthorityGroup);
 
-				CUser::SetUserGroup($userId, $arGroups);
+				if(!empty($arGroups))
+					CUser::AppendUserGroup($userId, $arGroups);
 			}
 			if (CACHED_b_rating_vote!==false)
 			{
@@ -1281,7 +1588,7 @@ class CAllRatings
 		}
 	}
 
-	function __SortWeight($a, $b)
+	public static function __SortWeight($a, $b)
 	{
 		if (isset($a['RATING_FROM']) || isset($b['RATING_FROM']))
 			return 1;
@@ -1290,7 +1597,7 @@ class CAllRatings
 	}
 
 	// check only general field
-	function __CheckFields($arFields)
+	public static function __CheckFields($arFields)
 	{
 		$aMsg = array();
 
@@ -1318,7 +1625,7 @@ class CAllRatings
 	}
 
 	// creates a configuration record for each item rating
-	function __AddComponents($ID, $arFields)
+	public static function __AddComponents($ID, $arFields)
 	{
 		global $DB;
 
@@ -1368,7 +1675,7 @@ class CAllRatings
 		return true;
 	}
 
-	function __UpdateComponents($ID, $arFields)
+	public static function __UpdateComponents($ID, $arFields)
 	{
 		global $DB;
 
@@ -1382,9 +1689,569 @@ class CAllRatings
 		return true;
 	}
 
-	function err_mess()
+	public static function err_mess()
 	{
 		return "<br>Class: CRatings<br>File: ".__FILE__;
 	}
+
+	public static function getRatingVoteReaction($arParam)
+	{
+		global $DB;
+
+		static $cache = array();
+
+		$bplus = (strtoupper($arParam['LIST_TYPE']) != 'MINUS');
+		$key = $arParam['ENTITY_TYPE_ID'].'_'.intval($arParam['ENTITY_ID']).'_'.($bplus ? '1' : '0');
+
+		if (
+			isset($arParam['USE_REACTIONS_CACHE'])
+			&& $arParam['USE_REACTIONS_CACHE'] == 'Y'
+			&& isset($cache[$key])
+		)
+		{
+			$result = $cache[$key];
+		}
+		else
+		{
+			$sqlStr = "
+				SELECT
+					REACTION,
+					COUNT(RV.ID) as CNT
+				FROM
+					b_rating_vote RV
+				WHERE
+					RV.ENTITY_TYPE_ID = '".$DB->ForSql($arParam['ENTITY_TYPE_ID'])."'
+					AND RV.ENTITY_ID = ".intval($arParam['ENTITY_ID'])." ".
+//				($bplus ? " AND RV.VALUE > 0 ": " and RV.VALUE < 0 ")
+				"GROUP BY REACTION";
+			$res_cnt = $DB->Query($sqlStr);
+
+			$cnt = 0;
+			$cntReactions = array();
+			while($ar_cnt = $res_cnt->fetch())
+			{
+				$key = (!empty($ar_cnt["REACTION"]) ? $ar_cnt["REACTION"] : self::REACTION_DEFAULT);
+				if (!isset($cntReactions[$key]))
+				{
+					$cntReactions[$key] = 0;
+				}
+				$cntReactions[$key] += $ar_cnt["CNT"];
+				$cnt += $ar_cnt["CNT"];
+			}
+
+			$result = $cache[$key] = array(
+				'items_all' => $cnt,
+				'reactions' => $cntReactions
+			);
+		}
+
+		return $result;
+	}
+
+	public static function getRatingVoteList($arParam)
+	{
+		global $USER;
+
+		$reactionResult = self::GetRatingVoteReaction($arParam);
+		$cnt = $reactionResult['items_all'];
+		$cntReactions = $reactionResult['reactions'];
+
+		$bplus = (strtoupper($arParam['LIST_TYPE']) != 'MINUS');
+
+		$bIntranetInstalled = IsModuleInstalled("intranet");
+
+		$bExtended = false;
+		$arUserID = array();
+
+		if (
+			(
+				array_key_exists("USER_FIELDS", $arParam)
+				&& is_array($arParam["USER_FIELDS"])
+			)
+			|| (
+				array_key_exists("USER_SELECT", $arParam)
+				&& is_array($arParam["USER_SELECT"])
+			)
+		)
+		{
+			$bExtended = true;
+			$sqlStr = CRatings::GetRatingVoteListSQLExtended($arParam, $bplus, $bIntranetInstalled);
+		}
+		else
+		{
+			$sqlStr = CRatings::GetRatingVoteListSQL($arParam, $bplus, $bIntranetInstalled);
+		}
+
+		$arList = Array();
+		$arVoteList = Array();
+		if ($arParam['LIST_LIMIT'] != 0 && ceil($cnt/intval($arParam['LIST_LIMIT'])) >= intval($arParam['LIST_PAGE']))
+		{
+			$res = new CDBResult();
+			$res->NavQuery($sqlStr, $cnt, Array('iNumPage' => intval($arParam['LIST_PAGE']), 'nPageSize' => intval($arParam['LIST_LIMIT'])));
+
+			while ($row = $res->Fetch())
+			{
+				$ar = $row;
+
+				if (!$bExtended)
+				{
+					$ar["PHOTO"] = $ar["PHOTO_SRC"] = '';
+					if (!empty($ar["PERSONAL_PHOTO"]))
+					{
+						$arFileTmp = CFile::ResizeImageGet(
+							$row["PERSONAL_PHOTO"],
+							array('width' => 58, 'height' => 58),
+							BX_RESIZE_IMAGE_EXACT,
+							false
+						);
+						$ar['PHOTO'] = CFile::ShowImage($arFileTmp['src'], 21, 21, 'border=0');
+						$ar['PHOTO_SRC'] = $arFileTmp['src'];
+					}
+					$ar['FULL_NAME'] = CUser::FormatName(CSite::GetNameFormat(false), $row, true);
+				}
+				else
+					$arUserID[] = $row["ID"];
+
+				if ($ar['ID'] != $USER->GetId())
+					$arList[$ar['ID']] = $ar;
+				else
+					$arVoteList[$ar['ID']] = $ar;
+			}
+			foreach ($arList as $ar)
+			{
+				$arVoteList[$ar['ID']] = $ar;
+			}
+
+			if (
+				$bExtended
+				&& count($arUserID) > 0
+			)
+			{
+				$arUserListParams = array();
+				$arUsers = array();
+
+				$arUserListParams["FIELDS"] = (
+					array_key_exists("USER_FIELDS", $arParam)
+					&& is_array($arParam["USER_FIELDS"])
+						? $arParam["USER_FIELDS"]
+						: array("NAME", "LAST_NAME", "SECOND_NAME", "LOGIN", "PERSONAL_PHOTO")
+				);
+
+				$arUserListParams["FIELDS"] = array_unique(array_merge(array("ID"), $arUserListParams["FIELDS"]));
+
+				if (
+					array_key_exists("USER_SELECT", $arParam)
+					&& is_array($arParam["USER_SELECT"])
+				)
+				{
+					$arUserListParams["SELECT"] = $arParam["USER_SELECT"];
+				}
+
+				$rsUser = CUser::GetList(
+					($by = "ID"),
+					($order = "ASC"),
+					array("ID" => implode("|", $arUserID)),
+					$arUserListParams
+				);
+
+				while ($arUser = $rsUser->Fetch())
+				{
+					$arUser["PHOTO"] = $arUser["PHOTO_SRC"] = '';
+					if (array_key_exists("PERSONAL_PHOTO", $arUser))
+					{
+						$arFileTmp = CFile::ResizeImageGet(
+							$arUser["PERSONAL_PHOTO"],
+							array("width" => 58, "height" => 58),
+							BX_RESIZE_IMAGE_EXACT,
+							false
+						);
+						$arUser["PHOTO_SRC"] = $arFileTmp["src"];
+						$arUser["PHOTO"] = CFile::ShowImage($arFileTmp["src"], 21, 21, "border=0");
+					}
+					$arUser["FULL_NAME"] = CUser::FormatName(CSite::GetNameFormat(false), $arUser, true);
+					$arUsers[$arUser["ID"]] = $arUser;
+				}
+
+				foreach($arVoteList as $i => $arVoteUser)
+				{
+					if (array_key_exists($arVoteUser["ID"], $arUsers))
+					{
+						foreach($arUsers[$arVoteUser["ID"]] as $key => $value)
+						{
+							$arVoteList[$i][$key] = $value;
+						}
+					}
+				}
+			}
+		}
+
+		return array(
+			'items_all' => $cnt,
+			'items_page' => count($arVoteList),
+			'items' => $arVoteList,
+			'reactions' => $cntReactions
+		);
+	}
+
+	public static function getUserWeight($userId = 0)
+	{
+		$result = 0;
+
+		if (!\Bitrix\Main\ModuleManager::isModuleInstalled('intranet'))
+		{
+			return $result;
+		}
+
+		$userId = (
+			!empty($userId)
+				? intval($userId)
+				: 0
+		);
+
+		if ($userId <= 0)
+		{
+			return $result;
+		}
+
+		$ratingId = \CRatings::getAuthorityRating();
+		if (intval($ratingId) <= 0)
+		{
+			return $result;
+		}
+
+		$res = \Bitrix\Main\Application::getConnection()->query('SELECT MAX(VOTES) AS VOTES FROM b_rating_subordinate WHERE RATING_ID = '.$ratingId.' AND ENTITY_ID = '.$userId);
+		if ($record = $res->fetch())
+		{
+			$result = floatval($record['VOTES']);
+		}
+
+		return $result;
+	}
+
+	public static function getUserData($userId = 0, $value = 0)
+	{
+		$result = array();
+
+		$userId = (
+			!empty($userId)
+				? intval($userId)
+				: 0
+		);
+
+		if ($userId <= 0)
+		{
+			return $result;
+		}
+
+		$res = \CUser::getById($userId);
+		if ($userFields = $res->fetch())
+		{
+			$result = array(
+				'NAME_FORMATTED' => \CUser::formatName(
+					\CSite::getNameFormat(false),
+					array(
+						'NAME' => $userFields["NAME"],
+						'LAST_NAME' => $userFields["LAST_NAME"],
+						'SECOND_NAME' => $userFields["SECOND_NAME"],
+						'LOGIN' => $userFields["LOGIN"],
+					),
+					true
+				),
+				'PERSONAL_PHOTO' => array(
+					'ID' => $userFields["PERSONAL_PHOTO"],
+					'SRC' => false
+				),
+				"WEIGHT" => (
+					\Bitrix\Main\ModuleManager::isModuleInstalled('intranet')
+						? self::getUserWeight($userId)
+						: $value
+				)
+			);
+
+			if (intval($userFields['PERSONAL_PHOTO']) > 0)
+			{
+				$imageFile = \CFile::getFileArray($userFields["PERSONAL_PHOTO"]);
+				if ($imageFile !== false)
+				{
+					$file = \CFile::resizeImageGet(
+						$imageFile,
+						array("width" => 100, "height" => 100),
+						BX_RESIZE_IMAGE_EXACT,
+						false
+					);
+					$result['PERSONAL_PHOTO']['SRC'] = $file['src'];
+				}
+			}
+
+
+		}
+
+		return $result;
+	}
+
+	public static function getEntityRatingData($params = array())
+	{
+		global $USER, $DB;
+
+		$result = array();
+
+		$entityTypeId = (
+			!empty($params['entityTypeId'])
+				? $params['entityTypeId']
+				: ''
+		);
+
+		$entityIdList = (
+			!empty($params['entityId'])
+				? $params['entityId']
+				: array()
+		);
+
+		if (!is_array($entityIdList))
+		{
+			$entityIdList = array($entityIdList);
+		}
+
+		if (empty($entityIdList))
+		{
+			return $result;
+		}
+
+		$ratingId = \CRatings::getAuthorityRating();
+		if (intval($ratingId) <= 0)
+		{
+			return $result;
+		}
+
+		$topCount = (
+			isset($params['topCount'])
+				? intval($params['topCount'])
+				: 0
+		);
+
+		if ($topCount <= 0)
+		{
+			$topCount = 2;
+		}
+
+		if ($topCount > 5)
+		{
+			$topCount = 5;
+		}
+
+		$avatarSize = (
+			isset($params['avatarSize'])
+				? intval($params['avatarSize'])
+				: 100
+		);
+
+		$connection = \Bitrix\Main\Application::getConnection();
+		$connection->queryExecute('SET @user_rank = 0');
+		$connection->queryExecute('SET @current_entity_id = 0');
+
+		if (\Bitrix\Main\ModuleManager::isModuleInstalled('intranet'))
+		{
+			$res = $connection->query("SELECT
+				@user_rank := IF(
+					@current_entity_id = tmp.ENTITY_ID,
+					@user_rank + 1,
+					1
+				) as USER_RANK,
+				@current_entity_id := tmp.ENTITY_ID,
+				tmp.USER_ID as USER_ID,
+				tmp.ENTITY_ID as ENTITY_ID,
+				tmp.WEIGHT as WEIGHT
+			FROM (
+				SELECT
+					@rownum := @rownum + 1 as ROWNUM,
+					RS1.ENTITY_ID as USER_ID,
+					RV1.ENTITY_ID as ENTITY_ID,
+					MAX(RS1.VOTES) as WEIGHT
+				FROM
+					b_rating_subordinate RS1,
+					b_rating_vote RV1
+				WHERE
+					RS1.ENTITY_ID = RV1.USER_ID
+					AND RS1.RATING_ID = ".intval($ratingId)."
+					AND RV1.ENTITY_TYPE_ID = '".$DB->ForSQL($entityTypeId)."'
+					AND RV1.ENTITY_ID IN (".implode(',', $entityIdList).")
+				GROUP BY
+					RV1.ENTITY_ID, RS1.ENTITY_ID
+				ORDER BY
+					RV1.ENTITY_ID,
+					WEIGHT DESC
+			) tmp");
+		}
+		else
+		{
+			$res = $connection->query("SELECT
+				@user_rank := IF(
+					@current_entity_id = tmp.ENTITY_ID,
+					@user_rank + 1,
+					1
+				) as USER_RANK,
+				@current_log_id := tmp.LOG_ID,
+				tmp.USER_ID as USER_ID,
+				tmp.ENTITY_ID as ENTITY_ID,
+				tmp.WEIGHT as WEIGHT
+			FROM (
+				SELECT
+					@rownum := @rownum + 1 as ROWNUM,
+					RV1.USER_ID as USER_ID,
+					RV1.ENTITY_ID as ENTITY_ID,
+					RV1.VALUE as WEIGHT
+				FROM
+					b_rating_vote RV1
+				WHERE
+					RV1.ENTITY_TYPE_ID = '".$DB->ForSQL($entityTypeId)."'
+					AND RV1.ENTITY_ID IN (".implode(',', $entityIdList).")
+				ORDER BY
+					RV1.ENTITY_ID,
+					WEIGHT DESC
+			) tmp");
+		}
+
+		$userWeightData = $entityUserData = array();
+
+		$currentEntityId = false;
+		$hasMine = false;
+
+		while ($voteFields = $res->fetch())
+		{
+			if (
+				!$hasMine
+				&& $voteFields['USER_ID'] == $USER->getId()
+			)
+			{
+				$hasMine = true;
+			}
+
+			if ($voteFields['ENTITY_ID'] != $currentEntityId)
+			{
+				$cnt = 0;
+				$hasMine = false;
+				$entityUserData[$voteFields['ENTITY_ID']] = array();
+			}
+
+			$currentEntityId = $voteFields['ENTITY_ID'];
+			$cnt++;
+
+			if ($cnt > ($hasMine ? $topCount+1 : $topCount))
+			{
+				continue;
+			}
+
+			$entityUserData[$voteFields['ENTITY_ID']][] = $voteFields['USER_ID'];
+			if (!isset($userWeightData[$voteFields['USER_ID']]))
+			{
+				$userWeightData[$voteFields['USER_ID']] = floatval($voteFields['WEIGHT']);
+			}
+		}
+
+		$userData = array();
+
+		if (!empty($userWeightData))
+		{
+			$res = \Bitrix\Main\UserTable::getList(array(
+				'filter' => array(
+					'@ID' => array_keys($userWeightData)
+				),
+				'select' => array('ID', 'NAME', 'LAST_NAME', 'SECOND_NAME', 'LOGIN', 'PERSONAL_PHOTO', 'PERSONAL_GENDER')
+			));
+
+			while ($userFields = $res->fetch())
+			{
+				$userData[$userFields["ID"]] = array(
+					'NAME_FORMATTED' => \CUser::formatName(
+						\CSite::getNameFormat(false),
+						$userFields,
+						true
+					),
+					'PERSONAL_PHOTO' => array(
+						'ID' => $userFields['PERSONAL_PHOTO'],
+						'SRC' => false
+					),
+					'PERSONAL_GENDER' => $userFields['PERSONAL_GENDER']
+				);
+
+				if (intval($userFields['PERSONAL_PHOTO']) > 0)
+				{
+					$imageFile = \CFile::getFileArray($userFields["PERSONAL_PHOTO"]);
+					if ($imageFile !== false)
+					{
+						$file = \CFile::resizeImageGet(
+							$imageFile,
+							array("width" => $avatarSize, "height" => $avatarSize),
+							BX_RESIZE_IMAGE_EXACT,
+							false
+						);
+						$userData[$userFields["ID"]]['PERSONAL_PHOTO']['SRC'] = $file['src'];
+					}
+				}
+			}
+		}
+
+		foreach($entityUserData as $entityId => $userIdList)
+		{
+			$result[$entityId] = array();
+
+			foreach($userIdList as $userId)
+			{
+				$result[$entityId][] = array(
+					'ID' => $userId,
+					'NAME_FORMATTED' => $userData[$userId]['NAME_FORMATTED'],
+					'PERSONAL_PHOTO' => $userData[$userId]['PERSONAL_PHOTO']['ID'],
+					'PERSONAL_PHOTO_SRC' => $userData[$userId]['PERSONAL_PHOTO']['SRC'],
+					'PERSONAL_GENDER' => $userData[$userId]['PERSONAL_GENDER'],
+					'WEIGHT' => $userWeightData[$userId]
+				);
+			}
+		}
+
+		foreach($result as $entityId => $data)
+		{
+			usort(
+				$data,
+				function($a, $b)
+				{
+					if ($a['WEIGHT'] == $b['WEIGHT'])
+					{
+						return 0;
+					}
+					return ($a['WEIGHT'] > $b['WEIGHT']) ? -1 : 1;
+				}
+			);
+			$result[$entityId] = $data;
+		}
+
+		return $result;
+	}
+
+	public static function deleteRatingVoting(array $params = [])
+	{
+		global $DB;
+
+		$entityTypeId = (
+			isset($params['ENTITY_TYPE_ID'])
+			&& strlen($params['ENTITY_TYPE_ID']) > 0
+				? $params['ENTITY_TYPE_ID']
+				: ''
+		);
+		$entityId = (
+			isset($params['ENTITY_ID'])
+			&& intval($params['ENTITY_ID']) > 0
+				? intval($params['ENTITY_ID'])
+				: 0
+		);
+		if (
+			strlen($entityTypeId) <= 0
+			|| $entityId <= 0
+		)
+		{
+			return;
+		}
+
+		$DB->query("DELETE FROM b_rating_voting WHERE ENTITY_TYPE_ID='".$DB->forSql($entityTypeId)."' AND ENTITY_ID=".intval($entityId), true);
+		$DB->query("DELETE FROM b_rating_voting_reaction WHERE ENTITY_TYPE_ID='".$DB->forSql($entityTypeId)."' AND ENTITY_ID=".intval($entityId), true);
+	}
 }
-?>

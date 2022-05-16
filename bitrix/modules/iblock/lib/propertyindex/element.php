@@ -11,6 +11,7 @@ class Element
 	protected $iblockId = 0;
 	protected $elementId = 0;
 	protected static $catalog = null;
+	protected static $filterPropertyID = array();
 	protected $skuIblockId = 0;
 	protected $skuPropertyId = 0;
 	protected $elementPropertyValues = array();
@@ -100,7 +101,31 @@ class Element
 	 */
 	protected function loadElementProperties($iblockId, array $elementFilter)
 	{
-		$elementList = \CIBlockElement::getPropertyValues($iblockId, $elementFilter);
+		if (!isset(self::$filterPropertyID[$iblockId]))
+		{
+			self::$filterPropertyID[$iblockId] = [];
+			$properties = \Bitrix\Iblock\SectionPropertyTable::getList(array(
+				"select" => array("PROPERTY_ID"),
+				"filter" => array(
+					"=IBLOCK_ID" => array($this->iblockId, $this->skuIblockId),
+					"=SMART_FILTER" => "Y",
+				),
+			));
+			while ($property = $properties->fetch())
+			{
+				self::$filterPropertyID[$iblockId][] = $property['PROPERTY_ID'];
+			}
+			unset($property);
+			unset($properties);
+		}
+
+		$elementList = \CIBlockElement::getPropertyValues(
+			$iblockId,
+			$elementFilter,
+			false,
+			array('ID' => self::$filterPropertyID[$iblockId])
+		);
+
 		while ($element = $elementList->fetch())
 		{
 			foreach ($element as $propertyId => $value)
@@ -128,22 +153,19 @@ class Element
 	 */
 	protected function loadElementPrices(array $productList)
 	{
-		$priceList = \CPrice::getListEx(
-			array(),
-			array('PRODUCT_ID' => $productList),
-			false,
-			false,
-			array('ID', 'PRODUCT_ID', 'CATALOG_GROUP_ID', 'PRICE', 'CURRENCY', 'QUANTITY_FROM', 'QUANTITY_TO')
-		);
+		$priceList = \Bitrix\Catalog\PriceTable::getList(array(
+			'select' => array('ID', 'PRODUCT_ID', 'CATALOG_GROUP_ID', 'PRICE', 'CURRENCY', 'QUANTITY_FROM', 'QUANTITY_TO'),
+			'filter' => array('@PRODUCT_ID' => $productList)
+		));
 		while($price = $priceList->fetch())
 		{
 			if (!isset($this->elementPrices[$price["CATALOG_GROUP_ID"]][$price["CURRENCY"]]))
-			{
 				$this->elementPrices[$price["CATALOG_GROUP_ID"]][$price["CURRENCY"]] = array();
-			}
-			$priceValue = doubleval($price["PRICE"]);
-			$this->elementPrices[$price["CATALOG_GROUP_ID"]][$price["CURRENCY"]][$priceValue] = $priceValue;
+			$priceValue = (float)$price["PRICE"];
+			$this->elementPrices[$price["CATALOG_GROUP_ID"]][$price["CURRENCY"]][(string)$priceValue] = $priceValue;
 		}
+		unset($price);
+		unset($priceList);
 
 		foreach ($this->elementPrices as $catalogGroupId => $currencyPrices)
 		{
@@ -157,7 +179,9 @@ class Element
 					);
 				}
 			}
+			unset($currency, $prices);
 		}
+		unset($catalogGroupId, $currencyPrices);
 	}
 
 	/**

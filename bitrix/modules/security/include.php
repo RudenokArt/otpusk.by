@@ -1,4 +1,4 @@
-<?
+<?php
 if(!defined("CACHED_b_sec_iprule")) define("CACHED_b_sec_iprule", 36000);
 if(!defined("CACHED_b_sec_filter_mask")) define("CACHED_b_sec_filter_mask", 36000);
 if(!defined("CACHED_b_sec_frame_mask")) define("CACHED_b_sec_frame_mask", 36000);
@@ -17,6 +17,7 @@ CModule::AddAutoloadClasses(
 		"CSecuritySessionVirtual" => "classes/general/session_virtual.php",
 		"CSecuritySessionDB" => "classes/general/session_db.php",
 		"CSecuritySessionMC" => "classes/general/session_mc.php",
+		"CSecuritySessionRedis" => "classes/general/session_redis.php",
 		"CSecuritySession" => "classes/general/session.php",
 		"CSecurityDB" => "classes/".strtolower($DB->type)."/database.php",
 		"CSecurityUser" => "classes/general/user.php",
@@ -40,7 +41,7 @@ CModule::AddAutoloadClasses(
 		"CSecuritySiteConfigurationTest" => "classes/general/tests/site_configuration.php",
 		"CSecurityTaintCheckingTest" => "classes/general/tests/taint_checking.php",
 		"CSecurityUserTest" => "classes/general/tests/user.php",
-		"CSecurityRequirementsException" => "classes/general/requirements_exception.php",
-		"CSecurityJsonHelper" => "classes/general/json.php",
+		"CSecurityRequirementsException" => "classes/general/requirements_exception.php"
 	)
 );
+

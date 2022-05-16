@@ -87,22 +87,36 @@ Class clouds extends CModule
 			RegisterModule("clouds");
 			CModule::IncludeModule("clouds");
 			RegisterModuleDependences("main", "OnEventLogGetAuditTypes", "clouds", "CCloudStorage", "GetAuditTypes");
-			RegisterModuleDependences("main", "OnBeforeProlog", "clouds", "CCloudStorage", "OnBeforeProlog");
+			RegisterModuleDependences("main", "OnBeforeProlog", "clouds", "CCloudStorage", "OnBeforeProlog", 90);
 			RegisterModuleDependences("main", "OnAdminListDisplay", "clouds", "CCloudStorage", "OnAdminListDisplay");
 			RegisterModuleDependences("main", "OnBuildGlobalMenu", "clouds", "CCloudStorage", "OnBuildGlobalMenu");
 			RegisterModuleDependences("main", "OnFileSave", "clouds", "CCloudStorage", "OnFileSave");
+			RegisterModuleDependences("main", "OnAfterFileSave", "clouds", "CCloudStorage", "OnAfterFileSave");
 			RegisterModuleDependences("main", "OnGetFileSRC", "clouds", "CCloudStorage", "OnGetFileSRC");
 			RegisterModuleDependences("main", "OnFileCopy", "clouds", "CCloudStorage", "OnFileCopy");
 			RegisterModuleDependences("main", "OnFileDelete", "clouds", "CCloudStorage", "OnFileDelete");
 			RegisterModuleDependences("main", "OnMakeFileArray", "clouds", "CCloudStorage", "OnMakeFileArray");
 			RegisterModuleDependences("main", "OnBeforeResizeImage", "clouds", "CCloudStorage", "OnBeforeResizeImage");
 			RegisterModuleDependences("main", "OnAfterResizeImage", "clouds", "CCloudStorage", "OnAfterResizeImage");
-			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_AmazonS3", "GetObject");
-			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_GoogleStorage", "GetObject");
-			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_OpenStackStorage", "GetObject");
-			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_RackSpaceCloudFiles", "GetObject");
-			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_ClodoRU", "GetObject");
-			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_Selectel", "GetObject");
+			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_AmazonS3", "GetObjectInstance");
+			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_GoogleStorage", "GetObjectInstance");
+			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_OpenStackStorage", "GetObjectInstance");
+			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_RackSpaceCloudFiles", "GetObjectInstance");
+			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_ClodoRU", "GetObjectInstance");
+			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_Selectel", "GetObjectInstance");
+			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_HotBox", "GetObjectInstance");
+			RegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_Yandex", "GetObjectInstance");
+			RegisterModuleDependences("perfmon", "OnGetTableSchema", "clouds", "clouds", "OnGetTableSchema");
+
+			//agents
+			CAgent::RemoveAgent("CCloudStorage::CleanUp();", "clouds");
+			CAgent::Add(array(
+				"NAME"=>"CCloudStorage::CleanUp();",
+				"MODULE_ID"=>"clouds",
+				"ACTIVE"=>"Y",
+				"AGENT_INTERVAL"=>86400,
+				"IS_PERIOD"=>"N",
+			));
 
 			return true;
 		}
@@ -124,18 +138,25 @@ Class clouds extends CModule
 		UnRegisterModuleDependences("main", "OnAdminListDisplay", "clouds", "CCloudStorage", "OnAdminListDisplay");
 		UnRegisterModuleDependences("main", "OnBuildGlobalMenu", "clouds", "CCloudStorage", "OnBuildGlobalMenu");
 		UnRegisterModuleDependences("main", "OnFileSave", "clouds", "CCloudStorage", "OnFileSave");
+		UnRegisterModuleDependences("main", "OnAfterFileSave", "clouds", "CCloudStorage", "OnAfterFileSave");
 		UnRegisterModuleDependences("main", "OnGetFileSRC", "clouds", "CCloudStorage", "OnGetFileSRC");
 		UnRegisterModuleDependences("main", "OnFileCopy", "clouds", "CCloudStorage", "OnFileCopy");
 		UnRegisterModuleDependences("main", "OnFileDelete", "clouds", "CCloudStorage", "OnFileDelete");
 		UnRegisterModuleDependences("main", "OnMakeFileArray", "clouds", "CCloudStorage", "OnMakeFileArray");
 		UnRegisterModuleDependences("main", "OnBeforeResizeImage", "clouds", "CCloudStorage", "OnBeforeResizeImage");
 		UnRegisterModuleDependences("main", "OnAfterResizeImage", "clouds", "CCloudStorage", "OnAfterResizeImage");
-		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_AmazonS3", "GetObject");
-		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_GoogleStorage", "GetObject");
-		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_OpenStackStorage", "GetObject");
-		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_RackSpaceCloudFiles", "GetObject");
-		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_ClodoRU", "GetObject");
-		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_Selectel", "GetObject");
+		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_AmazonS3", "GetObjectInstance");
+		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_GoogleStorage", "GetObjectInstance");
+		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_OpenStackStorage", "GetObjectInstance");
+		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_RackSpaceCloudFiles", "GetObjectInstance");
+		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_ClodoRU", "GetObjectInstance");
+		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_Selectel", "GetObjectInstance");
+		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_HotBox", "GetObjectInstance");
+		UnRegisterModuleDependences("clouds", "OnGetStorageService", "clouds", "CCloudStorageService_Yandex", "GetObjectInstance");
+		UnRegisterModuleDependences("perfmon", "OnGetTableSchema", "clouds", "clouds", "OnGetTableSchema");
+
+		//agents
+		CAgent::RemoveAgent("CCloudStorage::CleanUp();", "clouds");
 
 		UnRegisterModule("clouds");
 
@@ -223,6 +244,31 @@ Class clouds extends CModule
 				$APPLICATION->IncludeAdminFile(GetMessage("CLO_UNINSTALL_TITLE"), $_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/clouds/install/unstep2.php");
 			}
 		}
+	}
+
+	function OnGetTableSchema()
+	{
+		return array(
+			"clouds" => array(
+				"b_clouds_file_bucket" => array(
+					"ID" => array(
+						"b_clouds_file_bucket" => "FAILOVER_BUCKET_ID",
+						"b_clouds_file_upload" => "BUCKET_ID",
+						"b_clouds_copy_queue" => "SOURCE_BUCKET_ID",
+						"b_clouds_copy_queue" => "TARGET_BUCKET_ID",
+						"b_clouds_delete_queue" => "BUCKET_ID",
+						"b_clouds_rename_queue" => "BUCKET_ID",
+					)
+				),
+			),
+			"main" => array(
+				"b_file" => array(
+					"ID" => array(
+						"b_clouds_file_resize" => "FILE_ID",
+					)
+				),
+			),
+		);
 	}
 }
 ?>

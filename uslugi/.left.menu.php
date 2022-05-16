@@ -1,0 +1,53 @@
+<?
+$aMenuLinks = Array(
+	Array(
+		"Услуги", 
+		"/uslugi/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Корпоративное обслуживание", 
+		"/uslugi/korporativnoe-obsluzhivanie/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Страхование", 
+		"/uslugi/strakhovanie/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Трансфер", 
+		"/uslugi/transfer/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"MICE в Беларуси", 
+		"/uslugi/mice-v-belarusi/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"TICKETPRO", 
+		"/uslugi/ticketpro/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"VISA free", 
+		"/otdykh-v-belarusi/viza-free/", 
+		Array(), 
+		Array(), 
+		"" 
+	)
+);
+?>

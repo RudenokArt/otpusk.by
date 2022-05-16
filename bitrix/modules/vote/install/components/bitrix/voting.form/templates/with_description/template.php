@@ -91,6 +91,7 @@
 
 					<?case 2://dropdown?>
 						<select name="vote_dropdown_<?=$arAnswer["QUESTION_ID"]?>" <?=$arAnswer["~FIELD_PARAM"]?>>
+							<option value=""><?=GetMessage("VOTE_DROPDOWN_SET")?></option>
 						<?foreach ($arAnswer["DROPDOWN"] as $arDropDown):?>
 							<option value="<?=$arDropDown["ID"]?>" <?=($arDropDown["ID"] === $value)?'selected="selected"':''?>><?=$arDropDown["MESSAGE"]?></option>
 						<?endforeach?>
@@ -139,15 +140,14 @@
 			</div>
 			<div class="vote-reply-field-captcha-label">
 				<label for="captcha_word"><?=GetMessage("F_CAPTCHA_PROMT")?><span class='starrequired'>*</span></label><br />
-				<input type="text" size="20" name="captcha_word" />
+				<input type="text" size="20" name="captcha_word" autocomplete="off" />
 			</div>
 		</div>
 		<? endif // CAPTCHA_CODE ?>
 		
 		<input type="submit" name="vote" value="<?=GetMessage("VOTE_SUBMIT_BUTTON")?>">&nbsp;&nbsp;
-		<input type="reset" value="<?=GetMessage("VOTE_RESET")?>">
+		<input type="reset" onclick="return resetForm(this.form, event)" value="<?=GetMessage("VOTE_RESET")?>">
 		</form>
-
 	<?endif?>
 
 </div>

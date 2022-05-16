@@ -77,6 +77,14 @@ $editable = ($USER->IsAdmin() ||
 	($USER->CanDoOperation('edit_all_users') && !in_array(1, $arUserGroups))
 );
 
+//authorize as user
+if($_REQUEST["action"] == "authorize" && check_bitrix_sessid() && $USER->CanDoOperation('edit_php'))
+{
+	$USER->Logout();
+	$USER->Authorize(intval($_REQUEST["ID"]));
+	LocalRedirect("user_edit.php?lang=".LANGUAGE_ID."&ID=".intval($_REQUEST["ID"]));
+}
+
 
 $canSelfEdit = true;
 if($ID==$uid && !($USER->CanDoOperation('edit_php') || ($USER->CanDoOperation('edit_all_users') && $USER->CanDoOperation('edit_groups'))))
@@ -105,7 +113,7 @@ while ($opt_res = $db_opt_res->Fetch())
 		{
 			IncludeModuleLangFile($ofile);
 			$mname = str_replace(".", "_", $mdir);
-			$aTabs[] = array("DIV" => "edit".($i+4), "TAB" => GetMessage($mname."_TAB"), "ICON"=>"main_user_edit", "TITLE"=>GetMessage($mname."_TAB_TITLE"));
+			$aTabs[] = array("DIV" => "edit_".$mname, "TAB" => GetMessage($mname."_TAB"), "ICON"=>"main_user_edit", "TITLE"=>GetMessage($mname."_TAB_TITLE"));
 			$i++;
 		}
 	}
@@ -137,6 +145,8 @@ if(
 	&& check_bitrix_sessid()
 )
 {
+	$adminSidePanelHelper->decodeUriComponent();
+
 	if(COption::GetOptionString('main', 'use_encrypted_auth', 'N') == 'Y')
 	{
 		//possible encrypted user password
@@ -160,7 +170,7 @@ if(
 		$arWORK_LOGO = $_FILES["WORK_LOGO"];
 
 		$arUser = false;
-		if($ID>0)
+		if($ID > 0 && $COPY_ID <= 0)
 		{
 			$dbUser = CUser::GetById($ID);
 			$arUser = $dbUser->Fetch();
@@ -217,6 +227,7 @@ if(
 			"WORK_NOTES" => $_POST["WORK_NOTES"],
 			"AUTO_TIME_ZONE" => ($_POST["AUTO_TIME_ZONE"] == "Y" || $_POST["AUTO_TIME_ZONE"] == "N"? $_POST["AUTO_TIME_ZONE"] : ""),
 			"XML_ID" => $_POST["XML_ID"],
+			"PHONE_NUMBER" => $_POST["PHONE_NUMBER"],
 		);
 
 		if(isset($_POST["TIME_ZONE"]))
@@ -227,7 +238,10 @@ if(
 			if($_POST["LID"] <> '')
 				$arFields["LID"] = $_POST["LID"];
 
-			if(is_set($_POST, 'EXTERNAL_AUTH_ID'))
+			if(isset($_POST["LANGUAGE_ID"]))
+				$arFields["LANGUAGE_ID"] = $_POST["LANGUAGE_ID"];
+
+			if(isset($_POST['EXTERNAL_AUTH_ID']))
 				$arFields['EXTERNAL_AUTH_ID'] = $_POST["EXTERNAL_AUTH_ID"];
 
 			if ($ID == 1 && $COPY_ID <= 0)
@@ -373,28 +387,44 @@ if(
 				if($res_site_arr = $res_site->Fetch())
 					$arMess = IncludeModuleLangFile(__FILE__, $res_site_arr["LANGUAGE_ID"], true);
 
-				if($new=="Y")
-					CUser::SendUserInfo($ID, $_POST["LID"], ($arMess !== false? $arMess["ACCOUNT_INSERT"]:GetMessage("ACCOUNT_INSERT")), true);
+				if($new == "Y")
+				{
+					$text = ($arMess !== false? $arMess["ACCOUNT_INSERT"] : GetMessage("ACCOUNT_INSERT"));
+				}
 				else
-					CUser::SendUserInfo($ID, $_POST["LID"], ($arMess !== false? $arMess["ACCOUNT_UPDATE"]:GetMessage("ACCOUNT_UPDATE")), true);
+				{
+					$text = ($arMess !== false? $arMess["ACCOUNT_UPDATE"] : GetMessage("ACCOUNT_UPDATE"));
+				}
+				CUser::SendUserInfo($ID, $_POST["LID"], $text, true);
 			}
 
-			if($USER->CanDoOperation('edit_all_users') || $USER->CanDoOperation('edit_subordinate_users') || ($USER->CanDoOperation('edit_own_profile') && $ID==$uid))
+			if ($adminSidePanelHelper->isAjaxRequest())
 			{
-				if($_POST["save"] <> '')
-					LocalRedirect($strRedirect_admin);
-				elseif($_POST["apply"] <> '')
-					LocalRedirect($strRedirect."&ID=".$ID."&".$tabControl->ActiveTabParam());
-				elseif(strlen($save_and_add)>0)
-					LocalRedirect($strRedirect."&ID=0&".$tabControl->ActiveTabParam());
+				$adminSidePanelHelper->sendSuccessResponse("base", array("ID" => $ID, "COPY_ID" => "0"));
 			}
-			elseif($new=="Y")
-				LocalRedirect($strRedirect."&ID=".$ID."&".$tabControl->ActiveTabParam());
+			else
+			{
+				if($USER->CanDoOperation('edit_all_users') || $USER->CanDoOperation('edit_subordinate_users') || ($USER->CanDoOperation('edit_own_profile') && $ID==$uid))
+				{
+					if($_POST["save"] <> '')
+						LocalRedirect($strRedirect_admin);
+					elseif($_POST["apply"] <> '')
+						LocalRedirect($strRedirect."&ID=".$ID."&".$tabControl->ActiveTabParam());
+					elseif(strlen($_POST["save_and_add"])>0)
+						LocalRedirect($strRedirect."&ID=0&".$tabControl->ActiveTabParam());
+				}
+				elseif($new=="Y")
+					LocalRedirect($strRedirect."&ID=".$ID."&".$tabControl->ActiveTabParam());
+			}
 		}
 	}
+
+	if ($strError)
+		$adminSidePanelHelper->sendJsonErrorResponse($strError);
 }
 
 $str_GROUP_ID = array();
+$str_PHONE_NUMBER = "";
 
 $user = CUser::GetByID($ID);
 if(!$user->ExtractFields("str_"))
@@ -405,6 +435,11 @@ if(!$user->ExtractFields("str_"))
 }
 else
 {
+	if($phone = \Bitrix\Main\UserPhoneAuthTable::getRowById($ID))
+	{
+		$str_PHONE_NUMBER = htmlspecialcharsbx($phone["PHONE_NUMBER"]);
+	}
+
 	$dbUserGroup = CUser::GetUserGroupList($ID);
 	while ($arUserGroup = $dbUserGroup->Fetch())
 	{
@@ -428,6 +463,8 @@ if($strError <> '' || !$res)
 
 	$str_PERSONAL_PHOTO = $save_PERSONAL_PHOTO;
 	$str_WORK_LOGO = $save_WORK_LOGO;
+
+	$str_PHONE_NUMBER = htmlspecialcharsbx($_POST["PHONE_NUMBER"]);
 
 	$GROUP_ID_NUMBER = intval($_REQUEST["GROUP_ID_NUMBER"]);
 	$str_GROUP_ID = array();
@@ -459,11 +496,30 @@ if($canViewUserList)
 	);
 }
 
+if($USER->CanDoOperation('edit_php') && $ID != $USER->GetID())
+{
+	$aMenu[] = array(
+		"ICON" => "",
+		"TEXT" => GetMessage("MAIN_ADMIN_AUTH"),
+		"TITLE" => GetMessage("MAIN_ADMIN_AUTH_TITLE"),
+		"LINK" => "/bitrix/admin/user_edit.php?lang=".LANGUAGE_ID."&ID=".$ID."&action=authorize&".bitrix_sessid_get()
+	);
+}
+
+if($USER->CanDoOperation('edit_all_users'))
+{
+	$aMenu[] = array(
+		"ICON" => "",
+		"TEXT" => GetMessage("MAIN_USER_EDIT_HISTORY"),
+		"TITLE" => GetMessage("MAIN_USER_EDIT_HISTORY_TITLE"),
+		"LINK" => "/bitrix/admin/profile_history.php?lang=".LANGUAGE_ID."&find_user_id=".$ID."&set_filter=Y"
+	);
+}
+
 if($USER->CanDoOperation('edit_all_users') || $USER->CanDoOperation('edit_subordinate_users'))
 {
 	if ($ID>0 && $COPY_ID<=0)
 	{
-		$aMenu[] = array("SEPARATOR"=>"Y");
 		$aMenu[] = array(
 			"TEXT"	=> GetMessage("MAIN_NEW_RECORD"),
 			"LINK"	=> "/bitrix/admin/user_edit.php?lang=".LANGUAGE_ID,
@@ -488,9 +544,6 @@ if($USER->CanDoOperation('edit_all_users') || $USER->CanDoOperation('edit_subord
 		}
 	}
 }
-
-if(!empty($aMenu))
-	$aMenu[] = array("SEPARATOR"=>"Y");
 
 $context = new CAdminContextMenu($aMenu);
 $context->Show();
@@ -540,7 +593,7 @@ $tabControl->AddViewField("DATE_REGISTER", GetMessage("USER_EDIT_DATE_REGISTER")
 $tabControl->AddViewField("LAST_UPDATE", GetMessage('LAST_UPDATE'), ($ID>0 && $COPY_ID<=0? $str_TIMESTAMP_X:''));
 $tabControl->AddViewField("LAST_LOGIN", GetMessage('LAST_LOGIN'), ($ID>0 && $COPY_ID<=0? $str_LAST_LOGIN:''));
 
-if(($ID!='1' || $COPY_ID>0) && ($USER->CanDoOperation('view_all_users') || $USER->CanDoOperation('view_own_profile'))):
+if($ID <> 1 || $COPY_ID > 0):
 	$tabControl->BeginCustomField("ACTIVE", GetMessage('ACTIVE'));
 ?>
 	<tr>
@@ -560,6 +613,7 @@ else:
 endif;
 
 $emailRequired = (COption::GetOptionString("main", "new_user_email_required", "Y") <> "N");
+$phoneRequired = (COption::GetOptionString("main", "new_user_phone_required", "N") == "Y");
 
 $tabControl->AddEditField("TITLE", GetMessage("USER_EDIT_TITLE"), false, array("size"=>30), $str_TITLE);
 $tabControl->AddEditField("NAME", GetMessage('NAME'), false, array("size"=>30), $str_NAME);
@@ -567,6 +621,7 @@ $tabControl->AddEditField("LAST_NAME", GetMessage('LAST_NAME'), false, array("si
 $tabControl->AddEditField("SECOND_NAME", GetMessage('SECOND_NAME'), false, array("size"=>30), $str_SECOND_NAME);
 $tabControl->AddEditField("EMAIL", GetMessage('EMAIL'), $emailRequired, array("size"=>30), $str_EMAIL);
 $tabControl->AddEditField("LOGIN", GetMessage('LOGIN'), true, array("size"=>30), $str_LOGIN);
+$tabControl->AddEditField("PHONE_NUMBER", GetMessage("main_user_edit_phone_number"), $phoneRequired, array("size"=>30), $str_PHONE_NUMBER);
 
 $tabControl->BeginCustomField("PASSWORD", GetMessage('NEW_PASSWORD_REQ'), true);
 
@@ -584,7 +639,7 @@ if(!CMain::IsHTTPS() && COption::GetOptionString('main', 'use_encrypted_auth', '
 ?>
 	<tr id="bx_pass_row" style="display:<?=($str_EXTERNAL_AUTH_ID <> ''? 'none':'')?>;"<?if($ID<=0 || $COPY_ID>0):?> class="adm-detail-required-field"<?endif?>>
 		<td><?echo GetMessage('NEW_PASSWORD_REQ')?>:<sup><span class="required">1</span></sup></td>
-		<td><input type="password" name="NEW_PASSWORD" size="30" maxlength="50" value="<? echo htmlspecialcharsbx($NEW_PASSWORD) ?>" autocomplete="off" style="vertical-align:middle;">
+		<td><input type="password" name="NEW_PASSWORD" size="30" maxlength="255" value="<? echo htmlspecialcharsbx($NEW_PASSWORD) ?>" autocomplete="new-password" style="vertical-align:middle;">
 <?if($bSecure):?>
 				<span class="bx-auth-secure" id="bx_auth_secure" title="<?echo GetMessage("AUTH_SECURE_NOTE")?>" style="display:none">
 					<div class="bx-auth-secure-icon"></div>
@@ -602,7 +657,7 @@ document.getElementById('bx_auth_secure').style.display = 'inline-block';
 	</tr>
 	<tr id="bx_pass_confirm_row" style="display:<?=($str_EXTERNAL_AUTH_ID <> ''? 'none':'')?>;"<?if($ID<=0 || $COPY_ID>0):?> class="adm-detail-required-field"<?endif?>>
 		<td><?echo GetMessage('NEW_PASSWORD_CONFIRM')?></td>
-		<td><input type="password" name="NEW_PASSWORD_CONFIRM" size="30" maxlength="50" value="<? echo htmlspecialcharsbx($NEW_PASSWORD_CONFIRM) ?>" autocomplete="off"></td>
+		<td><input type="password" name="NEW_PASSWORD_CONFIRM" size="30" maxlength="255" value="<? echo htmlspecialcharsbx($NEW_PASSWORD_CONFIRM) ?>" autocomplete="new-password"></td>
 	</tr>
 <?
 $tabControl->EndCustomField("PASSWORD");
@@ -648,7 +703,7 @@ endif;
 $tabControl->AddEditField("XML_ID", GetMessage("MAIN_USER_EDIT_EXT"), false, array("size"=>30, "maxlength"=>255), $str_XML_ID);
 ?>
 <?
-if($USER->CanDoOperation('view_subordinate_users') || $USER->CanDoOperation('view_all_users')):
+if($USER->CanDoOperation('view_subordinate_users') || $USER->CanDoOperation('view_all_users') || $USER->CanDoOperation('edit_all_users') || $USER->CanDoOperation('edit_subordinate_users')):
 	$tabControl->BeginCustomField("LID", GetMessage("MAIN_DEFAULT_SITE"));
 ?>
 	<tr>
@@ -658,6 +713,14 @@ if($USER->CanDoOperation('view_subordinate_users') || $USER->CanDoOperation('vie
 	</tr>
 <?
 	$tabControl->EndCustomField("LID", '<input type="hidden" name="LID" value="'.$str_LID.'">');
+
+	$langOptions = array("" => GetMessage("user_edit_lang_not_set"));
+	$languages = \Bitrix\Main\Localization\LanguageTable::getList(array("filter" => array("ACTIVE" => "Y"), "order" => array("SORT" => "ASC", "NAME" => "ASC")));
+	while($language = $languages->fetch())
+	{
+		$langOptions[$language["LID"]] = \Bitrix\Main\Text\HtmlFilter::encode($language["NAME"]);
+	}
+	$tabControl->AddDropDownField("LANGUAGE_ID", GetMessage("user_edit_lang"), false, $langOptions, $str_LANGUAGE_ID);
 
 	$params = array('id="bx_user_info_event"');
 	if(!$canSelfEdit || $str_EXTERNAL_AUTH_ID <> '')
@@ -691,6 +754,7 @@ if($showGroupTabs):
 			$dbGroups = CGroup::GetList(($b = "c_sort"), ($o = "asc"), array("ANONYMOUS" => "N"));
 			while ($arGroups = $dbGroups->Fetch())
 			{
+				$arGroups["ID"] = intval($arGroups["ID"]);
 				if (!$USER->CanDoOperation('edit_all_users') && $USER->CanDoOperation('edit_subordinate_users') && !in_array($arGroups["ID"], $arUserSubordinateGroups) || $arGroups["ID"] == 2)
 					continue;
 				if($arGroups["ID"]==1 && !$USER->IsAdmin())

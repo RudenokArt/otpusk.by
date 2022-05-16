@@ -53,7 +53,7 @@ class CWizard
 	var $__obLastStep = null;
 	var $__obFirstStep = null;
 
-	function CWizard($wizardName)
+	public function __construct($wizardName)
 	{
 		$this->name = $wizardName;
 
@@ -75,6 +75,12 @@ class CWizard
 		$this->__GetDescription();
 		$this->__CheckDepends();
 		$this->__GetInstallationScript();
+	}
+
+	/** @deprecated */
+	public function CWizard($wizardName)
+	{
+		self::__construct($wizardName);
 	}
 
 	function Install()
@@ -1448,12 +1454,21 @@ class CWizard
 
 		if ($lang != "en" && $lang != "ru")
 		{
-			if (file_exists(($fname = $wizardPath."/lang/".LangSubst($lang)."/".$relativePath)))
+			$subst_lang = LangSubst($lang);
+			$fname = $wizardPath."/lang/".$subst_lang."/".$relativePath;
+			$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $subst_lang);
+			if (file_exists($fname))
+			{
 				__IncludeLang($fname, false, true);
+			}
 		}
 
-		if (file_exists(($fname = $wizardPath."/lang/".$lang."/".$relativePath)))
+		$fname = $wizardPath."/lang/".$lang."/".$relativePath;
+		$fname = \Bitrix\Main\Localization\Translation::convertLangPath($fname, $lang);
+		if (file_exists($fname))
+		{
 			__IncludeLang($fname, false, true);
+		}
 	}
 
 }

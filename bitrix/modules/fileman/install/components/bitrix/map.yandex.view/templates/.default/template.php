@@ -1,5 +1,6 @@
 <?
 if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true) die();
+$this->setFrameMode(true);
 
 if ($arParams['BX_EDITOR_RENDER_MODE'] == 'Y'):
 ?>
@@ -18,6 +19,7 @@ else:
 		'CONTROLS' => $arParams['CONTROLS'],
 		'OPTIONS' => $arParams['OPTIONS'],
 		'MAP_ID' => $arParams['MAP_ID'],
+		'API_KEY' => $arParams['API_KEY'],
 		'LOCALE' => $arParams['LOCALE'],
 		'ONMAPREADY' => 'BX_SetPlacemarks_'.$arParams['MAP_ID'],
 	);

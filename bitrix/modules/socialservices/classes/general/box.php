@@ -13,13 +13,6 @@ class CSocServBoxAuth extends CSocServAuth
 	/** @var CBoxOAuthInterface null  */
 	protected $entityOAuth = null;
 
-	protected $userId = null;
-
-	function __construct($userId = null)
-	{
-		$this->userId = $userId;
-	}
-
 	/**
 	 * @param string $code=false
 	 * @return CBoxOAuthInterface
@@ -98,8 +91,11 @@ class CSocServBoxAuth extends CSocServAuth
 		$userId = intval($this->userId);
 		if($userId > 0)
 		{
-			$dbSocservUser = CSocServAuthDB::GetList(array(), array('USER_ID' => $userId, "EXTERNAL_AUTH_ID" => static::ID), false, false, array("USER_ID", "OATOKEN", "REFRESH_TOKEN", "OATOKEN_EXPIRES"));
-			if($arOauth = $dbSocservUser->Fetch())
+			$dbSocservUser = \Bitrix\Socialservices\UserTable::getList([
+				'filter' => ['=USER_ID' => $userId, "=EXTERNAL_AUTH_ID" => static::ID],
+				'select' => ["USER_ID", "OATOKEN", "REFRESH_TOKEN", "OATOKEN_EXPIRES"]
+			]);
+			if($arOauth = $dbSocservUser->fetch())
 			{
 				$accessToken = $arOauth["OATOKEN"];
 				$accessTokenExpires = $arOauth["OATOKEN_EXPIRES"];
@@ -325,7 +321,7 @@ class CBoxOAuthInterface extends CSocServOAuthTransport
 
 	public function GetRedirectURI()
 	{
-		return CSocServUtil::ServerName(true)."/bitrix/tools/oauth/box.php";
+		return \CHTTP::URN2URI("/bitrix/tools/oauth/box.php");
 	}
 
 	public function GetAuthUrl($redirect_uri, $state = '')
@@ -430,19 +426,19 @@ class CBoxOAuthInterface extends CSocServOAuthTransport
 
 			if($save && intval($userId) > 0)
 			{
-				$dbSocservUser = CSocServAuthDB::GetList(
-					array(),
-					array(
-						"USER_ID" => intval($userId),
-						"EXTERNAL_AUTH_ID" => CSocServBoxAuth::ID
-					), false, false, array("ID")
-				);
+				$dbSocservUser = \Bitrix\Socialservices\UserTable::getList([
+					'filter' => [
+						"=USER_ID" => intval($userId),
+						"=EXTERNAL_AUTH_ID" => CSocServBoxAuth::ID
+					],
+					'select' => ["ID"]
+				]);
 
-				$arOauth = $dbSocservUser->Fetch();
+				$arOauth = $dbSocservUser->fetch();
 
 				if($arOauth)
 				{
-					CSocServAuthDB::Update(
+					\Bitrix\Socialservices\UserTable::update(
 						$arOauth["ID"], array(
 							"OATOKEN" => $this->access_token,
 							"OATOKEN_EXPIRES" => $this->accessTokenExpires,

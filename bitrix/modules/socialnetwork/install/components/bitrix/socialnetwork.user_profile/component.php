@@ -6,6 +6,10 @@
  * @copyright 2001-2014 Bitrix
  */
 
+use Bitrix\Main\Loader;
+use Bitrix\Socialnetwork\ComponentHelper;
+use Bitrix\Main\ModuleManager;
+
 /**
  * Bitrix vars
  * @global CUser $USER
@@ -144,6 +148,13 @@ if (strlen($arParams["PATH_TO_USER_SECURITY"]) <= 0)
 $arParams["PATH_TO_USER_PASSWORDS"] = trim($arParams["PATH_TO_USER_PASSWORDS"]);
 if (strlen($arParams["PATH_TO_USER_PASSWORDS"]) <= 0)
 	$arParams["PATH_TO_USER_PASSWORDS"] = htmlspecialcharsbx($APPLICATION->GetCurPage()."?".$arParams["PAGE_VAR"]."=user_passwords&".$arParams["USER_VAR"]."=#user_id#");
+
+if (Loader::includeModule('dav'))
+{
+	$arParams["PATH_TO_USER_SYNCHRONIZE"] = trim($arParams["PATH_TO_USER_SYNCHRONIZE"]);
+	if (strlen($arParams["PATH_TO_USER_SYNCHRONIZE"]) <= 0)
+		$arParams["PATH_TO_USER_SYNCHRONIZE"] = htmlspecialcharsbx($APPLICATION->GetCurPage()."?".$arParams["PAGE_VAR"]."=user_synchronize&".$arParams["USER_VAR"]."=#user_id#");
+}
 
 $arParams["PATH_TO_USER_CODES"] = trim($arParams["PATH_TO_USER_CODES"]);
 if (strlen($arParams["PATH_TO_USER_CODES"]) <= 0)
@@ -313,11 +324,10 @@ else
 	}
 	else
 	{
-		if (
-			CModule::IncludeModule('extranet') 
-			&& !CExtranet::IsProfileViewable($arResult["User"]) 
-			&& $arResult["User"]["ID"] != $USER->GetID()
-		)
+		$arContext = ComponentHelper::getUrlContext();
+		$arParams['PATH_TO_USER_EDIT'] = ComponentHelper::addContextToUrl($arParams['PATH_TO_USER_EDIT'], $arContext);
+
+		if (!CSocNetUser::CanProfileView($USER->GetID(), $arResult["User"], SITE_ID, $arContext))
 		{
 			return false;
 		}
@@ -377,7 +387,35 @@ else
 
 		$arResult["Urls"]["Security"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_SECURITY"], array("user_id" => $arResult["User"]["ID"]));
 		$arResult["Urls"]["Passwords"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_PASSWORDS"], array("user_id" => $arResult["User"]["ID"]));
+
+		if ($arParams["PATH_TO_USER_SYNCHRONIZE"])
+		{
+			$arResult["Urls"]["Synchronize"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_SYNCHRONIZE"], array("user_id" => $arResult["User"]["ID"]));
+		}
+
 		$arResult["Urls"]["Codes"] = CComponentEngine::MakePathFromTemplate($arParams["PATH_TO_USER_CODES"], array("user_id" => $arResult["User"]["ID"]));
+
+		$arResult["User"]["TYPE"] = '';
+
+		if (
+			$arResult["User"]["EXTERNAL_AUTH_ID"] == 'email'
+			&& IsModuleInstalled('mail')
+		)
+		{
+			$arResult["User"]["TYPE"] = 'email';
+		}
+		elseif (in_array($arResult["User"]["EXTERNAL_AUTH_ID"], ComponentHelper::checkPredefinedAuthIdList(array('bot', 'imconnector', 'replica'))))
+		{
+			$arResult["User"]["TYPE"] = $arResult["User"]["EXTERNAL_AUTH_ID"];
+			$arResult["CurrentUserPerms"]["Operations"]["modifyuser_main"] = false;
+			$arResult["CurrentUserPerms"]["Operations"]["modifyuser"] = false;
+		}
+
+
+		elseif ($arResult["User"]["IS_EXTRANET"] == "Y")
+		{
+			$arResult["User"]["TYPE"] = 'extranet';
+		}
 
 		$arResult["ALLOW_CREATE_GROUP"] = (CSocNetUser::IsCurrentUserModuleAdmin() || $APPLICATION->GetGroupRight("socialnetwork", false, "Y", "Y", array(SITE_ID, false)) >= "K");
 
@@ -415,7 +453,7 @@ else
 					$arResult['DEPARTMENTS'][$arRes['ID']] = $arRes;
 					$arResult['DEPARTMENTS'][$arRes['ID']]['EMPLOYEE_COUNT'] = 0;
 
-					$rsUsers = CIntranetUtils::GetDepartmentEmployees(array($arRes['ID']), $bRecursive=true);
+					$rsUsers = CIntranetUtils::getDepartmentEmployees(array($arRes['ID']), true, false, 'Y', array('ID'));
 					while($arUser = $rsUsers->Fetch())
 					{
 						if($arUser['ID'] <> $arResult["User"]["ID"]) //self
@@ -458,20 +496,63 @@ else
 		}
 		if (CModule::IncludeModule('mail'))
 		{
-			$dbMailbox = CMailbox::getList(
-				array(
-					'TIMESTAMP_X' => 'DESC'
+			$arResult['User']['MAILBOXES'] = array();
+
+			$dbMailbox = \Bitrix\Mail\MailboxTable::getList(array(
+				'filter' => array(
+					'=LID' => SITE_ID,
+					'=ACTIVE' => 'Y',
+					'=USER_ID' => $arParams['ID'],
+					'=SERVER_TYPE' => 'imap',
 				),
-				array(
-					'LID'     => SITE_ID,
-					'ACTIVE'  => 'Y',
-					'USER_ID' => intval($arParams['ID']),
-					'SERVER_TYPE' => 'imap|controller|domain'
-				)
-			);
-			$mailbox = $dbMailbox->fetch();
-			if (strpos($mailbox['LOGIN'], '@') !== false)
-				$arResult['User']['MAILBOX'] = $mailbox['LOGIN'];
+				'order' => array(
+					'ID' => 'ASC',
+				),
+			));
+			while ($mailbox = $dbMailbox->fetch())
+			{
+				// filter public
+				\Bitrix\Mail\MailboxTable::normalizeEmail($mailbox);
+				if (strpos($mailbox['EMAIL'], '@') !== false)
+				{
+					$arResult['User']['MAILBOXES'][] = $mailbox['EMAIL'];
+				}
+			}
+
+			$arResult['User']['MAILBOX'] = end($arResult['User']['MAILBOXES']);
+
+			if (
+				$arParams['ID'] == IntVal($USER->GetID())
+				&& method_exists('Bitrix\Mail\User','getForwardTo')
+			)
+			{
+				$arResult['User']['EMAIL_FORWARD_TO'] = array();
+				if (ModuleManager::isModuleInstalled('blog'))
+				{
+					$res = Bitrix\Mail\User::getForwardTo(SITE_ID, $arParams['ID'], 'BLOG_POST');
+					if (is_array($res))
+					{
+						list($emailForwardTo) = $res;
+						if ($emailForwardTo)
+						{
+							$arResult['User']['EMAIL_FORWARD_TO']['BLOG_POST'] = $emailForwardTo;
+						}
+					}
+				}
+
+				if (ModuleManager::isModuleInstalled('tasks'))
+				{
+					$res = Bitrix\Mail\User::getForwardTo(SITE_ID, $arParams['ID'], 'TASKS_TASK');
+					if (is_array($res))
+					{
+						list($emailForwardTo) = $res;
+						if ($emailForwardTo)
+						{
+							$arResult['User']['EMAIL_FORWARD_TO']['TASKS_TASK'] = $emailForwardTo;
+						}
+					}
+				}
+			}
 		}
 		if ($arResult["User"]['PERSONAL_BIRTHDAY'] <> '')
 		{
@@ -582,6 +663,8 @@ else
 					if (!array_key_exists($key, $arResult["User"]))
 						$arResult["User"][$key] = $value;
 
+				$userFields = CSocNetUser::GetFields();
+
 				foreach ($arResult["User"] as $userFieldName => $userFieldValue)
 				{
 					if (in_array($userFieldName, $arParams["USER_FIELDS_MAIN"])
@@ -596,8 +679,16 @@ else
 								$arEmails_tmp = array();
 								if (strlen($val) > 0)
 									$arEmails_tmp[] = '<a href="mailto:'.$val.'">'.$val.'</a>';
-								if (!empty($arResult['User']['MAILBOX']) && strtolower($arResult['User']['MAILBOX']) != strtolower($val))
-									$arEmails_tmp[] = '<a href="mailto:'.$arResult['User']['MAILBOX'].'">'.$arResult['User']['MAILBOX'].'</a>';
+								if (!empty($arResult['User']['MAILBOXES']))
+								{
+									foreach ($arResult['User']['MAILBOXES'] as $item)
+									{
+										if (strtolower($item) != strtolower($val))
+										{
+											$arEmails_tmp[] = '<a href="mailto:'.$item.'">'.$item.'</a>';
+										}
+									}
+								}
 								$val = join(', ', $arEmails_tmp);
 								break;
 
@@ -672,6 +763,19 @@ else
 							case 'LAST_LOGIN':
 								if (StrLen($val) > 0)
 								{
+									$val = \CUser::FormatLastActivityDate(MakeTimeStamp($val));
+								}
+								break;
+							case 'LAST_ACTIVITY_DATE':
+								if (StrLen($val) > 0)
+								{
+									$val = \CUser::FormatLastActivityDate(MakeTimeStamp($val, 'YYYY-MM-DD HH:MI:SS'));
+								}
+								break;
+
+							case 'DATE_REGISTER':
+								if (StrLen($val) > 0)
+								{
 									$val = FormatDateFromDB($val, $arParams["DATE_TIME_FORMAT"], true);
 								}
 								break;
@@ -681,8 +785,6 @@ else
 									$strSearch = $arParams["PATH_TO_SEARCH_INNER"].(StrPos($arParams["PATH_TO_SEARCH_INNER"], "?") !== false ? "&" : "?")."flt_".StrToLower($userFieldName)."=".UrlEncode($val);
 								break;
 						}
-
-						$userFields = CSocNetUser::GetFields();
 
 						if (in_array($userFieldName, $arParams["USER_FIELDS_MAIN"]))
 							$arResult["UserFieldsMain"]["DATA"][$userFieldName] = array("NAME" => $userFields[$userFieldName], "VALUE" => $val, "SEARCH" => $strSearch);
@@ -1001,6 +1103,7 @@ else
 		}
 	}
 }
+
 $this->IncludeComponentTemplate();
 
 return array(

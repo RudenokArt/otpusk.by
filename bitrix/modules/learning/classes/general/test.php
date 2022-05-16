@@ -185,6 +185,14 @@ class CAllTest
 				return false;
 		}
 
+		//Previous tests
+		$previousTests = CTest::GetList([], ["PREVIOUS_TEST_ID" => $ID]);
+		while ($previousTest = $previousTests->Fetch())
+		{
+			$test = new CTest;
+			$test->Update($previousTest["ID"], ["PREVIOUS_TEST_ID" => 0]);
+		}
+
 		$strSql = "DELETE FROM b_learn_test WHERE ID = ".$ID;
 
 		if (!$DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__))
@@ -225,6 +233,7 @@ class CAllTest
 				case "COURSE_ID":
 				case "ATTEMPT_LIMIT":
 				case "TIME_LIMIT":
+				case "PREVIOUS_TEST_ID":
 					$arSqlSearch[] = CLearnHelper::FilterCreate("LT.".$key, $val, "number", $bFullJoin, $cOperationType);
 					break;
 
@@ -299,7 +308,16 @@ class CAllTest
 		global $DB, $USER;
 		$ID = intval($ID);
 		$SCORE = intval($SCORE);
-		$strSql = "SELECT * FROM b_learn_gradebook WHERE STUDENT_ID = ".$USER->GetID()." AND TEST_ID = ".$ID." AND 1.0*RESULT/MAX_RESULT*100 >= ".$SCORE;
+		$strSql = "
+			SELECT * 
+			FROM b_learn_gradebook 
+			WHERE 
+				STUDENT_ID = ".$USER->GetID()." AND 
+				COMPLETED=\"Y\" AND 
+				TEST_ID = ".$ID." AND 
+				1.0*RESULT/MAX_RESULT*100 >= ".$SCORE
+		;
+
 		$res = $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 
 		if ($res->Fetch())

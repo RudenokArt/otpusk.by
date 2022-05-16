@@ -4,13 +4,11 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
 
 if (!empty($arResult['ERROR']))
 {
-	echo $arResult['ERROR'];
+	ShowError($arResult['ERROR']);
 	return false;
 }
 
 global $USER_FIELD_MANAGER;
-
-$GLOBALS['APPLICATION']->SetAdditionalCSS('/bitrix/js/highloadblock/css/highloadblock.css');
 
 //$GLOBALS['APPLICATION']->SetTitle('Highloadblock Row');
 

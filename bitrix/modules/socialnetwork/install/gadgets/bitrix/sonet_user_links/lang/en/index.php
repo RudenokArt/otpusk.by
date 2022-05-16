@@ -12,12 +12,13 @@ $MESS["GD_SONET_USER_LINKS_EDIT_PROFILE"] = "Edit Profile";
 $MESS["GD_SONET_USER_LINKS_EDIT_SETTINGS"] = "Edit Privacy Settings";
 $MESS["GD_SONET_USER_LINKS_EDIT_FEATURES"] = "Edit Settings";
 $MESS["GD_SONET_USER_LINKS_EDIT_EXTMAIL"] = "E-mail integration options";
+$MESS["GD_SONET_USER_LINKS_EDIT_REQUESTS"] = "Invites and requests";
 $MESS["GD_SONET_USER_LINKS_SUBSCR"] = "Subscription";
 $MESS["GD_SONET_USER_LINKS_SUBSCR1"] = "My Subscription";
 $MESS["GD_SONET_USER_VIDEOCALL"] = "Video call";
 $MESS["GD_SONET_USER_SONET_ADMIN_ON"] = "Admin mode";
-$MESS["GD_SONET_USER_LINKS_EDIT_REQUESTS"] = "Invites and requests";
 $MESS["GD_SONET_USER_LINKS_SECURITY"] = "Security";
 $MESS["GD_SONET_USER_LINKS_PASSWORDS"] = "Application passwords";
+$MESS["GD_SONET_USER_LINKS_SYNCHRONIZE"] = "Synchronization";
 $MESS["GD_SONET_USER_LINKS_CODES"] = "Recovery codes";
 ?>

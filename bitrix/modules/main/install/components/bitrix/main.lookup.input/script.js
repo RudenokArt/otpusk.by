@@ -158,6 +158,9 @@ function JCMainLookupSelector(arParams)
 				obSearchResult.BX_ROW_DATA = DATA[i];
 				obSearchResult.onclick = _this.__search_result_click;
 				obSearchResult.onmouseover = _this.__search_result_over;
+				BX.bind(obSearchResult, "mousedown", function(event) {
+					event.stopPropagation();
+				});
 			}
 
 			_this.SEARCH.style.display = 'block';
@@ -307,7 +310,11 @@ JCMainLookupSelector.prototype.Init = function()
 
 	jsUtils.addEvent(this.VISUAL.TEXT, 'blur', this.__delayedHideSearch);
 
-	this.VALUE_CONTAINER = this.LAYOUT.appendChild(document.createElement('DIV'));
+	if (BX('value_container_' + this.arParams['CONTROL_ID']))
+		this.VALUE_CONTAINER = BX('value_container_' + this.arParams['CONTROL_ID']);
+	else
+		this.VALUE_CONTAINER = this.LAYOUT.appendChild(document.createElement('DIV'));
+		
 	this.VALUE_CONTAINER.style.display = 'none';
 
 	if (null != this.arParams.VALUE)
@@ -516,6 +523,9 @@ function JCMainLookupSelectorText(arParams)
 	this.previousCurrentIndex = -1;
 
 	this.timerId = null;
+
+	this.isMainUiFilter = (this.arParams['MAIN_UI_FILTER'] === 'Y');
+	this.isMultiple = (this.arParams['MULTIPLE'] === 'Y');
 
 	this.TEXT = document.getElementById(this.arParams.ID);
 	this.TEXT.bx_last_position = 0;
@@ -729,6 +739,7 @@ JCMainLookupSelectorText.prototype.__parse = function(str, split_reg, check_reg,
 							'start' : start,
 							'end' : start + tok.length,
 							'tok' : tok,
+							'trimmed': jsUtils.trim(tok),
 							'delim' : ''
 						};
 					}
@@ -752,6 +763,7 @@ JCMainLookupSelectorText.prototype.__parse = function(str, split_reg, check_reg,
 					{
 						start = arResult[i].end;
 						found = true;
+						break;
 					}
 				}
 
@@ -761,6 +773,7 @@ JCMainLookupSelectorText.prototype.__parse = function(str, split_reg, check_reg,
 						'start' : start,
 						'end' : start + tok.length,
 						'tok' : tok,
+						'trimmed': jsUtils.trim(tok),
 						'delim' : ''
 					};
 					break;
@@ -827,6 +840,7 @@ JCMainLookupSelectorText.prototype.__parse = function(str, split_reg, check_reg,
 								'start' : cur_pos,
 								'end' : cur_pos + pre_tok.length,
 								'tok' : pre_tok,
+								'trimmed': jsUtils.trim(pre_tok),
 								'delim' : ''
 							};
 							cur_pos += pre_tok.length;
@@ -844,6 +858,7 @@ JCMainLookupSelectorText.prototype.__parse = function(str, split_reg, check_reg,
 				'start' : cur_pos,
 				'end' : cur_pos + tok.length,
 				'tok' : tok,
+				'trimmed': jsUtils.trim(tok),
 				'delim' : delim
 			};
 		}
@@ -893,7 +908,7 @@ JCMainLookupSelectorText.prototype.__process = function()
 		var str = jsUtils.trim(arToks[i].tok);
 		if (str.length > 0)
 		{
-			if (this.__check_reg.test(str) && null != this.onUnidentifiedTokenFound)
+			if (null != this.onUnidentifiedTokenFound && this.__check_reg.test(str))
 			{
 				if (null == this.arTokensMap[this.GetHash(str)])
 					this.onUnidentifiedTokenFound(str);
@@ -955,7 +970,7 @@ JCMainLookupSelectorText.prototype.__process = function()
 	if (null != this.onSuspiciousTokensFound)
 		this.onSuspiciousTokensFound(arSuspiciousTokens);
 
-	this.CheckTokens();
+	this.CheckTokens(arToks);
 	this.AdjustHeight();
 };
 
@@ -997,33 +1012,31 @@ JCMainLookupSelectorText.prototype.Reset = function(bClearText, bClearEvents)
 	}
 };
 
-JCMainLookupSelectorText.prototype.CheckTokens = function()
+JCMainLookupSelectorText.prototype.CheckTokens = function(arToks)
 {
-	var arToks = this.__parse(this.TEXT.value, this.__split_reg, this.__check_reg, this.arTokens);
+	if (!arToks)
+	{
+		arToks = this.__parse(this.TEXT.value, this.__split_reg, this.__check_reg, this.arTokens);
+	}
 
+	var index = [];
+	for (var j = 0; j < arToks.length; j++)
+	{
+		if (arToks[j].trimmed.length <= 0)
+			continue;
+		if (index[arToks[j].trimmed] !== undefined)
+			continue;
+		index[arToks[j].trimmed] = j;
+	}
+	
 	for (var i = 0; i < this.arTokens.length; i++)
 	{
 		if (null == this.arTokens[i])
 			continue;
 
 		var tok = jsUtils.trim(this.arTokens[i].TOKEN);
-		var bTokenFound = false;
 
-		for (var j = 0; j < arToks.length; j++)
-		{
-			var s = jsUtils.trim(arToks[j].tok);
-
-			if (s.length <= 0)
-				continue;
-
-			if (s == tok)
-			{
-				bTokenFound = true;
-				break;
-			}
-		}
-
-		this.arTokens[i].SetActive(bTokenFound);
+		this.arTokens[i].SetActive(index[tok] !== undefined);
 	}
 };
 
@@ -1067,10 +1080,21 @@ JCMainLookupSelectorText.prototype.AddTokenData = function(data, bSelect)
 	else
 	{
 		str = jsUtils.trim(data.NAME + ' [' + data.ID + ']');
-		if(this.TEXT.value.indexOf(str) < 0)
+		if (this.isMultiple && this.isMainUiFilter)
 		{
-			this.TEXT.value = str;
-			this.SetTokenData(str, data, bSelect);
+			if(this.TEXT.value.indexOf(str) < 0)
+			{
+				this.TEXT.value += str + "\u00A0";
+				this.SetTokenData(str, data, bSelect);
+			}
+		}
+		else
+		{
+			if(this.TEXT.value.indexOf(str) < 0)
+			{
+				this.TEXT.value = str;
+				this.SetTokenData(str, data, bSelect);
+			}
 		}
 	}
 

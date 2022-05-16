@@ -37,7 +37,12 @@ if ($REQUEST_METHOD=="POST" && strlen($Update)>0 && $blogModulePermissions>="W" 
 		"SEARCH_INDEX" => (($SEARCH_INDEX == "Y") ? "Y" : "N"),
 		"USE_SOCNET" => (($USE_SOCNET == "Y") ? "Y" : "N"),
 		"PERMS_POST" => $PERMS_P,
-		"PERMS_COMMENT" => $PERMS_C
+		"PERMS_COMMENT" => $PERMS_C,
+		"EDITOR_USE_FONT" => (($EDITOR_USE_FONT == "Y") ? "Y" : "N"),
+		"EDITOR_USE_LINK" => (($EDITOR_USE_LINK == "Y") ? "Y" : "N"),
+		"EDITOR_USE_IMAGE" => (($EDITOR_USE_IMAGE == "Y") ? "Y" : "N"),
+		"EDITOR_USE_VIDEO" => (($EDITOR_USE_VIDEO == "Y") ? "Y" : "N"),
+		"EDITOR_USE_FORMAT" => (($EDITOR_USE_FORMAT == "Y") ? "Y" : "N"),
 	);
 
 	if(!IsModuleInstalled("socialnetwork"))
@@ -160,7 +165,7 @@ $dbBlog = CBlog::GetList(
 		array("ID" => $ID),
 		false,
 		false,
-		array("ID", "NAME", "DESCRIPTION", "DATE_CREATE", "DATE_UPDATE", "ACTIVE", "OWNER_ID", "URL", "REAL_URL", "GROUP_ID", "ENABLE_COMMENTS", "ENABLE_IMG_VERIF", "ENABLE_RSS", "LAST_POST_ID", "LAST_POST_DATE", "EMAIL_NOTIFY", "SEARCH_INDEX", "USE_SOCNET")
+		array("ID", "NAME", "DESCRIPTION", "DATE_CREATE", "DATE_UPDATE", "ACTIVE", "OWNER_ID", "URL", "REAL_URL", "GROUP_ID", "ENABLE_COMMENTS", "ENABLE_IMG_VERIF", "ENABLE_RSS", "LAST_POST_ID", "LAST_POST_DATE", "EMAIL_NOTIFY", "SEARCH_INDEX", "USE_SOCNET", "EDITOR_USE_FONT", "EDITOR_USE_LINK", "EDITOR_USE_IMAGE", "EDITOR_USE_FORMAT", "EDITOR_USE_VIDEO")
 	);
 if (!$dbBlog->ExtractFields("str_"))
 	$ID = 0;
@@ -304,6 +309,45 @@ $tabControl->BeginNextTab();
 			<input type="checkbox" name="USE_SOCNET" id="USE_SOCNET" value="Y"<?if ($str_USE_SOCNET == "Y") echo " checked";?>>
 		</td>
 	</tr>
+	
+<!--editor options-->
+	<tr class="heading">
+		<td colspan="2"><?echo GetMessage("BLBE_EDITOR_SETTINGS")?>:</td>
+	</tr>
+		<tr>
+			<td><label for="EDITOR_USE_FONT"><?echo GetMessage("BLBE_EDITOR_USE_FONT")?>:</label></td>
+			<td>
+				<input type="checkbox" name="EDITOR_USE_FONT" id="EDITOR_USE_FONT" value="Y"<?if ($str_EDITOR_USE_FONT == "Y") echo " checked";?>>
+			</td>
+		</tr>
+		<tr>
+			<td><label for="EDITOR_USE_LINK"><?echo GetMessage("BLBE_EDITOR_USE_LINK")?>:</label></td>
+			<td>
+				<input type="checkbox" name="EDITOR_USE_LINK" id="EDITOR_USE_LINK" value="Y"<?if ($str_EDITOR_USE_LINK == "Y") echo " checked";?>>
+			</td>
+		</tr>
+		<tr>
+			<td>
+				<?= ShowJSHint(GetMessage("BLBE_EDITOR_USE_FORMAT_HINT")) ?>
+				<label for="EDITOR_USE_FORMAT"><?echo GetMessage("BLBE_EDITOR_USE_FORMAT")?>:</label></td>
+			<td>
+				<input type="checkbox" name="EDITOR_USE_FORMAT" id="EDITOR_USE_FORMAT" value="Y"<?if ($str_EDITOR_USE_FORMAT == "Y") echo " checked";?>>
+			</td>
+		</tr>
+		<tr>
+			<td><label for="EDITOR_USE_IMAGE"><?echo GetMessage("BLBE_EDITOR_USE_IMAGE_AND_FILES")?>:</label></td>
+			<td>
+				<input type="checkbox" name="EDITOR_USE_IMAGE" id="EDITOR_USE_IMAGE" value="Y"<?if ($str_EDITOR_USE_IMAGE == "Y") echo " checked";?>>
+			</td>
+		</tr>
+		<tr>
+			<td>
+				<?= ShowJSHint(GetMessage("BLBE_EDITOR_USE_VIDEO_HINT")) ?>
+				<label for="EDITOR_USE_VIDEO"><?echo GetMessage("BLBE_EDITOR_USE_VIDEO")?>:</label></td>
+			<td>
+				<input type="checkbox" name="EDITOR_USE_VIDEO" id="EDITOR_USE_VIDEO" value="Y"<?if ($str_EDITOR_USE_VIDEO == "Y") echo " checked";?>>
+			</td>
+		</tr>
 	<?endif;?>
 <?
 $tabControl->BeginNextTab();
@@ -329,8 +373,7 @@ $tabControl->BeginNextTab();
 		<td width="60%">
 			<select name="PERMS_P[1]">
 			<?
-			reset($GLOBALS["AR_BLOG_PERMS_EVERYONE"]);
-			while (list($key, $val) = each($GLOBALS["AR_BLOG_PERMS_EVERYONE"]))
+			foreach($GLOBALS["AR_BLOG_PERMS"] as $key => $val)
 			{
 				if (in_array($key, $GLOBALS["AR_BLOG_POST_PERMS"]))
 				{
@@ -346,8 +389,7 @@ $tabControl->BeginNextTab();
 		<td>
 			<select name="PERMS_P[2]">
 			<?
-			reset($GLOBALS["AR_BLOG_PERMS"]);
-			while (list($key, $val) = each($GLOBALS["AR_BLOG_PERMS"]))
+			foreach($GLOBALS["AR_BLOG_PERMS"] as $key => $val)
 			{
 				if (in_array($key, $GLOBALS["AR_BLOG_POST_PERMS"]))
 				{
@@ -370,8 +412,7 @@ $tabControl->BeginNextTab();
 				<td>
 					<select name="PERMS_P[<?= IntVal($arGroup["ID"]) ?>]">
 					<?
-					reset($GLOBALS["AR_BLOG_PERMS"]);
-					while (list($key, $val) = each($GLOBALS["AR_BLOG_PERMS"]))
+					foreach($GLOBALS["AR_BLOG_PERMS"] as $key => $val)
 					{
 						if (in_array($key, $GLOBALS["AR_BLOG_POST_PERMS"]))
 						{
@@ -407,8 +448,7 @@ $tabControl->BeginNextTab();
 		<td>
 			<select name="PERMS_C[1]">
 			<?
-			reset($GLOBALS["AR_BLOG_PERMS"]);
-			while (list($key, $val) = each($GLOBALS["AR_BLOG_PERMS"]))
+			foreach($GLOBALS["AR_BLOG_PERMS"] as $key => $val)
 			{
 				if (in_array($key, $GLOBALS["AR_BLOG_COMMENT_PERMS"]))
 				{
@@ -424,8 +464,7 @@ $tabControl->BeginNextTab();
 		<td>
 			<select name="PERMS_C[2]">
 			<?
-			reset($GLOBALS["AR_BLOG_PERMS"]);
-			while (list($key, $val) = each($GLOBALS["AR_BLOG_PERMS"]))
+			foreach($GLOBALS["AR_BLOG_PERMS"] as $key => $val)
 			{
 				if (in_array($key, $GLOBALS["AR_BLOG_COMMENT_PERMS"]))
 				{
@@ -448,8 +487,7 @@ $tabControl->BeginNextTab();
 				<td>
 					<select name="PERMS_C[<?= IntVal($arGroup["ID"]) ?>]">
 					<?
-					reset($GLOBALS["AR_BLOG_PERMS"]);
-					while (list($key, $val) = each($GLOBALS["AR_BLOG_PERMS"]))
+					foreach($GLOBALS["AR_BLOG_PERMS"] as $key => $val)
 					{
 						if (in_array($key, $GLOBALS["AR_BLOG_COMMENT_PERMS"]))
 						{

@@ -1,16 +1,24 @@
 <?php
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialservices/classes/general/authmanager.php");
 
+/**
+ * Class CSocServAuthDB
+ * @deprecated Use \Bitrix\Socialservices\UserTable
+ */
 class CSocServAuthDB
 	extends CSocServAuth
 {
-	static function Add($arFields)
+	public static function Add($arFields)
 	{
 		global $DB;
 		if(!self::CheckFields('ADD', $arFields))
 			return false;
 
-		$arInsert = $DB->PrepareInsert("b_socialservices_user", $arFields);
+		$arDbFields = $arFields;
+		if (static::hasEncryptedFields(array_keys($arDbFields)))
+			static::encryptFields($arDbFields);
+
+		$arInsert = $DB->PrepareInsert("b_socialservices_user", $arDbFields);
 		$strSql =
 			"INSERT INTO b_socialservices_user (".$arInsert[0].") ".
 				"VALUES(".$arInsert[1].")";
@@ -34,7 +42,7 @@ class CSocServAuthDB
 		return $lastId;
 	}
 
-	function GetList($arOrder = array(), $arFilter = array(), $arGroupBy = false, $arNavStartParams = false, $arSelectFields = array())
+	public static function GetList($arOrder = array(), $arFilter = array(), $arGroupBy = false, $arNavStartParams = false, $arSelectFields = array())
 	{
 		global $DB;
 		if (count($arSelectFields) <= 0)
@@ -61,8 +69,7 @@ class CSocServAuthDB
 			"SITE_ID" => array("FIELD" => "SU.SITE_ID", "TYPE" => "string"),
 			"OATOKEN_EXPIRES" => array("FIELD" => "SU.OATOKEN_EXPIRES", "TYPE" => "int"),
 			"INITIALIZED" => array("FIELD" => "SU.INITIALIZED", "TYPE" => "char"),
-			"ACTIVE" => array("FIELD" => "BU.ACTIVE", "TYPE" => "char", "FROM" => "INNER JOIN b_user BU ON (SU.USER_ID
-			 = BU.ID)"),
+			"ACTIVE" => array("FIELD" => "BU.ACTIVE", "TYPE" => "char", "FROM" => "INNER JOIN b_user BU ON (SU.USER_ID = BU.ID)"),
 		);
 		$arSqls = CGroup::PrepareSql($arFields, $arOrder, $arFilter, $arGroupBy, $arSelectFields);
 		$arSqls["SELECT"] = str_replace("%%_DISTINCT_%%", "", $arSqls["SELECT"]);
@@ -132,8 +139,32 @@ class CSocServAuthDB
 			$dbRes = $DB->Query($strSql, false, "File: ".__FILE__."<br>Line: ".__LINE__);
 		}
 
+		if (static::hasEncryptedFields($arSelectFields))
+			static::decryptDbRes($dbRes);
+
 		return $dbRes;
 	}
+
+	public static function decryptDbRes(\CDBResult $dbRes)
+	{
+		$cryptoField = new \Bitrix\Socialservices\EncryptedToken\CryptoField('OATOKEN');
+		$result = [];
+		while ($data = $dbRes->Fetch())
+		{
+			if (array_key_exists('OATOKEN', $data))
+				$data['OATOKEN'] = $cryptoField->decrypt($data['OATOKEN']);
+
+			if (array_key_exists('OASECRET', $data))
+				$data['OASECRET'] = $cryptoField->decrypt($data['OASECRET']);
+
+			if (array_key_exists('REFRESH_TOKEN', $data))
+				$data['REFRESH_TOKEN'] = $cryptoField->decrypt($data['REFRESH_TOKEN']);
+
+			$result[] = $data;
+		}
+		$dbRes->InitFromArray($result);
+	}
+
 }
 
 class CSocServMessage extends CSocServAllMessage

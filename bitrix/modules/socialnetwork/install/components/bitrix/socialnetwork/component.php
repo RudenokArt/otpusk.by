@@ -1,4 +1,16 @@
 <?if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
+/** @var CBitrixComponent $this */
+/** @var array $arParams */
+/** @var array $arResult */
+/** @var string $componentPath */
+/** @var string $componentName */
+/** @var string $componentTemplate */
+/** @global CDatabase $DB */
+/** @global CUser $USER */
+/** @global CMain $APPLICATION */
+
+global $CACHE_MANAGER;
+
 if (!CModule::IncludeModule("socialnetwork"))
 {
 	ShowError(GetMessage("SONET_MODULE_NOT_INSTALL"));
@@ -34,11 +46,11 @@ $arDefaultUrlTemplates404 = array(
 
 	"search" => "search.php",
 
-	"mail" => "mail/",
-
 	"message_form" => "messages/form/#user_id#/",
 	"group" => "group/#group_id#/",
+	"group_card" => "group/#group_id#/card/",
 	"group_edit" => "group/#group_id#/edit/",
+	"group_invite" => "group/#group_id#/invite/",
 	"group_requests" => "group/#group_id#/requests/",
 	"group_requests_out" => "group/#group_id#/requests_out/",
 	"group_mods" => "group/#group_id#/moderators/",
@@ -170,12 +182,14 @@ $arDefaultUrlTemplates404 = array(
 	"user_blog_post_rss" => "user/#user_id#/blog/rss/#type#/#post_id#/",
 	"user_blog_draft" => "user/#user_id#/blog/draft/",
 	"user_blog_moderation" => "user/#user_id#/blog/moderation/",
+	"user_blog_tags" => "user/#user_id#/blog/tags/",
 	"user_blog_post" => "user/#user_id#/blog/#post_id#/",
 
 	"user_microblog" => "user/#user_id#/microblog/",
 	"user_microblog_post" => "user/#user_id#/microblog/#post_id#/",
 
 	"user_tasks" => "user/#user_id#/tasks/",
+	"user_tasks_board" => "user/#user_id#/tasks/board/",
 	"user_tasks_task" => "user/#user_id#/tasks/task/#action#/#task_id#/",
 	"user_tasks_view" => "user/#user_id#/tasks/view/#action#/#view_id#/",
 	"user_tasks_departments_overview" => "user/#user_id#/tasks/departments/",
@@ -185,6 +199,8 @@ $arDefaultUrlTemplates404 = array(
 	"user_tasks_report_view" => "user/#user_id#/tasks/report/view/#report_id#/",
 	"user_tasks_templates" => "user/#user_id#/tasks/templates/",
 	"user_templates_template" => "user/#user_id#/tasks/templates/template/#action#/#template_id#/",
+
+	//"user_tasks_import" => "user/#user_id#/tasks/import/",
 
 	"user_forum" => "user/#user_id#/forum/",
 	"user_forum_topic" => "user/#user_id#/forum/#topic_id#/",
@@ -225,6 +241,11 @@ if (IsModuleInstalled('extranet'))
 	unset($arDefaultUrlTemplates404["search"]);
 }
 
+$diskEnabled = (
+	\Bitrix\Main\Config\Option::get('disk', 'successfully_converted', false)
+	&& CModule::includeModule('disk')
+);
+
 $arDefaultUrlTemplatesN404 = array(
 	"index" => "",
 
@@ -246,7 +267,9 @@ $arDefaultUrlTemplatesN404 = array(
 	"group_content_search" => "page=group_content_search&group_id=#group_id#",
 
 	"group" => "page=group&group_id=#group_id#",
+	"group_card" => "page=group_card&group_id=#group_id#",
 	"group_edit" => "page=group_edit&group_id=#group_id#",
+	"group_invite" => "page=group_invite&group_id=#group_id#",
 	"group_requests" => "page=group_requests&group_id=#group_id#",
 	"group_requests_out" => "page=group_requests_out&group_id=#group_id#",
 	"group_mods" => "page=group_mods&group_id=#group_id#",
@@ -268,8 +291,6 @@ $arDefaultUrlTemplatesN404 = array(
 	"user_passwords" => "page=user_passwords&user_id=#user_id#",
 
 	"search" => "page=search",
-
-	"mail" => "page=mail",
 
 	"message_form" => "page=message_form&user_id=#user_id#",
 	"group_request_group_search" => "page=group_request_group_search&user_id=#user_id#",
@@ -364,11 +385,13 @@ $arDefaultUrlTemplatesN404 = array(
 	"user_blog_post_rss" => "page=user_blog_post_rss&user_id=#user_id#&type=#type#&post_id=#post_id#",
 	"user_blog_draft" => "page=user_blog_draft&user_id=#user_id#",
 	"user_blog_moderation" => "page=user_blog_moderation&user_id=#user_id#",
+	"user_blog_tags" => "page=user_blog_tags&user_id=#user_id#",
 	"user_blog_post" => "page=user_blog_post&user_id=#user_id#&post_id=#post_id#",
 	"user_microblog" => "page=user_microblog&user_id=#user_id#",
 	"user_microblog_post" => "page=user_microblog_post&user_id=#user_id#&post_id=#post_id#",
 
 	"user_tasks" => "page=user_tasks&user_id=#user_id#",
+	"user_tasks_board" => "page=user_tasks_board&user_id=#user_id#",
 	"user_tasks_task" => "page=user_tasks_task&user_id=#user_id#&action=#action#&task_id=#task_id#",
 	"user_tasks_view" => "page=user_tasks_view&user_id=#user_id#&action=#action#&view_id=#view_id#",
 	"user_tasks_report" => "page=user_tasks_report&user_id=#user_id#",
@@ -464,7 +487,9 @@ if (!array_key_exists("ALLOW_GROUP_CREATE_REDIRECT_REQUEST", $arParams))
 }
 
 if (!is_array($arParams["VARIABLE_ALIASES"]))
+{
 	$arParams["VARIABLE_ALIASES"] = array();
+}
 
 if ($arParams["GROUP_USE_KEYWORDS"] != "N") $arParams["GROUP_USE_KEYWORDS"] = "Y";
 // for bitrix:main.user.link
@@ -499,18 +524,33 @@ else
 }
 
 if (!array_key_exists("SHOW_FIELDS_TOOLTIP", $arParams))
+{
 	$arParams["SHOW_FIELDS_TOOLTIP"] = unserialize(COption::GetOptionString("socialnetwork", "tooltip_fields", $arTooltipFieldsDefault));
+}
+
 if (!array_key_exists("USER_PROPERTY_TOOLTIP", $arParams))
+{
 	$arParams["USER_PROPERTY_TOOLTIP"] = unserialize(COption::GetOptionString("socialnetwork", "tooltip_properties", $arTooltipPropertiesDefault));
+}
 
 if (IsModuleInstalled('intranet') && !array_key_exists("PATH_TO_CONPANY_DEPARTMENT", $arParams))
+{
 	$arParams["PATH_TO_CONPANY_DEPARTMENT"] = "/company/structure.php?set_filter_structure=Y&structure_UF_DEPARTMENT=#ID#";
+}
 
-if (IsModuleInstalled("search") && !array_key_exists("PATH_TO_SEARCH_TAG", $arParams))
+if (
+	IsModuleInstalled("search")
+	&& !array_key_exists("PATH_TO_SEARCH_TAG", $arParams)
+)
+{
 	$arParams["PATH_TO_SEARCH_TAG"] = SITE_DIR."search/?tags=#tag#";
+}
 
 if (strlen(trim($arParams["NAME_TEMPLATE"])) <= 0)
+{
 	$arParams["NAME_TEMPLATE"] = CSite::GetNameFormat();
+}
+
 $arParams['SHOW_LOGIN'] = $arParams['SHOW_LOGIN'] != "N" ? "Y" : "N";
 
 if (IsModuleInstalled("intranet"))
@@ -541,20 +581,26 @@ CRatingsComponentsMain::GetShowRating($arParams);
 
 if (
 	!array_key_exists("RATING_ID", $arParams)
-	||
-	(
+	|| (
 		!is_array($arParams["RATING_ID"])
 		&& intval($arParams["RATING_ID"]) <= 0
 	)
 )
+{
 	$arParams["RATING_ID"] = 0;
+}
 
 if (IsModuleInstalled("search"))
 {
 	if (!array_key_exists("SEARCH_FILTER_NAME", $arParams))
+	{
 		$arParams["SEARCH_FILTER_NAME"] = "sonet_search_filter";
+	}
+
 	if (!array_key_exists("SEARCH_FILTER_DATE_NAME", $arParams))
+	{
 		$arParams["SEARCH_FILTER_DATE_NAME"] = "sonet_search_filter_date";
+	}
 }
 
 $arCustomPagesPath = array();
@@ -590,46 +636,38 @@ if ($arParams["SEF_MODE"] == "Y")
 	CComponentEngine::InitComponentVariables($componentPage, $arComponentVariables, $arVariableAliases, $arVariables);
 
 	foreach ($arUrlTemplates as $url => $value)
+	{
 		$arResult["PATH_TO_".strToUpper($url)] = $arParams["SEF_FOLDER"].$value;
+	}
 
 	if ($_REQUEST["auth"] == "Y")
+	{
 		$componentPage = "auth";
-
-	$tmpVal = COption::GetOptionString("socialnetwork", "workgroups_page", false, SITE_ID);
-	if (
-		$arParams["SEF_FOLDER"] 
-		&& (
-			!$tmpVal
-			|| substr($tmpVal, 0, strlen($arParams["SEF_FOLDER"])) !== $arParams["SEF_FOLDER"]
-		)
-	)
-	{
-		COption::SetOptionString("socialnetwork", "workgroups_page", $arParams["SEF_FOLDER"], false, SITE_ID);
 	}
 
-	$tmpVal = COption::GetOptionString("socialnetwork", "workgroups_list_page", false, SITE_ID);
-	if (
-		$arParams["SEF_FOLDER"] 
-		&& (
-			!$tmpVal
-			|| substr($tmpVal, 0, strlen($arParams["SEF_FOLDER"])) !== $arParams["SEF_FOLDER"]
+	\Bitrix\Socialnetwork\ComponentHelper::setComponentOption(
+		array(
+			array(
+				'CHECK_SEF_FOLDER' => true,
+				'OPTION' => array('MODULE_ID' => 'socialnetwork', 'NAME' => 'workgroups_page'),
+				'VALUE' => $arParams["SEF_FOLDER"]
+			),
+			array(
+				'CHECK_SEF_FOLDER' => true,
+				'OPTION' => array('MODULE_ID' => 'socialnetwork', 'NAME' => 'user_page'),
+				'VALUE' => $arParams["SEF_FOLDER"]
+			),
+			array(
+				'CHECK_SEF_FOLDER' => true,
+				'OPTION' => array('MODULE_ID' => 'socialnetwork', 'NAME' => 'workgroups_list_page'),
+				'VALUE' => $arResult["PATH_TO_GROUP_SEARCH"]
+			)
+		),
+		array(
+			'SEF_FOLDER' => $arParams["SEF_FOLDER"],
+			'SITE_ID' => SITE_ID
 		)
-	)
-	{
-		COption::SetOptionString("socialnetwork", "workgroups_list_page", $arResult["PATH_TO_GROUP_SEARCH"], false, SITE_ID);
-	}
-
-	$tmpVal = COption::GetOptionString("socialnetwork", "user_page", false, SITE_ID);
-	if (
-		$arParams["SEF_FOLDER"]
-		&& (
-			!$tmpVal
-			|| substr($tmpVal, 0, strlen($arParams["SEF_FOLDER"])) !== $arParams["SEF_FOLDER"]
-		)
-	)
-	{
-		COption::SetOptionString("socialnetwork", "user_page", $arParams["SEF_FOLDER"], false, SITE_ID);
-	}
+	);
 }
 else
 {
@@ -694,32 +732,40 @@ else
 	$arResult["PATH_TO_GROUP_LOG_RSS_MASK"] = $arResult["~PATH_TO_GROUP_LOG_RSS_MASK"] = $APPLICATION->GetCurPage(true)."?page=group_log_rss&group_id=".$arVariables["group_id"];
 }
 
-if (COption::GetOptionString("socialnetwork", "allow_frields", "Y") == "Y" && !COption::GetOptionString("socialnetwork", "friends_page", false, SITE_ID))
-	COption::SetOptionString("socialnetwork", "friends_page", $arResult["PATH_TO_USER_FRIENDS"], false, SITE_ID);
-
-if (!COption::GetOptionString("socialnetwork", "userblogpost_page", false, SITE_ID))
-	COption::SetOptionString("socialnetwork", "userblogpost_page", $arResult["PATH_TO_USER_BLOG_POST"], false, SITE_ID);
-
-if (!COption::GetOptionString("socialnetwork", "userbloggroup_id", false, SITE_ID))
-	COption::SetOptionString("socialnetwork", "userbloggroup_id", $arParams["BLOG_GROUP_ID"], false, SITE_ID);
-
-if (!COption::GetOptionString("socialnetwork", "smile_page", false, SITE_ID))
-	COption::SetOptionString("socialnetwork", "smile_page", $arParams["PATH_TO_SMILE"], false, SITE_ID);
-
-if (!COption::GetOptionString("socialnetwork", "user_request_page", false, SITE_ID))
-	COption::SetOptionString("socialnetwork", "user_request_page", $arResult["PATH_TO_USER_REQUESTS"], false, SITE_ID);
-
-$tmpVal = COption::GetOptionString("socialnetwork", "log_entry_page", false, SITE_ID);
-if (
-	$arParams["SEF_FOLDER"] 
-	&& (
-		!$tmpVal
-		|| substr($tmpVal, 0, strlen($arParams["SEF_FOLDER"])) !== $arParams["SEF_FOLDER"]
+\Bitrix\Socialnetwork\ComponentHelper::setComponentOption(
+	array(
+		array(
+			'OPTION' => array('MODULE_ID' => 'socialnetwork', 'NAME' => 'friends_page'),
+			'VALUE' => (COption::GetOptionString("socialnetwork", "allow_frields", "Y") == "Y" ? $arResult["PATH_TO_USER_FRIENDS"] : false)
+		),
+		array(
+			'OPTION' => array('MODULE_ID' => 'socialnetwork', 'NAME' => 'userblogpost_page'),
+			'VALUE' => $arResult["PATH_TO_USER_BLOG_POST"]
+		),
+		array(
+			'OPTION' => array('MODULE_ID' => 'socialnetwork', 'NAME' => 'userbloggroup_id'),
+			'VALUE' => $arParams["BLOG_GROUP_ID"]
+		),
+		array(
+			'OPTION' => array('MODULE_ID' => 'socialnetwork', 'NAME' => 'smile_page'),
+			'VALUE' => $arParams["PATH_TO_SMILE"]
+		),
+		array(
+			'OPTION' => array('MODULE_ID' => 'socialnetwork', 'NAME' => 'user_request_page'),
+			'VALUE' => $arResult["PATH_TO_USER_REQUESTS"]
+		),
+		array(
+			'CHECK_SEF_FOLDER' => true,
+			'OPTION' => array('MODULE_ID' => 'socialnetwork', 'NAME' => 'log_entry_page'),
+			'VALUE' => $arResult["PATH_TO_LOG_ENTRY"]
+		)
+	),
+	array(
+		'SEF_FOLDER' => $arParams["SEF_FOLDER"],
+		'SITE_ID' => SITE_ID
 	)
-)
-{
-	COption::SetOptionString("socialnetwork", "log_entry_page", $arResult["PATH_TO_LOG_ENTRY"], false, SITE_ID);
-}
+);
+
 
 $arResult = array_merge(
 	array(
@@ -765,22 +811,40 @@ if (!$tooltipPathToUser)
 	$tooltipPathToUser = $arResult["PATH_TO_USER"];
 }
 if (substr($tooltipPathToUser, 0, strlen($arParams["SEF_FOLDER"])) !== $arParams["SEF_FOLDER"])
+{
 	COption::SetOptionString("main", "TOOLTIP_PATH_TO_USER", $arParams["SEF_FOLDER"]."user/#user_id#/", false, SITE_ID);
+}
 
-if (!COption::GetOptionString("main", "TOOLTIP_PATH_TO_MESSAGES_CHAT", false, SITE_ID))
-	COption::SetOptionString("main", "TOOLTIP_PATH_TO_MESSAGES_CHAT", $arResult["PATH_TO_MESSAGES_CHAT"], false, SITE_ID);
-if (!COption::GetOptionString("main", "TOOLTIP_PATH_TO_VIDEO_CALL", false, SITE_ID))
-	COption::SetOptionString("main", "TOOLTIP_PATH_TO_VIDEO_CALL", $arResult["PATH_TO_VIDEO_CALL"], false, SITE_ID);
-if (!COption::GetOptionString("main", "TOOLTIP_DATE_TIME_FORMAT", false, SITE_ID))
-	COption::SetOptionString("main", "TOOLTIP_DATE_TIME_FORMAT", $arResult["DATE_TIME_FORMAT"], false, SITE_ID);
-if (!COption::GetOptionString("main", "TOOLTIP_SHOW_YEAR", false, SITE_ID))
-	COption::SetOptionString("main", "TOOLTIP_SHOW_YEAR", $arParams["DATE_TIME_FORMAT"], false, SITE_ID);
-if (!COption::GetOptionString("main", "TOOLTIP_NAME_TEMPLATE", false, SITE_ID))
-	COption::SetOptionString("main", "TOOLTIP_NAME_TEMPLATE", $arParams["NAME_TEMPLATE"], false, SITE_ID);
-if (!COption::GetOptionString("main", "TOOLTIP_SHOW_LOGIN", false, SITE_ID))
-	COption::SetOptionString("main", "TOOLTIP_SHOW_LOGIN", $arParams["SHOW_LOGIN"], false, SITE_ID);
-if (!COption::GetOptionString("main", "TOOLTIP_PATH_TO_CONPANY_DEPARTMENT", false, SITE_ID))
-	COption::SetOptionString("main", "TOOLTIP_PATH_TO_CONPANY_DEPARTMENT", $arParams["PATH_TO_CONPANY_DEPARTMENT"], false, SITE_ID);
+\Bitrix\Socialnetwork\ComponentHelper::setComponentOption(array(
+	array(
+		'OPTION' => array('MODULE_ID' => 'main', 'NAME' => 'TOOLTIP_PATH_TO_MESSAGES_CHAT'),
+		'VALUE' => $arResult["PATH_TO_MESSAGES_CHAT"]
+	),
+	array(
+		'OPTION' => array('MODULE_ID' => 'main', 'NAME' => 'TOOLTIP_PATH_TO_VIDEO_CALL'),
+		'VALUE' => $arResult["PATH_TO_VIDEO_CALL"]
+	),
+	array(
+		'OPTION' => array('MODULE_ID' => 'main', 'NAME' => 'TOOLTIP_DATE_TIME_FORMAT'),
+		'VALUE' => $arResult["DATE_TIME_FORMAT"]
+	),
+	array(
+		'OPTION' => array('MODULE_ID' => 'main', 'NAME' => 'TOOLTIP_SHOW_YEAR'),
+		'VALUE' => $arParams["SHOW_YEAR"]
+	),
+	array(
+		'OPTION' => array('MODULE_ID' => 'main', 'NAME' => 'TOOLTIP_NAME_TEMPLATE'),
+		'VALUE' => $arParams["NAME_TEMPLATE"]
+	),
+	array(
+		'OPTION' => array('MODULE_ID' => 'main', 'NAME' => 'TOOLTIP_SHOW_LOGIN'),
+		'VALUE' => $arParams["SHOW_LOGIN"]
+	),
+	array(
+		'OPTION' => array('MODULE_ID' => 'main', 'NAME' => 'TOOLTIP_PATH_TO_CONPANY_DEPARTMENT'),
+		'VALUE' => $arParams["PATH_TO_CONPANY_DEPARTMENT"]
+	)
+));
 
 $arResult["PATH_TO_SEARCH_INNER"] = $arResult["PATH_TO_SEARCH"];
 $arParams["PATH_TO_SEARCH_EXTERNAL"] = Trim($arParams["PATH_TO_SEARCH_EXTERNAL"]);
@@ -800,47 +864,51 @@ if(check_bitrix_sessid() || $_SERVER['REQUEST_METHOD'] == "PUT")
 		&& CModule::IncludeModule("socialnetwork")
 	)
 	{
-		$bxSocNetSearch = new CSocNetSearch($arResult["VARIABLES"]["user_id"], $arResult["VARIABLES"]["group_id"],
-			array(
-				"PATH_TO_GROUP" => $arResult["PATH_TO_GROUP"],
+		$arSocNetSearchParams = array(
+			"PATH_TO_GROUP" => $arResult["PATH_TO_GROUP"],
 
-				"BLOG_GROUP_ID" => $arParams["BLOG_GROUP_ID"],
-				"PATH_TO_GROUP_BLOG" => $arResult["PATH_TO_GROUP_BLOG"],
-				"PATH_TO_GROUP_BLOG_POST" => $arResult["PATH_TO_GROUP_BLOG_POST"],
-				"PATH_TO_GROUP_BLOG_COMMENT" => $arResult["PATH_TO_GROUP_BLOG_POST"]."?commentId=#comment_id###comment_id#",
-				"PATH_TO_USER_BLOG" => $arResult["PATH_TO_USER_BLOG"],
-				"PATH_TO_USER_BLOG_POST" => $arResult["PATH_TO_USER_BLOG_POST"],
-				"PATH_TO_USER_BLOG_COMMENT" => $arResult["PATH_TO_USER_BLOG_POST"]."?commentId=#comment_id###comment_id#",
-				"PATH_TO_USER_MICROBLOG" => $arResult["PATH_TO_USER_MICROBLOG"],
-				"PATH_TO_USER_MICROBLOG_POST" => $arResult["PATH_TO_USER_MICROBLOG_POST"],
-				"PATH_TO_GROUP_MICROBLOG" => $arResult["PATH_TO_GROUP_MICROBLOG"],
-				"PATH_TO_GROUP_MICROBLOG_POST" => $arResult["PATH_TO_GROUP_MICROBLOG_POST"],
+			"BLOG_GROUP_ID" => $arParams["BLOG_GROUP_ID"],
+			"PATH_TO_GROUP_BLOG" => $arResult["PATH_TO_GROUP_BLOG"],
+			"PATH_TO_GROUP_BLOG_POST" => $arResult["PATH_TO_GROUP_BLOG_POST"],
+			"PATH_TO_GROUP_BLOG_COMMENT" => $arResult["PATH_TO_GROUP_BLOG_POST"]."?commentId=#comment_id##com#comment_id#",
+			"PATH_TO_USER_BLOG" => $arResult["PATH_TO_USER_BLOG"],
+			"PATH_TO_USER_BLOG_POST" => $arResult["PATH_TO_USER_BLOG_POST"],
+			"PATH_TO_USER_BLOG_COMMENT" => $arResult["PATH_TO_USER_BLOG_POST"]."?commentId=#comment_id##com#comment_id#",
+			"PATH_TO_USER_MICROBLOG" => $arResult["PATH_TO_USER_MICROBLOG"],
+			"PATH_TO_USER_MICROBLOG_POST" => $arResult["PATH_TO_USER_MICROBLOG_POST"],
+			"PATH_TO_GROUP_MICROBLOG" => $arResult["PATH_TO_GROUP_MICROBLOG"],
+			"PATH_TO_GROUP_MICROBLOG_POST" => $arResult["PATH_TO_GROUP_MICROBLOG_POST"],
 
-				"FORUM_ID" => $arParams["FORUM_ID"],
-				"PATH_TO_GROUP_FORUM_MESSAGE" => $arResult["PATH_TO_GROUP_FORUM_MESSAGE"],
-				"PATH_TO_USER_FORUM_MESSAGE" => $arResult["PATH_TO_USER_FORUM_MESSAGE"],
+			"FORUM_ID" => $arParams["FORUM_ID"],
+			"PATH_TO_GROUP_FORUM_MESSAGE" => $arResult["PATH_TO_GROUP_FORUM_MESSAGE"],
+			"PATH_TO_USER_FORUM_MESSAGE" => $arResult["PATH_TO_USER_FORUM_MESSAGE"],
 
-				"PHOTO_GROUP_IBLOCK_ID" => $arParams["PHOTO_GROUP_IBLOCK_ID"],
-				"PATH_TO_GROUP_PHOTO_ELEMENT" => $arResult["PATH_TO_GROUP_PHOTO_ELEMENT"],
-				"PHOTO_USER_IBLOCK_ID" => $arParams["PHOTO_USER_IBLOCK_ID"],
-				"PATH_TO_USER_PHOTO_ELEMENT" => $arResult["PATH_TO_USER_PHOTO_ELEMENT"],
-				"PHOTO_FORUM_ID" => $arParams["PHOTO_FORUM_ID"],
+			"PHOTO_GROUP_IBLOCK_ID" => $arParams["PHOTO_GROUP_IBLOCK_ID"],
+			"PATH_TO_GROUP_PHOTO_ELEMENT" => $arResult["PATH_TO_GROUP_PHOTO_ELEMENT"],
+			"PHOTO_USER_IBLOCK_ID" => $arParams["PHOTO_USER_IBLOCK_ID"],
+			"PATH_TO_USER_PHOTO_ELEMENT" => $arResult["PATH_TO_USER_PHOTO_ELEMENT"],
+			"PHOTO_FORUM_ID" => $arParams["PHOTO_FORUM_ID"],
 
-				"CALENDAR_GROUP_IBLOCK_ID" => $arParams["CALENDAR_GROUP_IBLOCK_ID"],
-				"PATH_TO_GROUP_CALENDAR_ELEMENT" => $arResult["PATH_TO_GROUP_CALENDAR"]."?EVENT_ID=#element_id#",
+			"CALENDAR_GROUP_IBLOCK_ID" => $arParams["CALENDAR_GROUP_IBLOCK_ID"],
+			"PATH_TO_GROUP_CALENDAR_ELEMENT" => $arResult["PATH_TO_GROUP_CALENDAR"]."?EVENT_ID=#element_id#",
 
-				"TASK_IBLOCK_ID" => $arParams["TASK_IBLOCK_ID"],
-				"PATH_TO_GROUP_TASK_ELEMENT" => $arResult["PATH_TO_GROUP_TASKS_TASK"],
-				"PATH_TO_USER_TASK_ELEMENT" => $arResult["PATH_TO_USER_TASKS_TASK"],
-				"TASK_FORUM_ID" => $arParams["TASK_FORUM_ID"],
+			"PATH_TO_GROUP_TASK_ELEMENT" => $arResult["PATH_TO_GROUP_TASKS_TASK"],
+			"PATH_TO_USER_TASK_ELEMENT" => $arResult["PATH_TO_USER_TASKS_TASK"],
+			"TASK_FORUM_ID" => $arParams["TASK_FORUM_ID"],
+		);
 
-				"FILES_PROPERTY_CODE" => $arParams["NAME_FILE_PROPERTY"],
-				"FILES_FORUM_ID" => $arParams["FILES_FORUM_ID"],
-				"FILES_GROUP_IBLOCK_ID" => $arParams["FILES_GROUP_IBLOCK_ID"],
-				"PATH_TO_GROUP_FILES_ELEMENT" => $arResult["PATH_TO_GROUP_FILES_ELEMENT"],
-				"FILES_USER_IBLOCK_ID" => $arParams["FILES_USER_IBLOCK_ID"],
-				"PATH_TO_USER_FILES_ELEMENT" => $arResult["PATH_TO_USER_FILES_ELEMENT"],
-		));
+		if (!$diskEnabled)
+		{
+			$arSocNetSearchParams["FILES_PROPERTY_CODE"] = $arParams["NAME_FILE_PROPERTY"];
+			$arSocNetSearchParams["FILES_FORUM_ID"] = $arParams["FILES_FORUM_ID"];
+			$arSocNetSearchParams["FILES_GROUP_IBLOCK_ID"] = $arParams["FILES_GROUP_IBLOCK_ID"];
+			$arSocNetSearchParams["PATH_TO_GROUP_FILES_ELEMENT"] = $arResult["PATH_TO_GROUP_FILES_ELEMENT"];
+			$arSocNetSearchParams["FILES_USER_IBLOCK_ID"] = $arParams["FILES_USER_IBLOCK_ID"];
+			$arSocNetSearchParams["PATH_TO_USER_FILES_ELEMENT"] = $arResult["PATH_TO_USER_FILES_ELEMENT"];
+		}
+
+		$bxSocNetSearch = new CSocNetSearch($arResult["VARIABLES"]["user_id"], $arResult["VARIABLES"]["group_id"], $arSocNetSearchParams);
+
 		AddEventHandler("search", "BeforeIndex", Array($bxSocNetSearch, "BeforeIndex"));
 		AddEventHandler("iblock", "OnAfterIBlockElementUpdate", Array($bxSocNetSearch, "IBlockElementUpdate"));
 		AddEventHandler("iblock", "OnAfterIBlockElementAdd", Array($bxSocNetSearch, "IBlockElementUpdate"));
@@ -850,7 +918,11 @@ if(check_bitrix_sessid() || $_SERVER['REQUEST_METHOD'] == "PUT")
 /********************************************************************
 				WebDav
 ********************************************************************/
-if (strPos($componentPage, "user_files") === false && strPos($componentPage, "group_files") === false)
+if (
+	!$diskEnabled
+	&& strPos($componentPage, "user_files") === false
+	&& strPos($componentPage, "group_files") === false
+)
 {
 	$sCurrUrl = strToLower(str_replace("//", "/", "/".$APPLICATION->GetCurPage()."/"));
 	$arBaseUrl = array(
@@ -885,10 +957,13 @@ if (strPos($componentPage, "user_files") === false && strPos($componentPage, "gr
 }
 
 if (
-	strPos($componentPage, "group_files") !== false 
-	|| strPos($componentPage, "group_blog") !== false
-	|| strPos($componentPage, "group_log") !== false
-	|| $componentPage == "group"
+	!$diskEnabled
+	&& (
+		strPos($componentPage, "group_files") !== false
+		|| strPos($componentPage, "group_blog") !== false
+		|| strPos($componentPage, "group_log") !== false
+		|| $componentPage == "group"
+	)
 )
 {
 	if (intval($arResult["VARIABLES"]["group_id"]) > 0)
@@ -1019,7 +1094,10 @@ $path2 = str_replace(array("\\", "//"), "/", dirname(__FILE__)."/include/webdav_
 if (file_exists($path2))
 	include_once($path2);
 
-if (strPos($componentPage, "user_files") !== false || strPos($componentPage, "group_files") !== false)
+if (
+	strPos($componentPage, "user_files") !== false
+	|| strPos($componentPage, "group_files") !== false
+)
 {
 	if (
 		IsModuleInstalled("extranet")
@@ -1037,8 +1115,8 @@ if (strPos($componentPage, "user_files") !== false || strPos($componentPage, "gr
 		{
 			if (defined("BX_COMP_MANAGED_CACHE"))
 			{
-				$GLOBALS["CACHE_MANAGER"]->StartTagCache($path);
-				$GLOBALS["CACHE_MANAGER"]->RegisterTag("USER_CARD_".intval($arResult["VARIABLES"]["user_id"] / TAGGED_user_card_size));
+				$CACHE_MANAGER->StartTagCache($path);
+				$CACHE_MANAGER->RegisterTag("USER_CARD_".intval($arResult["VARIABLES"]["user_id"] / TAGGED_user_card_size));
 			}
 
 			$extranet_site_id = COption::GetOptionString("extranet", "extranet_site");
@@ -1108,7 +1186,7 @@ if (strPos($componentPage, "user_files") !== false || strPos($componentPage, "gr
 
 			$obCache->EndDataCache($arCachedResult);
 			if(defined("BX_COMP_MANAGED_CACHE"))
-				$GLOBALS["CACHE_MANAGER"]->EndTagCache();
+				$CACHE_MANAGER->EndTagCache();
 		}
 		else
 			$arCachedResult = $obCache->GetVars();
@@ -1130,8 +1208,8 @@ if (strPos($componentPage, "user_files") !== false || strPos($componentPage, "gr
 		{
 			if (defined("BX_COMP_MANAGED_CACHE"))
 			{
-				$GLOBALS["CACHE_MANAGER"]->StartTagCache($path);
-				$GLOBALS["CACHE_MANAGER"]->RegisterTag("USER_CARD_".intval($arResult["VARIABLES"]["user_id"] / TAGGED_user_card_size));
+				$CACHE_MANAGER->StartTagCache($path);
+				$CACHE_MANAGER->RegisterTag("USER_CARD_".intval($arResult["VARIABLES"]["user_id"] / TAGGED_user_card_size));
 			}
 
 			if (
@@ -1165,7 +1243,7 @@ if (strPos($componentPage, "user_files") !== false || strPos($componentPage, "gr
 
 			$obCache->EndDataCache($arCachedResult);
 			if(defined("BX_COMP_MANAGED_CACHE"))
-				$GLOBALS["CACHE_MANAGER"]->EndTagCache();
+				$CACHE_MANAGER->EndTagCache();
 		}
 		else
 			$arCachedResult = $obCache->GetVars();
@@ -1178,7 +1256,7 @@ if (strPos($componentPage, "user_files") !== false || strPos($componentPage, "gr
 			$arParams["FILES_FORUM_ID"]= $arCachedResult["FILES_FORUM_ID"];
 		}
 	}
-	
+
 	$path = str_replace(array("\\", "//"), "/", dirname(__FILE__)."/include/webdav.php");
 	if (!file_exists($path))
 	{
@@ -1321,15 +1399,17 @@ elseif ($componentPage == "bizproc_task_list")
 ********************************************************************/
 
 CUtil::InitJSCore(array("window", "ajax"));
+\Bitrix\Main\UI\Extension::load("socialnetwork.slider");
+
 $this->IncludeComponentTemplate($componentPage, array_key_exists($componentPage, $arCustomPagesPath) ? $arCustomPagesPath[$componentPage] : "");
 /********************************************************************
 				Activity after
 ********************************************************************/
 
 //top panel button to reindex
-if($GLOBALS['USER']->IsAdmin())
+if($USER->IsAdmin())
 {
-	$GLOBALS['APPLICATION']->AddPanelButton(array(
+	$APPLICATION->AddPanelButton(array(
 		"HREF"=> $arResult["PATH_TO_REINDEX"],
 		"ICON"=>"bx-panel-reindex-icon",
 		"ALT"=>GetMessage('SONET_PANEL_REINDEX_TITLE'),

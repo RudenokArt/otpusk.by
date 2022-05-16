@@ -51,6 +51,8 @@ div#wiki_category .ilike-light .bx-ilike-text {
 	padding: 0;
 }
 
+.wiki_post_feed h1 {line-height:25px;}
+
 #wiki-post-content pre,
 .wiki_post_feed pre{
 
@@ -71,3 +73,31 @@ div#wiki_category .ilike-light .bx-ilike-text {
 {
 	font-size: medium;
 }
+
+#wiki-post-content table,
+.wiki_post_feed table {
+	border: 1px solid #B6B6B8;
+	border-collapse: collapse;
+}
+
+#wiki-post-content table td,
+.wiki_post_feed table td {
+	border: 1px solid #B6B6B8;
+	padding: 2px 5px;
+}
+
+.wiki-category-rating .feed-inform-ilike.feed-new-like {
+	float: right;
+}
+
+.wiki-category-rating .feed-post-emoji-top-panel-outer {
+	padding-bottom: 0;
+}
+
+.wiki-category-rating .feed-post-emoji-top-panel-box.feed-post-emoji-top-panel-container-active {
+	background: transparent;
+	padding-left: 7px;
+	margin: 5px 11px 5px 0;
+	float: right;
+}
+

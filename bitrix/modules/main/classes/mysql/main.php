@@ -13,16 +13,16 @@ require($_SERVER["DOCUMENT_ROOT"].BX_ROOT."/modules/main/classes/general/main.ph
 class CMain extends CAllMain
 {
 	/** @deprecated */
-	function __GetConditionFName()
+	public static function __GetConditionFName()
 	{
 		return "`CONDITION`";
 	}
 
-	function FileAction()
+	public static function FileAction()
 	{
 	}
 
-	function GetLang($cur_dir=false, $cur_host=false)
+	public function GetLang($cur_dir=false, $cur_host=false)
 	{
 		global $DB, $lang, $MAIN_LANGS_CACHE, $MAIN_LANGS_ADMIN_CACHE;
 
@@ -58,9 +58,6 @@ class CMain extends CAllMain
 				$MAIN_LANGS_ADMIN_CACHE[$res["LID"]]=$res;
 				return $res;
 			}
-
-			//core default
-			return array("en", "MM/DD/YYYY", "MM/DD/YYYY HH24:MI:SS");
 		}
 		else
 		{
@@ -133,7 +130,7 @@ class CMain extends CAllMain
 						foreach($arLangDomain[$row["LID"]] as $dom)
 						{
 							//AND '".$DB->ForSql($CURR_DOMAIN, 255)."' LIKE CONCAT('%', LD.DOMAIN)
-							if(strcasecmp(substr($CURR_DOMAIN, -strlen($dom["LD_DOMAIN"])), $dom["LD_DOMAIN"]) == 0)
+							if(strcasecmp(substr(".".$CURR_DOMAIN, -strlen(".".$dom["LD_DOMAIN"])), ".".$dom["LD_DOMAIN"]) == 0)
 							{
 								$arJoin[] = $row+$dom;
 								$bLeft = false;
@@ -201,7 +198,7 @@ class CMain extends CAllMain
 					"SELECT L.*, L.LID as ID, L.LID as SITE_ID, ".
 					"	C.FORMAT_DATE, C.FORMAT_DATETIME, C.FORMAT_NAME, C.WEEK_START, C.CHARSET, C.DIRECTION ".
 					"FROM b_lang L  ".
-					"	LEFT JOIN b_lang_domain LD ON L.LID=LD.LID AND '".$DB->ForSql($CURR_DOMAIN, 255)."' LIKE CONCAT('%', LD.DOMAIN) ".
+					"	LEFT JOIN b_lang_domain LD ON L.LID=LD.LID AND '".$DB->ForSql(".".$CURR_DOMAIN, 255)."' LIKE CONCAT('%.', LD.DOMAIN) ".
 					"	INNER JOIN b_culture C ON C.ID=L.CULTURE_ID ".
 					"WHERE ".
 					"	('".$DB->ForSql($cur_dir)."' LIKE CONCAT(L.DIR, '%') OR LD.LID IS NOT NULL)".
@@ -235,14 +232,23 @@ class CMain extends CAllMain
 				"ORDER BY L.DEF DESC, L.SORT";
 
 			$R = $DB->Query($strSql);
-			while($res = $R->Fetch())
+			if($res = $R->Fetch())
 			{
 				$MAIN_LANGS_CACHE[$res["LID"]]=$res;
 				return $res;
 			}
 		}
 
-		return array("en", "MM/DD/YYYY", "MM/DD/YYYY HH24:MI:SS");
+		//core default
+		return array(
+			"LID" => "en",
+			"DIR" => "/",
+			"SERVER_NAME" => "",
+			"CHARSET" => "UTF-8",
+			"FORMAT_DATE" => "MM/DD/YYYY",
+			"FORMAT_DATETIME" => "MM/DD/YYYY HH:MI:SS",
+			"LANGUAGE_ID" => "en",
+		);
 	}
 }
 
@@ -252,7 +258,7 @@ class CSite extends CAllSite
 
 class CFilterQuery extends CAllFilterQuery
 {
-	function BuildWhereClause($word)
+	public function BuildWhereClause($word)
 	{
 		$this->cnt++;
 		//if($this->cnt>10) return "1=1";

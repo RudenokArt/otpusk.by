@@ -41,14 +41,26 @@ CREATE TABLE b_language
 create table b_culture
 (
 	ID int not null auto_increment,
-	CODE varchar(255),
+	CODE varchar(50),
 	NAME varchar(255),
-	FORMAT_DATE varchar(255),
-	FORMAT_DATETIME varchar(255),
-	FORMAT_NAME varchar(255),
+	FORMAT_DATE varchar(50),
+	FORMAT_DATETIME varchar(50),
+	FORMAT_NAME varchar(50),
 	WEEK_START int(1) null default 1,
-	CHARSET varchar(255),
+	CHARSET varchar(50),
 	DIRECTION char(1) null default 'Y',
+	SHORT_DATE_FORMAT varchar(50) null default 'n/j/Y',
+	MEDIUM_DATE_FORMAT varchar(50) null default 'M j, Y',
+	LONG_DATE_FORMAT varchar(50) null default 'F j, Y',
+	FULL_DATE_FORMAT varchar(50) null default 'l, F j, Y',
+	DAY_MONTH_FORMAT varchar(50) null default 'M j',
+	SHORT_TIME_FORMAT varchar(50) null default 'g:i a',
+	LONG_TIME_FORMAT varchar(50) null default 'g:i:s a',
+	AM_VALUE varchar(20) null default 'am',
+	PM_VALUE varchar(20) null default 'pm',
+	NUMBER_THOUSANDS_SEPARATOR varchar(10) null default ',',
+	NUMBER_DECIMAL_SEPARATOR varchar(10) null default '.',
+	NUMBER_DECIMALS tinyint null default '2',
 	primary key (ID)
 );
 
@@ -67,6 +79,7 @@ CREATE TABLE b_event_type
 	NAME varchar(100),
 	DESCRIPTION text,
 	SORT INT(18) not null default '150',
+	EVENT_TYPE varchar(10) not null default 'email',
 	PRIMARY KEY (ID),
 	UNIQUE ux_1 (EVENT_NAME, LID)
 );
@@ -95,6 +108,7 @@ CREATE TABLE b_event_message
 	FIELD2_VALUE varchar(255),
 	SITE_TEMPLATE_ID varchar(255) DEFAULT NULL,
 	ADDITIONAL_FIELD text NULL,
+	LANGUAGE_ID char(2) NULL,
 	PRIMARY KEY (ID),
 	INDEX ix_b_event_message_name (EVENT_NAME(50))
 );
@@ -103,6 +117,7 @@ CREATE TABLE b_event_attachment
 (
   EVENT_ID int(18) not null,
   FILE_ID int(18) not null,
+  IS_FILE_COPIED char(1) not null default 'Y',
   PRIMARY KEY (EVENT_ID, FILE_ID)
 );
 
@@ -124,6 +139,7 @@ CREATE TABLE b_event
 	DATE_EXEC datetime,
 	SUCCESS_EXEC char(1) not null default 'N',
 	DUPLICATE char(1) not null default 'Y',
+	LANGUAGE_ID char(2) NULL,
 	PRIMARY KEY (ID),
 	INDEX ix_success (SUCCESS_EXEC),
 	INDEX ix_b_event_date_exec (DATE_EXEC)
@@ -136,6 +152,7 @@ CREATE TABLE b_group
 	ACTIVE char(1) not null default 'Y',
 	C_SORT int(18) not null default '100',
 	ANONYMOUS char(1) not null default 'N',
+	IS_SYSTEM char(1) not null default 'Y',
 	NAME varchar(255) not null,
 	DESCRIPTION varchar(255),
 	SECURITY_POLICY text,
@@ -210,7 +227,30 @@ CREATE TABLE b_user
 	UNIQUE ix_login (LOGIN, EXTERNAL_AUTH_ID),
 	INDEX ix_b_user_email (EMAIL),
 	INDEX ix_b_user_activity_date (LAST_ACTIVITY_DATE),
-	INDEX IX_B_USER_XML_ID (XML_ID)
+	INDEX IX_B_USER_XML_ID (XML_ID),
+	INDEX ix_user_last_login(LAST_LOGIN),
+	INDEX ix_user_date_register(DATE_REGISTER)
+);
+
+CREATE TABLE b_user_index
+(
+	USER_ID int(11) not null,
+	SEARCH_USER_CONTENT text null,
+	SEARCH_DEPARTMENT_CONTENT text null,
+	SEARCH_ADMIN_CONTENT text null,
+	NAME varchar(50),
+	LAST_NAME varchar(50),
+	SECOND_NAME varchar(50),
+	WORK_POSITION varchar(255),
+	UF_DEPARTMENT_NAME varchar(255),
+	PRIMARY KEY (USER_ID)
+);
+
+CREATE TABLE b_user_index_selector
+(
+	USER_ID int(11) not null,
+	SEARCH_SELECTOR_CONTENT text null,
+	PRIMARY KEY (USER_ID)
 );
 
 CREATE TABLE b_user_group
@@ -227,10 +267,11 @@ CREATE TABLE b_user_field_confirm
 (
 	ID INT(18) not null auto_increment,
 	USER_ID INT(18) not null,
-	DATE_CHANGE timestamp not null,
+	DATE_CHANGE timestamp,
 	FIELD varchar(255) not null,
 	FIELD_VALUE varchar(255) not null,
 	CONFIRM_CODE varchar(32) not null,
+	ATTEMPTS INT(18) default 0,
 	PRIMARY KEY (ID),
 	INDEX ix_b_user_field_confirm1 (USER_ID, CONFIRM_CODE)
 );
@@ -238,25 +279,35 @@ CREATE TABLE b_user_field_confirm
 CREATE TABLE b_module
 (
 	ID VARCHAR(50) not null,
-	DATE_ACTIVE timestamp not null,
+	DATE_ACTIVE timestamp,
 	PRIMARY KEY (ID)
 );
 
 CREATE TABLE b_option
 (
-	MODULE_ID VARCHAR(50),
+	MODULE_ID VARCHAR(50) not null,
 	NAME VARCHAR(50) not null,
 	VALUE TEXT,
 	DESCRIPTION VARCHAR(255),
-	SITE_ID CHAR(2),
-	UNIQUE ix_option(MODULE_ID, NAME, SITE_ID),
+	SITE_ID CHAR(2), -- deprecated
+	PRIMARY KEY(MODULE_ID, NAME),
 	INDEX ix_option_name(NAME)
+);
+
+CREATE TABLE b_option_site
+(
+	MODULE_ID VARCHAR(50) not null,
+	NAME VARCHAR(50) not null,
+	SITE_ID CHAR(2) not null,
+	VALUE TEXT,
+	PRIMARY KEY(MODULE_ID, NAME, SITE_ID),
+	INDEX ix_option_site_module_site(MODULE_ID, SITE_ID)
 );
 
 CREATE TABLE b_module_to_module
 (
 	ID int not null auto_increment,
-	TIMESTAMP_X TIMESTAMP not null,
+	TIMESTAMP_X TIMESTAMP,
 	SORT INT(18) not null default '100',
 	FROM_MODULE_ID VARCHAR(50) not null,
 	MESSAGE_ID VARCHAR(255) not null,
@@ -266,8 +317,10 @@ CREATE TABLE b_module_to_module
 	TO_METHOD VARCHAR(255),
 	TO_METHOD_ARG varchar(255),
 	VERSION int(18) null,
+	UNIQUE_ID varchar(32) not null,
 	PRIMARY KEY (ID),
-	INDEX ix_module_to_module(FROM_MODULE_ID(20), MESSAGE_ID(20), TO_MODULE_ID(20), TO_CLASS(20), TO_METHOD(20))
+	INDEX ix_module_to_module(FROM_MODULE_ID(20), MESSAGE_ID(20), TO_MODULE_ID(20), TO_CLASS(20), TO_METHOD(20)),
+	UNIQUE ux_module_to_module_unique_id(UNIQUE_ID)
 );
 
 CREATE TABLE b_agent
@@ -286,13 +339,14 @@ CREATE TABLE b_agent
 	RUNNING char(1) not null default 'N',
 	PRIMARY KEY (ID),
 	INDEX ix_act_next_exec(ACTIVE, NEXT_EXEC),
-	INDEX ix_agent_user_id(USER_ID)
+	INDEX ix_agent_user_id(USER_ID),
+	INDEX ix_agent_name(NAME(100))
 );
 
 CREATE TABLE b_file
 (
 	ID INT(18) not null auto_increment,
-	TIMESTAMP_X TIMESTAMP not null,
+	TIMESTAMP_X timestamp,
 	MODULE_ID varchar(50),
 	HEIGHT INT(18),
 	WIDTH INT(18),
@@ -305,6 +359,19 @@ CREATE TABLE b_file
 	HANDLER_ID VARCHAR(50),
 	EXTERNAL_ID VARCHAR(50),
 	INDEX IX_B_FILE_EXTERNAL_ID(EXTERNAL_ID),
+	PRIMARY KEY (ID)
+);
+
+CREATE TABLE b_file_preview
+(
+	ID INT(18) not null auto_increment,
+	FILE_ID INT(18) not null,
+	PREVIEW_ID INT(18),
+	PREVIEW_IMAGE_ID INT(18),
+	CREATED_AT datetime not null,
+	TOUCHED_AT datetime,
+	INDEX IX_B_FILE_PL_TOUCH(TOUCHED_AT),
+	INDEX IX_B_FILE_PL_FILE(FILE_ID),
 	PRIMARY KEY (ID)
 );
 
@@ -358,10 +425,10 @@ CREATE TABLE b_site_template
 	SITE_ID char(2) not null,
 	`CONDITION` varchar(255),
 	SORT int not null default '500',
-	TEMPLATE varchar(50) not null,
-	PRIMARY KEY (ID)
+	TEMPLATE varchar(255) not null,
+	PRIMARY KEY (ID),
+	INDEX ix_site_template_site (SITE_ID)
 );
-ALTER TABLE b_site_template ADD UNIQUE INDEX UX_B_SITE_TEMPLATE(SITE_ID, `CONDITION`, TEMPLATE);
 
 CREATE TABLE b_event_message_site
 (
@@ -373,13 +440,13 @@ CREATE TABLE b_event_message_site
 CREATE TABLE b_user_option
 (
 	ID int not null auto_increment,
-	USER_ID int null,
+	USER_ID int not null,
 	CATEGORY varchar(50) not null,
 	NAME varchar(255) not null,
-	VALUE text null,
+	VALUE mediumtext null,
 	COMMON char(1) not null default 'N',
 	PRIMARY KEY (ID),
-	INDEX ix_user_option_user(USER_ID, CATEGORY)
+	UNIQUE INDEX ux_user_category_name(USER_ID, CATEGORY, NAME)
 );
 
 CREATE TABLE b_captcha
@@ -394,8 +461,8 @@ CREATE TABLE b_captcha
 CREATE TABLE b_user_field
 (
 	ID int(11) not null auto_increment,
-	ENTITY_ID varchar(20),
-	FIELD_NAME varchar(20),
+	ENTITY_ID varchar(50),
+	FIELD_NAME varchar(50),
 	USER_TYPE_ID varchar(50),
 	XML_ID varchar(255),
 	SORT int,
@@ -561,6 +628,7 @@ CREATE TABLE b_rating_vote
 	CREATED datetime not null,
 	USER_ID int(11) not null,
 	USER_IP varchar(64) not null,
+	REACTION varchar(8) null,
 	PRIMARY KEY (ID),
 	KEY IX_RAT_VOTE_ID (RATING_VOTING_ID, USER_ID),
 	KEY IX_RAT_VOTE_ID_2 (ENTITY_TYPE_ID, ENTITY_ID, USER_ID),
@@ -603,6 +671,15 @@ CREATE TABLE b_rating_voting_prepare
 	KEY IX_RATING_VOTING_ID (RATING_VOTING_ID)
 );
 
+CREATE TABLE b_rating_voting_reaction
+(
+	ENTITY_TYPE_ID varchar(50) not null,
+	ENTITY_ID int(11) not null,
+	REACTION varchar(8) not null default '',
+	TOTAL_VOTES int(11) not null,
+	PRIMARY KEY (ENTITY_TYPE_ID, ENTITY_ID, REACTION)
+);
+
 CREATE TABLE b_rating_prepare
 (
 	ID int(11) NULL
@@ -618,9 +695,9 @@ CREATE TABLE b_rating_rule
 	CONDITION_MODULE varchar(50),
 	CONDITION_CLASS varchar(255) not null,
 	CONDITION_METHOD varchar(255) not null,
-	CONDITION_CONFIG text not null,
+	CONDITION_CONFIG text,
 	ACTION_NAME varchar(200) not null,
-	ACTION_CONFIG text not null,
+	ACTION_CONFIG text,
 	ACTIVATE char(1) not null default 'N',
 	ACTIVATE_CLASS varchar(255) not null,
 	ACTIVATE_METHOD varchar(255) not null,
@@ -682,7 +759,7 @@ CREATE TABLE b_event_log
 (
 	/*SYSTEM GENERATED*/
 	ID INT(18) not null auto_increment,
-	TIMESTAMP_X TIMESTAMP not null,
+	TIMESTAMP_X timestamp,
 
 	/*CALLER INFO*/
 	SEVERITY VARCHAR(50) not null, /*SECURITY, WARNING, NOTICE*/
@@ -703,7 +780,36 @@ CREATE TABLE b_event_log
 	/*ADDITIONAL*/
 	DESCRIPTION MEDIUMTEXT,
 	PRIMARY KEY (ID),
-	INDEX ix_b_event_log_time(TIMESTAMP_X)
+	INDEX ix_b_event_log_time(TIMESTAMP_X),
+	INDEX ix_b_event_log_audit_type_time(AUDIT_TYPE_ID, TIMESTAMP_X)
+);
+
+CREATE TABLE b_log_notification
+(
+    ID int unsigned not null auto_increment,
+	ACTIVE CHAR(1) not null default 'Y',
+	NAME VARCHAR(50) null,
+	AUDIT_TYPE_ID VARCHAR(50) not null,
+	ITEM_ID VARCHAR(255) null,
+	USER_ID INT null,
+	REMOTE_ADDR VARCHAR(40) null,
+	USER_AGENT VARCHAR(1000) null,
+	REQUEST_URI VARCHAR(1000) null,
+	CHECK_INTERVAL int,
+	ALERT_COUNT int,
+	DATE_CHECKED datetime null,
+	PRIMARY KEY (ID)
+);
+
+CREATE TABLE b_log_notification_action
+(
+	ID int unsigned not null auto_increment,
+	NOTIFICATION_ID int unsigned not null,
+	NOTIFICATION_TYPE varchar(15) not null,
+	RECIPIENT varchar(50) null,
+	ADDITIONAL_TEXT text null,
+	PRIMARY KEY (ID),
+	INDEX ix_log_notification_action_notification_id(NOTIFICATION_ID)
 );
 
 CREATE TABLE b_cache_tag
@@ -723,7 +829,7 @@ CREATE TABLE b_user_hit_auth
 	HASH varchar(32) not null,
 	URL varchar(255) not null,
 	SITE_ID char(2),
-	TIMESTAMP_X datetime not null,
+	TIMESTAMP_X timestamp,
 	PRIMARY KEY (ID),
 	INDEX IX_USER_HIT_AUTH_1(HASH),
 	INDEX IX_USER_HIT_AUTH_2(USER_ID),
@@ -753,7 +859,7 @@ CREATE TABLE b_checklist
 (
 	ID int(11) not null AUTO_INCREMENT,
 	DATE_CREATE varchar(255),
-	TESTER varchar(50),
+	TESTER varchar(255),
 	COMPANY_NAME varchar(255),
 	PICTURE int(11),
 	TOTAL int(11),
@@ -774,13 +880,13 @@ CREATE TABLE b_checklist
 CREATE TABLE b_short_uri
 (
 	ID int(18) not null auto_increment,
-	URI varchar(250) not null,
+	URI varchar(2000) not null,
 	URI_CRC int(18) not null,
 	SHORT_URI varbinary(250) not null,
 	SHORT_URI_CRC int(18) not null,
 	STATUS int(18) not null default 301,
-	MODIFIED timestamp not null,
-	LAST_USED timestamp,
+	MODIFIED datetime not null,
+	LAST_USED datetime null,
 	NUMBER_USED int(18) not null default 0,
 	PRIMARY KEY (ID),
 	INDEX ux_b_short_uri_1 (SHORT_URI_CRC),
@@ -793,7 +899,8 @@ CREATE TABLE b_user_access
 	PROVIDER_ID varchar(50),
 	ACCESS_CODE varchar(100),
 	INDEX ix_ua_user_provider (USER_ID, PROVIDER_ID),
-	INDEX ix_ua_user_access (USER_ID, ACCESS_CODE)
+	INDEX ix_ua_user_access (USER_ID, ACCESS_CODE),
+	INDEX ix_ua_access (ACCESS_CODE)
 );
 
 insert into b_user_access (USER_ID, PROVIDER_ID, ACCESS_CODE) values (0, 'group', 'G2');
@@ -812,13 +919,15 @@ CREATE TABLE b_user_counter
 	CODE varchar(50) not null,
 	CNT int(18) not null default 0,
 	LAST_DATE datetime,
+	TIMESTAMP_X datetime not null default '3000-01-01 00:00:00',
 	TAG varchar(255),
 	PARAMS text,
-	SENT char(1) null,
+	SENT char(1) null default '0',
 	PRIMARY KEY (USER_ID, SITE_ID, CODE),
 	INDEX ix_buc_tag (TAG),
-	INDEX ix_buc_sent (SENT),
-	INDEX ix_buc_code (CODE)
+	INDEX ix_buc_code (CODE),
+	INDEX ix_buc_ts (TIMESTAMP_X),
+	INDEX ix_buc_sent_userid (SENT, USER_ID)
 );
 
 CREATE TABLE b_hot_keys_code
@@ -924,7 +1033,6 @@ CREATE TABLE b_hot_keys
 	USER_ID int(18) not null,
 	PRIMARY KEY (ID),
 	UNIQUE ix_b_hot_keys_co_u (CODE_ID,USER_ID),
-	INDEX ix_hot_keys_code (CODE_ID),
 	INDEX ix_hot_keys_user (USER_ID)
 );
 
@@ -947,6 +1055,7 @@ CREATE TABLE b_admin_notify
 	MESSAGE text,
 	ENABLE_CLOSE char(1) NULL default 'Y',
 	PUBLIC_SECTION char(1) NOT NULL default 'N',
+	NOTIFY_TYPE char(1) NOT NULL default 'M',
 	PRIMARY KEY (ID),
 	KEY IX_AD_TAG (TAG)
 );
@@ -1068,4 +1177,245 @@ CREATE TABLE b_finder_dest
 	`LAST_USE_DATE` DATETIME NULL,
 	PRIMARY KEY (`USER_ID`, `CODE`, `CONTEXT`),
 	INDEX IX_FINDER_DEST (`CODE_TYPE`)
+);
+
+CREATE TABLE b_urlpreview_metadata
+(
+	ID int(11) NOT NULL AUTO_INCREMENT,
+	URL varchar(2000) NOT NULL,
+	TYPE char(1) NOT NULL DEFAULT 'S',
+	DATE_INSERT datetime NOT NULL,
+	DATE_EXPIRE datetime NULL,
+	TITLE varchar(200) NULL,
+	DESCRIPTION text,
+	IMAGE_ID int(11) NULL,
+	IMAGE varchar(2000) NULL,
+	EMBED mediumtext,
+	EXTRA text,
+	PRIMARY KEY (ID),
+	INDEX IX_URLPREVIEW_METADATA_URL (URL(255))
+);
+
+CREATE TABLE b_urlpreview_route
+(
+	ID int(11) NOT NULL AUTO_INCREMENT,
+	ROUTE varchar(2000) NOT NULL,
+	MODULE varchar(50) NOT NULL,
+	CLASS varchar(150) NOT NULL,
+	PARAMETERS mediumtext,
+	PRIMARY KEY (ID),
+	UNIQUE KEY UX_URLPREVIEW_ROUTE_ROUTE (ROUTE(255))
+);
+
+CREATE TABLE b_geoip_handlers
+(
+  ID INT(11) NOT NULL AUTO_INCREMENT,
+  SORT INT(10) not null default 100,
+  ACTIVE CHAR(1) NOT NULL DEFAULT 'Y',
+  CLASS_NAME VARCHAR(255) NOT NULL,
+  CONFIG text NULL,
+  PRIMARY KEY (ID)
+);
+
+CREATE TABLE b_consent_user_consent
+(
+  ID INT(18) NOT NULL AUTO_INCREMENT,
+  DATE_INSERT DATETIME NOT NULL,
+  AGREEMENT_ID INT(18) NOT NULL,
+  USER_ID INT(18) DEFAULT NULL,
+  IP VARCHAR(15) NOT NULL,
+  URL VARCHAR(4000) DEFAULT NULL,
+  ORIGIN_ID VARCHAR(30) DEFAULT NULL,
+  ORIGINATOR_ID VARCHAR(30) DEFAULT NULL,
+  PRIMARY KEY (ID),
+  INDEX IX_B_CONSENT_USER_CONSENT (AGREEMENT_ID)
+);
+
+CREATE TABLE b_consent_agreement
+(
+  ID INT(18) NOT NULL AUTO_INCREMENT,
+  CODE VARCHAR(45) DEFAULT NULL,
+  DATE_INSERT DATETIME not null,
+  ACTIVE CHAR(1) NOT NULL DEFAULT 'Y',
+  NAME VARCHAR(255) NOT NULL,
+  TYPE CHAR(1) DEFAULT NULL,
+  LANGUAGE_ID CHAR(2) DEFAULT NULL,
+  DATA_PROVIDER VARCHAR(45) DEFAULT NULL,
+  AGREEMENT_TEXT LONGTEXT DEFAULT NULL,
+  LABEL_TEXT VARCHAR(4000) DEFAULT NULL,
+  SECURITY_CODE varchar(32) DEFAULT NULL,
+  PRIMARY KEY (ID),
+  INDEX IX_B_CONSENT_AGREEMENT_CODE (CODE)
+);
+
+CREATE TABLE b_consent_field
+(
+  ID INT(18) NOT NULL AUTO_INCREMENT,
+  AGREEMENT_ID INT(18) NOT NULL,
+  CODE VARCHAR(100) DEFAULT NULL,
+  VALUE TEXT NOT NULL,
+  PRIMARY KEY (ID),
+  INDEX IX_B_CONSENT_FIELD_AG_ID (AGREEMENT_ID)
+);
+
+CREATE TABLE b_composite_page
+(
+	ID int(18) NOT NULL AUTO_INCREMENT,
+	CACHE_KEY varchar(2000) NOT NULL,
+	HOST varchar(100) NOT NULL,
+	URI varchar(2000) NOT NULL,
+	TITLE varchar(250) NULL,
+	CREATED datetime NOT NULL,
+	CHANGED datetime NOT NULL,
+	LAST_VIEWED datetime NOT NULL,
+	VIEWS int(18) NOT NULL DEFAULT 0,
+	REWRITES int(18) NOT NULL DEFAULT 0,
+	SIZE int(18) NOT NULL DEFAULT 0,
+	PRIMARY KEY (ID),
+	INDEX IX_B_COMPOSITE_PAGE_CACHE_KEY(CACHE_KEY(100)),
+	INDEX IX_B_COMPOSITE_PAGE_VIEWED(LAST_VIEWED),
+	INDEX IX_B_COMPOSITE_PAGE_HOST(HOST)
+
+);
+
+CREATE TABLE b_composite_log
+(
+	ID int(18) NOT NULL AUTO_INCREMENT,
+	HOST varchar(100) NOT NULL,
+	URI varchar(2000) NOT NULL,
+	TITLE varchar(250) NULL,
+	CREATED datetime NOT NULL,
+	TYPE varchar(50) NOT NULL,
+	MESSAGE longtext,
+	AJAX char(1) NOT NULL DEFAULT 'N',
+	USER_ID int(18) NOT NULL DEFAULT 0,
+	PAGE_ID int(18) NOT NULL DEFAULT 0,
+	PRIMARY KEY (ID),
+	INDEX IX_B_COMPOSITE_LOG_PAGE_ID(PAGE_ID),
+	INDEX IX_B_COMPOSITE_LOG_HOST(HOST),
+	INDEX IX_B_COMPOSITE_LOG_TYPE(TYPE)
+);
+
+create table b_user_auth_action
+(
+	ID int NOT NULL AUTO_INCREMENT,
+	USER_ID int NOT NULL,
+	PRIORITY int NOT NULL DEFAULT 100,
+	ACTION varchar(20),
+	ACTION_DATE datetime NOT NULL,
+	APPLICATION_ID VARCHAR(255) NULL,
+	PRIMARY KEY (ID),
+	index ix_auth_action_user(USER_ID, PRIORITY),
+	index ix_auth_action_date(ACTION_DATE)
+);
+
+CREATE TABLE b_main_mail_sender
+(
+	ID INT NOT NULL AUTO_INCREMENT,
+	NAME VARCHAR(255) NOT NULL DEFAULT '',
+	EMAIL VARCHAR(255) NOT NULL,
+	USER_ID INT NOT NULL,
+	IS_CONFIRMED TINYINT NOT NULL DEFAULT 0,
+	IS_PUBLIC TINYINT NOT NULL DEFAULT 0,
+	OPTIONS TEXT NULL,
+	PRIMARY KEY (ID),
+	INDEX IX_B_MAIN_MAIL_SENDER_USER_ID (USER_ID, IS_CONFIRMED, IS_PUBLIC)
+);
+
+CREATE TABLE b_main_mail_blacklist
+(
+	ID int NOT NULL auto_increment,
+	DATE_INSERT	datetime	NOT NULL,
+	CATEGORY_ID TINYINT UNSIGNED NOT NULL DEFAULT 0,
+	CODE varchar(255)	NULL,
+	PRIMARY KEY (ID),
+	UNIQUE UK_B_MAIN_MAIL_BLACKLIST_CODE (CODE)
+);
+
+CREATE TABLE `b_numerator`
+(
+	`ID` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+	`NAME` VARCHAR(255) NULL DEFAULT NULL,
+	`TEMPLATE` VARCHAR(255) NULL DEFAULT NULL,
+	`TYPE` VARCHAR(50) NULL DEFAULT NULL,
+	`SETTINGS` TEXT NULL,
+	`CREATED_AT` DATETIME NULL DEFAULT NULL,
+	`CREATED_BY` INT(11) NULL DEFAULT NULL,
+	`UPDATED_AT` DATETIME NULL DEFAULT NULL,
+	`UPDATED_BY` INT(11) NULL DEFAULT NULL,
+	PRIMARY KEY (`ID`)
+);
+
+CREATE TABLE `b_numerator_sequence`
+(
+	`NUMERATOR_ID` INT(11) NOT NULL DEFAULT '0',
+	`KEY` VARCHAR(32) NOT NULL DEFAULT '0',
+	`TEXT_KEY` VARCHAR(50) NULL DEFAULT NULL,
+	`NEXT_NUMBER` INT(11) NULL DEFAULT NULL,
+	`LAST_INVOCATION_TIME` INT(11) NULL DEFAULT NULL,
+	PRIMARY KEY (`NUMERATOR_ID`, `KEY`)
+);
+
+CREATE TABLE b_user_profile_history
+(
+	ID int not null auto_increment,
+	USER_ID int not null,
+	EVENT_TYPE int,
+	DATE_INSERT datetime,
+	REMOTE_ADDR varchar(40),
+	USER_AGENT text,
+	REQUEST_URI text,
+	UPDATED_BY_ID int,
+	PRIMARY KEY (ID),
+	INDEX ix_profile_history_user(USER_ID)
+);
+
+CREATE TABLE b_user_profile_record
+(
+	ID int not null auto_increment,
+	HISTORY_ID int not null,
+	FIELD varchar(40),
+	DATA mediumtext,
+	PRIMARY KEY (ID),
+	INDEX ix_profile_record_history_field(HISTORY_ID, FIELD)
+);
+
+CREATE TABLE b_user_phone_auth
+(
+	USER_ID int not null,
+	PHONE_NUMBER varchar(25) not null,
+	OTP_SECRET text,
+	ATTEMPTS int default 0,
+	CONFIRMED char(1) default 'N',
+	DATE_SENT datetime,
+	PRIMARY KEY (USER_ID),
+	UNIQUE INDEX ix_user_phone_auth_number(PHONE_NUMBER)
+);
+
+CREATE TABLE b_sms_template
+(
+	ID int not null auto_increment,
+	EVENT_NAME varchar(255) not null,
+	ACTIVE char(1) not null default 'Y',
+	SENDER varchar(50),
+	RECEIVER varchar(50),
+	MESSAGE text,
+	LANGUAGE_ID char(2),
+	PRIMARY KEY (ID),
+	INDEX ix_sms_message_name (EVENT_NAME(50))
+);
+
+CREATE TABLE b_sms_template_site
+(
+	TEMPLATE_ID int not null,
+	SITE_ID char(2) not null,
+	PRIMARY KEY (TEMPLATE_ID, SITE_ID)
+);
+
+CREATE TABLE b_sm_version_history
+(
+	ID int not null auto_increment,
+	DATE_INSERT datetime,
+	VERSIONS text,
+	PRIMARY KEY (ID)
 );

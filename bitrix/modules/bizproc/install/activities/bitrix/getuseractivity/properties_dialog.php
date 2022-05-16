@@ -24,7 +24,7 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
 		}
 		</script>
 		<select name="user_type" onchange="__BPCRUUserTypeChange(this.value)">
-			<option value="random"<?= ($arCurrentValues['user_type'] != "boss") ? " selected" : "" ?>><?= GetMessage("BPCRU_PD_TYPE_RANDOM") ?></option>
+			<option value="random"<?= ($arCurrentValues['user_type'] == "random") ? " selected" : "" ?>><?= GetMessage("BPCRU_PD_TYPE_RANDOM") ?></option>
 			<option value="boss"<?= ($arCurrentValues['user_type'] == "boss") ? " selected" : "" ?>><?= GetMessage("BPCRU_PD_TYPE_BOSS") ?></option>
 		</select>
 	</td>
@@ -46,7 +46,7 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
 	</td>
 </tr>
 <tr>
-	<td align="right" width="40%" valign="top"><span class="adm-required-field"><?= GetMessage("BPCRU_PD_USER1") ?>:</span></td>
+	<td align="right" width="40%" valign="top"><span class="adm-required-field"><?= GetMessage("BPCRU_PD_USER2") ?>:</span></td>
 	<td width="60%">
 		<?=CBPDocument::ShowParameterField("user", 'reserve_user_parameter', $arCurrentValues['reserve_user_parameter'], Array('rows'=>'2'))?>
 	</td>
@@ -58,6 +58,25 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
 			<option value="Y"<?= $arCurrentValues["skip_absent"] != "N" ? " selected" : "" ?>><?= GetMessage("BPCRU_PD_YES") ?></option>
 			<option value="N"<?= $arCurrentValues["skip_absent"] == "N" ? " selected" : "" ?>><?= GetMessage("BPCRU_PD_NO") ?></option>
 		</select>
+
+		<label>
+			<input type="checkbox" name="skip_absent_reserve" value="Y" <?= $arCurrentValues["skip_absent_reserve"] != "N" ? " checked" : "" ?>>
+			<?= GetMessage("BPCRU_PD_SKIP_RESERVE") ?>
+		</label>
+	</td>
+</tr>
+<tr>
+	<td align="right"><?= GetMessage("BPCRU_PD_SKIP_TIMEMAN") ?>:</td>
+	<td>
+		<select name="skip_timeman">
+			<option value="N"<?= $arCurrentValues["skip_timeman"] != "Y" ? " selected" : "" ?>><?= GetMessage("BPCRU_PD_NO") ?></option>
+			<option value="Y"<?= $arCurrentValues["skip_timeman"] == "Y" ? " selected" : "" ?>><?= GetMessage("BPCRU_PD_YES") ?></option>
+		</select>
+
+		<label>
+			<input type="checkbox" name="skip_timeman_reserve" value="Y" <?= $arCurrentValues["skip_timeman_reserve"] != "N" ? " checked" : "" ?>>
+			<?= GetMessage("BPCRU_PD_SKIP_RESERVE") ?>
+		</label>
 	</td>
 </tr>
 <script type="text/javascript">

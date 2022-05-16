@@ -23,33 +23,7 @@ IncludeModuleLangFile(__FILE__);
 
 $bStatistic = CModule::IncludeModule('statistic');
 
-$arAuditTypes = array(
-	"USER_AUTHORIZE" => "[USER_AUTHORIZE] ".GetMessage("MAIN_EVENTLOG_USER_AUTHORIZE"),
-	"USER_DELETE" => "[USER_DELETE] ".GetMessage("MAIN_EVENTLOG_USER_DELETE"),
-	"USER_INFO" => "[USER_INFO] ".GetMessage("MAIN_EVENTLOG_USER_INFO"),
-	"USER_LOGIN" => "[USER_LOGIN] ".GetMessage("MAIN_EVENTLOG_USER_LOGIN"),
-	"USER_LOGINBYHASH" => "[USER_LOGINBYHASH] ".GetMessage("MAIN_EVENTLOG_USER_LOGINBYHASH_FAILED"),
-	"USER_LOGOUT" => "[USER_LOGOUT] ".GetMessage("MAIN_EVENTLOG_USER_LOGOUT"),
-	"USER_PASSWORD_CHANGED" => "[USER_PASSWORD_CHANGED] ".GetMessage("MAIN_EVENTLOG_USER_PASSWORD_CHANGED"),
-	"USER_REGISTER" => "[USER_REGISTER] ".GetMessage("MAIN_EVENTLOG_USER_REGISTER"),
-	"USER_REGISTER_FAIL" => "[USER_REGISTER_FAIL] ".GetMessage("MAIN_EVENTLOG_USER_REGISTER_FAIL"),
-	"USER_GROUP_CHANGED" => "[USER_GROUP_CHANGED] ".GetMessage("MAIN_EVENTLOG_GROUP"),
-	"GROUP_POLICY_CHANGED" => "[GROUP_POLICY_CHANGED] ".GetMessage("MAIN_EVENTLOG_GROUP_POLICY"),
-	"MODULE_RIGHTS_CHANGED" => "[MODULE_RIGHTS_CHANGED] ".GetMessage("MAIN_EVENTLOG_MODULE"),
-	"FILE_PERMISSION_CHANGED" => "[FILE_PERMISSION_CHANGED] ".GetMessage("MAIN_EVENTLOG_FILE"),
-	"TASK_CHANGED" => "[TASK_CHANGED] ".GetMessage("MAIN_EVENTLOG_TASK"),
-	"MP_MODULE_INSTALLED" => "[MP_MODULE_INSTALLED] ".GetMessage("MAIN_EVENTLOG_MP_MODULE_INSTALLED"),
-	"MP_MODULE_UNINSTALLED" => "[MP_MODULE_UNINSTALLED] ".GetMessage("MAIN_EVENTLOG_MP_MODULE_UNINSTALLED"),
-	"MP_MODULE_DELETED" => "[MP_MODULE_DELETED] ".GetMessage("MAIN_EVENTLOG_MP_MODULE_DELETED"),
-	"MP_MODULE_DOWNLOADED" => "[MP_MODULE_DOWNLOADED] ".GetMessage("MAIN_EVENTLOG_MP_MODULE_DOWNLOADED"),
-);
-
-foreach(GetModuleEvents("main", "OnEventLogGetAuditTypes", true) as $arEvent)
-{
-	$ar = ExecuteModuleEventEx($arEvent);
-	if(is_array($ar))
-		$arAuditTypes = array_merge($ar, $arAuditTypes);
-}
+$arAuditTypes = CEventLog::GetEventTypes();
 
 $sTableID = "tbl_event_log";
 $oSort = new CAdminSorting($sTableID, "ID", "DESC");
@@ -63,6 +37,7 @@ $arFilterFields = array(
 	"find_timestamp_x_2",
 	"find_severity",
 	"find_audit_type_id",
+	"find_audit_type",
 	"find_module_id",
 	"find_item_id",
 	"find_site_id",
@@ -100,22 +75,6 @@ $arFilter = array();
 $lAdmin->InitFilter($arFilterFields);
 InitSorting();
 
-$find = $_REQUEST["find"];
-$find_id = $_REQUEST["find_id"];
-$find_severity = $_REQUEST["find_severity"];
-$find_audit_type = $_REQUEST["find_audit_type"];
-$find_type = $_REQUEST["find_type"];
-$find_audit_type_id = $_REQUEST["find_audit_type_id"];
-$find_timestamp_x_1 = $_REQUEST["find_timestamp_x_1"];
-$find_timestamp_x_2 = $_REQUEST["find_timestamp_x_2"];
-$find_module_id = $_REQUEST["find_module_id"];
-$find_item_id = $_REQUEST["find_item_id"];
-$find_site_id = $_REQUEST["find_site_id"];
-$find_guest_id = $_REQUEST["find_guest_id"];
-$find_remote_addr = $_REQUEST["find_remote_addr"];
-$find_request_uri = $_REQUEST["find_request_uri"];
-$find_user_agent = $_REQUEST["find_user_agent"];
-
 if(CheckFilter())
 {
 	if(is_array($find_severity) && $find_severity[0] == "NOT_REF")
@@ -149,9 +108,10 @@ if(CheckFilter())
 	}
 
 	$arFilter = array(
+		"ID" => $find_id,
 		"TIMESTAMP_X_1" => $find_timestamp_x_1,
 		"TIMESTAMP_X_2" => $find_timestamp_x_2,
-		"SEVERITY" => is_array($find_severity) && count($find_severity) > 0? implode("|", $find_severity): "",
+		"SEVERITY" => (is_array($find_severity) && count($find_severity) > 0? implode("|", $find_severity): ""),
 		$audit_type_id_op."AUDIT_TYPE_ID" => $audit_type_id_filter,
 		"MODULE_ID" => $find_module_id,
 		"ITEM_ID" => $find_item_id,
@@ -283,6 +243,7 @@ while($db_res = $rsData->NavNext(true, "a_"))
 		case "USER_PASSWORD_CHANGED":
 		case "USER_DELETE":
 		case "USER_GROUP_CHANGED":
+		case "USER_EDIT":
 			if(!array_key_exists($a_ITEM_ID, $arUsersCache))
 			{
 				$rsUser = CUser::GetByID($a_ITEM_ID);
@@ -317,7 +278,7 @@ while($db_res = $rsData->NavNext(true, "a_"))
 		case "FORUM_MESSAGE_MOVE":
 		case "FORUM_MESSAGE_EDIT":
 			if (intval($a_ITEM_ID) <= 0):
-				continue;
+				break;
 			elseif (!array_key_exists($a_ITEM_ID, $arForumCache["MESSAGE"])):
 				CModule::IncludeModule("forum");
 				$res = CForumMessage::GetByID($a_ITEM_ID);
@@ -349,7 +310,7 @@ while($db_res = $rsData->NavNext(true, "a_"))
 		case "FORUM_TOPIC_MOVE":
 		case "FORUM_TOPIC_EDIT":
 			if (intval($a_ITEM_ID) <= 0):
-				continue;
+				break;
 			elseif (!array_key_exists($a_ITEM_ID, $arForumCache["TOPIC"])):
 				CModule::IncludeModule("forum");
 				$res = CForumTopic::GetByID($a_ITEM_ID);
@@ -428,7 +389,13 @@ while($db_res = $rsData->NavNext(true, "a_"))
 	}
 }
 
-$aContext = array();
+$aContext = array(
+	array(
+		"TEXT"	=> GetMessage("eventlog_notifications"),
+		"LINK"	=> "log_notifications.php?lang=".LANGUAGE_ID,
+		"TITLE"	=> GetMessage("eventlog_notifications_title"),
+	),
+);
 $lAdmin->AddAdminContextMenu($aContext);
 
 $APPLICATION->SetTitle(GetMessage("MAIN_EVENTLOG_PAGE_TITLE"));

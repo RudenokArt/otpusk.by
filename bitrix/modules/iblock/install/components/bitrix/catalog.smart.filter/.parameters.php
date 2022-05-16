@@ -110,6 +110,12 @@ $arComponentParameters = array(
 			"TYPE" => "STRING",
 			"DEFAULT" => '',
 		),
+		"PREFILTER_NAME" => array(
+			"PARENT" => "DATA_SOURCE",
+			"NAME" => GetMessage("CP_BCSF_PREFILTER_NAME"),
+			"TYPE" => "STRING",
+			"DEFAULT" => "smartPreFilter",
+		),
 		"FILTER_NAME" => array(
 			"PARENT" => "DATA_SOURCE",
 			"NAME" => GetMessage("CP_BCSF_FILTER_NAME"),
@@ -135,12 +141,6 @@ $arComponentParameters = array(
 		"SAVE_IN_SESSION" => array(
 			"PARENT" => "ADDITIONAL_SETTINGS",
 			"NAME" => GetMessage("CP_BCSF_SAVE_IN_SESSION"),
-			"TYPE" => "CHECKBOX",
-			"DEFAULT" => "N",
-		),
-		"INSTANT_RELOAD" => array(
-			"PARENT" => "ADDITIONAL_SETTINGS",
-			"NAME" => GetMessage("CP_BCSF_INSTANT_RELOAD"),
 			"TYPE" => "CHECKBOX",
 			"DEFAULT" => "N",
 		),
@@ -204,7 +204,7 @@ if ($catalogIncluded)
 {
 	$arComponentParameters["PARAMETERS"]['HIDE_NOT_AVAILABLE'] = array(
 		'PARENT' => 'DATA_SOURCE',
-		'NAME' => GetMessage('CP_BCSF_HIDE_NOT_AVAILABLE'),
+		'NAME' => GetMessage('CP_BCSF_HIDE_NOT_AVAILABLE_EXT'),
 		'TYPE' => 'CHECKBOX',
 		'DEFAULT' => 'N',
 	);

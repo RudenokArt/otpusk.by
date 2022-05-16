@@ -69,10 +69,11 @@ $this->setFrameMode(true);
 		"FIELD_CODE" => $arParams["LIST_FIELD_CODE"],
 		"PROPERTY_CODE" => $arParams["LIST_PROPERTY_CODE"],
 		"CHECK_DATES" => $arParams["CHECK_DATES"],
+		"STRICT_SECTION_CHECK" => $arParams["STRICT_SECTION_CHECK"],
 		"IBLOCK_URL" => $arResult["FOLDER"].$arResult["URL_TEMPLATES"]["news"],
 		"SECTION_URL" => $arResult["FOLDER"].$arResult["URL_TEMPLATES"]["section"],
 		"DETAIL_URL" => $arResult["FOLDER"].$arResult["URL_TEMPLATES"]["detail"],
-		"SEARCH_PAGE" => $arResult["FOLDER"].$arResult["URL_TEMPLATES"]["search"],
+		"SEARCH_PAGE" => ($arParams["USE_SEARCH"] == 'Y' ? $arResult["FOLDER"].$arResult["URL_TEMPLATES"]["search"] : ''),
 
 		"CACHE_TYPE" => $arParams["CACHE_TYPE"],
 		"CACHE_TIME" => $arParams["CACHE_TIME"],

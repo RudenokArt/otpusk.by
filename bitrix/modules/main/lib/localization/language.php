@@ -1,15 +1,8 @@
 <?php
 namespace Bitrix\Main\Localization;
 
-use Bitrix\Main\Entity;
-
-class LanguageTable extends Entity\DataManager
+class LanguageTable extends \Bitrix\Main\ORM\Data\DataManager
 {
-	public static function getFilePath()
-	{
-		return __FILE__;
-	}
-
 	public static function getTableName()
 	{
 		return 'b_language';

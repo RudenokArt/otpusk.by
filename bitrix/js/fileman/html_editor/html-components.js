@@ -50,13 +50,13 @@
 			var oFunction = this.phpParser.ParseFunction(code);
 			if (oFunction && oFunction.name.toUpperCase() == this.componentIncludeMethod.toUpperCase())
 			{
-				var arParams = this.phpParser.ParseParameters(oFunction.params);
+				var componentParams = this.phpParser.ParseParameters(oFunction.params);
 				return {
-					name: arParams[0],
-					template: arParams[1] || "",
-					params: arParams[2] || {},
-					parentComponent: (arParams[3] && arParams[3] != '={false}') ? arParams[3] : false,
-					exParams: arParams[4] || false
+					name: componentParams[0],
+					template: componentParams[1] || "",
+					params: componentParams[2] || {},
+					parentComponent: (componentParams[3] && componentParams[3] != '={false}') ? componentParams[3] : false,
+					exParams: componentParams[4] || false
 				};
 			}
 			return false;
@@ -414,7 +414,8 @@
 				getData: this.editor.GetReqData('load_components_list',
 					{
 						site_template: this.editor.GetTemplateId(),
-						componentFilter: this.editor.GetComponentFilter()
+						componentFilter: this.editor.GetComponentFilter(),
+						site: this.editor.GetSiteId()
 					}
 				),
 				handler: function(res)

@@ -68,7 +68,7 @@ $bDesignMode = $APPLICATION->GetShowIncludeAreas() && is_object($USER) && $USER-
 if(!$bDesignMode)
 {
 	$APPLICATION->RestartBuffer();
-	header("Content-Type: text/xml; charset=".LANG_CHARSET);
+	header("Content-Type: application/rss+xml; charset=".LANG_CHARSET);
 	header("Pragma: no-cache");
 }
 else
@@ -316,7 +316,9 @@ if($this->StartResultCache(false, array($arParams["CACHE_GROUPS"]==="N"? false: 
 			$rsNavChain = CIBlockSection::GetNavChain($arResult["ID"], $arElement["IBLOCK_SECTION_ID"]);
 			while($arNavChain = $rsNavChain->Fetch())
 			{
-				$arItem["category"] .= htmlspecialcharsbx($arNavChain["NAME"])."/";
+				if ($arItem["category"])
+					$arItem["category"] .= "/";
+				$arItem["category"] .= htmlspecialcharsbx($arNavChain["NAME"]);
 			}
 		}
 
@@ -354,7 +356,6 @@ if(!$bDesignMode)
 {
 	$r = $APPLICATION->EndBufferContentMan();
 	echo $r;
-	if(defined("HTML_PAGES_FILE") && !defined("ERROR_404")) CHTMLPagesCache::writeFile(HTML_PAGES_FILE, $r);
 	die();
 }
 else

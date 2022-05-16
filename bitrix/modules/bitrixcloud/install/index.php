@@ -30,7 +30,23 @@ class bitrixcloud extends CModule
 
 	function GetModuleTasks()
 	{
-		return array();
+		return array(
+			'bitrixcloud_deny' => array(
+				'LETTER' => 'D',
+				'BINDING' => 'module',
+				'OPERATIONS' => array(
+				)
+			),
+			'bitrixcloud_control' => array(
+				'LETTER' => 'W',
+				'BINDING' => 'module',
+				'OPERATIONS' => array(
+					'bitrixcloud_monitoring',
+					'bitrixcloud_backup',
+					'bitrixcloud_cdn',
+				)
+			),
+		);
 	}
 
 	function InstallDB($arParams = array())
@@ -51,7 +67,6 @@ class bitrixcloud extends CModule
 		{
 			$this->InstallTasks();
 			RegisterModule("bitrixcloud");
-			RegisterModuleDependences("main", "OnAdminInformerInsertItems", "bitrixcloud", "CBitrixCloudCDN", "OnAdminInformerInsertItems");
 			RegisterModuleDependences("main", "OnAdminInformerInsertItems", "bitrixcloud", "CBitrixCloudBackup", "OnAdminInformerInsertItems");
 			RegisterModuleDependences("mobileapp", "OnBeforeAdminMobileMenuBuild", "bitrixcloud", "CBitrixCloudMobile", "OnBeforeAdminMobileMenuBuild");
 
@@ -65,7 +80,6 @@ class bitrixcloud extends CModule
 		global $DB, $APPLICATION;
 		$this->errors = false;
 		UnRegisterModuleDependences("main", "OnEndBufferContent", "bitrixcloud", "CBitrixCloudCDN", "OnEndBufferContent");
-		UnRegisterModuleDependences("main", "OnAdminInformerInsertItems", "bitrixcloud", "CBitrixCloudCDN", "OnAdminInformerInsertItems");
 		UnRegisterModuleDependences("main", "OnAdminInformerInsertItems", "bitrixcloud", "CBitrixCloudBackup", "OnAdminInformerInsertItems");
 		UnRegisterModuleDependences("mobileapp", "OnBeforeAdminMobileMenuBuild", "bitrixcloud", "CBitrixCloudMobile", "OnBeforeAdminMobileMenuBuild");
 		if (!array_key_exists("savedata", $arParams) || $arParams["savedata"] != "Y")
@@ -162,5 +176,9 @@ class bitrixcloud extends CModule
 			}
 		}
 	}
+
+	public function migrateToBox()
+	{
+		COption::RemoveOption($this->MODULE_ID);
+	}
 }
-?>

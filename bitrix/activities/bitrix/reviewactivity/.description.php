@@ -9,8 +9,14 @@ $arActivityDescription = array(
 	"JSCLASS" => "BizProcActivity",
 	"CATEGORY" => array(
 		"ID" => "document",
+		'OWN_ID' => 'task',
+		'OWN_NAME' => GetMessage('BPAR_DESCR_TASKS')
 	),
 	"RETURN" => array(
+		'TaskId' => [
+			'NAME' => 'ID',
+			'TYPE' => 'int'
+		],
 		"Comments" => array(
 			"NAME" => GetMessage("BPAA_DESCR_CM"),
 			"TYPE" => "string",
@@ -37,4 +43,3 @@ $arActivityDescription = array(
 		),
 	),
 );
-?>

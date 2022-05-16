@@ -1,6 +1,6 @@
 <?
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_before.php");
-require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/bizproc/include.php");
+\Bitrix\Main\Loader::includeModule('bizproc');
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/bizproc/prolog.php");
 
 IncludeModuleLangFile(__FILE__);
@@ -54,7 +54,7 @@ if (!$arTask)
 else
 {
 	$arTask["PARAMETERS"]["DOCUMENT_ID"] = CBPStateService::GetStateDocumentId($arTask['WORKFLOW_ID']);
-	$backUrl = "/".ltrim(trim($_REQUEST["back_url"]), "\\/");
+	$backUrl = !empty($_REQUEST["back_url"]) ? "/".ltrim(trim($_REQUEST["back_url"]), "\\/") : '';
 	if (strlen($backUrl) <= 0)
 		$backUrl = "/bitrix/admin/bizproc_task_list.php?lang=".LANGUAGE_ID;
 	if (strlen($backUrl) <= 0 && !empty($arTask["PARAMETERS"]["DOCUMENT_ID"]))

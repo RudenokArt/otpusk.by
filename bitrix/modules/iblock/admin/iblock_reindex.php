@@ -81,15 +81,18 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && $_REQUEST["Reindex"]=="Y")
 		{
 			$NS[$IBLOCK_ID] = array(
 				"CNT" => 0,
+				"LAST_ID" => 0,
 			);
 			$index->startIndex();
 			$NS[$IBLOCK_ID]["TOTAL"] = $index->estimateElementCount();
 		}
 
+		$index->setLastElementId($NS[$IBLOCK_ID]["LAST_ID"]);
 		$res = $index->continueIndex($max_execution_time);
 		if ($res > 0)
 		{
 			$NS[$IBLOCK_ID]["CNT"] += $res;
+			$NS[$IBLOCK_ID]["LAST_ID"] = $index->getLastElementId();
 
 			$message = new CAdminMessage(array(
 				"MESSAGE" => GetMessage("IBLOCK_REINDEX_IN_PROGRESS"),
@@ -112,6 +115,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST" && $_REQUEST["Reindex"]=="Y")
 			$index->endIndex();
 			\Bitrix\Iblock\PropertyIndex\Manager::checkAdminNotification();
 			CBitrixComponent::clearComponentCache("bitrix:catalog.smart.filter");
+			CIBlock::clearIblockTagCache($IBLOCK_ID);
 			unset($iblockDropDown[$IBLOCK_ID]);
 
 			if (empty($iblockDropDown) || $NS['iblock'] > 0)

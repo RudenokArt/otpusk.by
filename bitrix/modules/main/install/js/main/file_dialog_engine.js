@@ -33,7 +33,6 @@ BXDialogTree.prototype =
 
 	oPlusOnClick : function(el)
 	{
-		oBXFileDialog.SetFocus('tree');
 		this.OpenTreeSection(el.parentNode.parentNode.getAttribute('__bxpath'), 'check');
 	},
 
@@ -2082,6 +2081,13 @@ BXDialogControls.prototype.RefreshOnclick = function()
 	arFDPermission = {};
 	BXDialogWindow.arFiles = {};
 	oBXDialogTree.bRedisplayTree = true;
+
+	if(oBXDialogTree.curSelectedItem && oBXDialogTree.curSelectedItem.oTitle)
+	{
+		oBXDialogTree.UnHighlightElement(oBXDialogTree.curSelectedItem.oTitle);
+	}
+
+	oBXDialogTree.curSelectedItem = null;
 
 	var path = oBXDialogControls.dirPath.Get() || '/';
 	oBXDialogTree.SetPath(path);

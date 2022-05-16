@@ -1,0 +1,65 @@
+.hide-slide-txt{ display: none; }
+
+.hero-title {text-align: center;}
+.hero-title > a {
+    color: #fff;
+	display:inline;
+    font-size: 42px;
+    font-weight: 400;
+    letter-spacing: 0;
+    margin-top: 0;
+    margin-bottom: 10px;
+	line-height: 1.4em;
+text-rendering: optimizelegibility;
+}
+
+.minH-sl_t{
+	height: 160px;
+overflow:hidden;
+}
+ 
+@media only screen and (max-width: 992px) {
+	/*.hide-on-small-devices{
+		display: none;
+	}*/
+	.hero-title > a {
+		font-size: 22px;
+	}
+	.main-search-holder {
+		padding-top: 20px;
+		padding-bottom: 0;
+	}
+}
+
+@media only screen and (max-width: 767px) {
+	.minH-sl_t{
+		height: 100px;
+	}
+}
+
+@media only screen and (max-width: 479px) {
+	.minH-sl_t{
+		height: 100px;
+	}
+}
+.flex-prev {
+	overflow: visible !important;
+	opacity: 1 !important;
+	height: 60px !important;
+	left: 10px !important;
+	padding-left: 9px !important;
+	background: url(/images/photo-gall-but.png) no-repeat -113px -113px !important;
+}
+.flex-next {
+	overflow: visible !important;
+	opacity: 1 !important;
+	height: 60px !important;
+	right: 10px !important;
+	background: url(/images/photo-gall-but.png) no-repeat -35px -113px !important;
+}
+@media (max-width: 1024px) {
+	a.flex-prev, a.flex-next {
+		overflow: hidden !important;
+		opacity: 0 !important;
+	}
+}

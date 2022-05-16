@@ -26,8 +26,11 @@ class BaseContext
 	 * @throws ArgumentTypeException
 	 * @throws SystemException
 	 */
-	public function addCounter(Date $day, $name, $value)
+	public function addCounter($day, $name, $value = null)
 	{
+		if (!($day instanceof Date))
+			throw new ArgumentTypeException('day', '\Bitrix\Main\Type\Date');
+
 		if (! is_string($name))
 			throw new ArgumentTypeException('name', 'string');
 
@@ -44,7 +47,7 @@ class BaseContext
 		}
 
 		if (! $type = $types[$name])
-			throw new SystemException('Undefined counter type!');
+			throw new SystemException("Undefined counter '$name' type!");
 
 		if (! $type['ACTIVE'])
 			return;
@@ -93,14 +96,14 @@ class BaseContext
 		if ($this->id !== null)
 			throw new SystemException('Cannot set attribute for existent context!');
 
-		// TODO uncomment after seo 15.5.2 released
-//		static $types;
-//		if (! $types)
-//		{
-//			$types = AttributeManager::getTypes();
-//		}
-//		if (! $type = $types[$name])
-//			throw new SystemException('Undefined attribute: "'.$name.'"!');
+		static $types;
+		if (! $types)
+		{
+			$types = AttributeManager::getTypes();
+		}
+
+		if (! $type = $types[$name])
+			throw new SystemException("Undefined attribute '$name' type!");
 
 		// set attribute
 

@@ -331,7 +331,7 @@ function ShowFilterLogicHelp()
 	global $LogicHelp;
 	$str = "";
 	if(LANGUAGE_ID == "ru")
-		$help_link = "http://dev.1c-bitrix.ru/user_help/help/filter.php";
+		$help_link = "https://dev.1c-bitrix.ru/api_help/main/general/filter.php";
 	else
 		$help_link = "http://www.bitrixsoft.com/help/index.html?page=".urlencode("source/main/help/en/filter.php.html");
 	if ($LogicHelp != "Y")
@@ -568,10 +568,15 @@ function EndFilter($sID="")
 
 function BeginNote($sParams="")
 {
-	return '
-<div class="adm-info-message-wrap" '.$sParams.'>
-	<div class="adm-info-message">
-';
+	if (defined("PUBLIC_MODE") && PUBLIC_MODE == 1)
+	{
+		\Bitrix\Main\UI\Extension::load("ui.alerts");
+		return '<div class="ui-alert ui-alert-warning" '.$sParams.'><div class="ui-btn-message">';
+	}
+	else
+	{
+		return '<div class="adm-info-message-wrap" '.$sParams.'><div class="adm-info-message">';
+	}
 }
 function EndNote()
 {

@@ -1,13 +1,27 @@
-<?if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();?>
-<?
+<?if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();
+/** @var array $arParams */
+/** @var array $arResult */
+/** @global CDatabase $DB */
+/** @global CUser $USER */
+/** @global CMain $APPLICATION */
+
+use Bitrix\Main\Localization\Loc;
+
 $pageId = "user_tasks";
 include("util_menu.php");
 include("util_profile.php");
 
-if (CSocNetFeatures::IsActiveFeature(SONET_ENTITY_USER, $arResult["VARIABLES"]["user_id"], "tasks"))
+Loc::loadLanguageFile($_SERVER['DOCUMENT_ROOT'].$this->getFolder().'/result_modifier.php');
+
+if (!CSocNetFeatures::IsActiveFeature(SONET_ENTITY_USER, $arResult["VARIABLES"]["user_id"], "tasks"))
 {
-	?>
-	<?
+	echo Loc::getMessage('SU_T_TASKS_UNAVAILABLE', array(
+		'#A_BEGIN#' => '<a href="'.str_replace(array("#user_id#", "#USER_ID#"), $arResult['VARIABLES']['user_id'], $arResult['PATH_TO_USER_FEATURES']).'">',
+		'#A_END#' => '</a>'
+	));
+}
+else
+{
 	$APPLICATION->IncludeComponent("bitrix:intranet.tasks.menu", ".default", Array(
 			"IBLOCK_ID" => $arParams["TASK_IBLOCK_ID"],
 			"OWNER_ID" => $arResult["VARIABLES"]["user_id"],
@@ -25,8 +39,7 @@ if (CSocNetFeatures::IsActiveFeature(SONET_ENTITY_USER, $arResult["VARIABLES"]["
 		$component,
 		array("HIDE_ICONS" => "Y")
 	);
-	?>
-	<?
+
 	$APPLICATION->IncludeComponent(
 		"bitrix:intranet.tasks.create_view",
 		".default",
@@ -45,7 +58,6 @@ if (CSocNetFeatures::IsActiveFeature(SONET_ENTITY_USER, $arResult["VARIABLES"]["
 			"PATH_TO_USER_TASKS_TASK" => $arResult["PATH_TO_USER_TASKS_TASK"],
 			"PATH_TO_USER_TASKS_VIEW" => $arResult["PATH_TO_USER_TASKS_VIEW"],
 			"ITEMS_COUNT" => $arParams["ITEM_DETAIL_COUNT"], 
-			"TASKS_FIELDS_SHOW" => $arParams["TASKS_FIELDS_SHOW"],
 			"SET_NAV_CHAIN" => $arResult["SET_NAV_CHAIN"],
 			"SET_TITLE" => $arResult["SET_TITLE"],
 			"FORUM_ID" => $arParams["TASK_FORUM_ID"],

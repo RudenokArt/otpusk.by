@@ -105,6 +105,7 @@ function stemming_ru($word, $flags = 0)
 		"РУКАВ"=>"РУКАВ",
 		"ПРИЕМ"=>"ПРИЕМ",
 		"ОХРАНА"=>"ОХРАН",
+		"ЗАЖИМ"=>"ЗАЖИМ",
 	);
 	if(isset($STEMMING_RU_EX[$word]))
 		return $word;
@@ -118,6 +119,7 @@ function stemming_ru($word, $flags = 0)
 			return array(
 				stemming_ru($word."А"),
 				stemming_ru($word),
+				stemming_ru(substr($word, 0, -2)),
 			);
 		}
 		$found = array();

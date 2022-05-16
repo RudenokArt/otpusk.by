@@ -1,4 +1,5 @@
 <?
+define("BX_SESSION_ID_CHANGE", false);
 define("PERFMON_STOP", true);
 if(isset($_REQUEST["test"]) && $_REQUEST["test"] === "Y")
 {
@@ -25,11 +26,14 @@ if(isset($_REQUEST["test"]) && $_REQUEST["test"] === "Y")
 
 		if (CModule::IncludeModule('perfmon'))
 		{
-			$accel = CPerfomanceMeasure::GetAccelerator();
-			if(!is_object($accel))
-				$ACCELERATOR_ENABLED = "N";
-			else
-				$ACCELERATOR_ENABLED = $accel->IsWorking()? "Y": "N";
+			$ACCELERATOR_ENABLED = "N";
+			foreach(CPerfomanceMeasure::GetAllAccelerators() as $accel)
+			{
+				if ($accel->IsWorking())
+				{
+					$ACCELERATOR_ENABLED = "Y";
+				}
+			}
 
 			CPerfomanceHistory::Add($a=array(
 				"TOTAL_MARK" => round(doubleval(count($_SESSION["PERFMON_TIMES"]))/array_sum($_SESSION["PERFMON_TIMES"]), 2),
@@ -331,11 +335,14 @@ elseif(isset($_REQUEST["test"]))
 
 			if($bPHPIsGood)
 			{
-				$accel = CPerfomanceMeasure::GetAccelerator();
-				if(!is_object($accel))
-					$bPHPIsGood = false;
-				else
-					$bPHPIsGood = $accel->IsWorking();
+				$bPHPIsGood = false;
+				foreach(CPerfomanceMeasure::GetAllAccelerators() as $accel)
+				{
+					if ($accel->IsWorking())
+					{
+						$bPHPIsGood = true;
+					}
+				}
 			}
 
 			if($bPHPIsGood)
@@ -374,7 +381,7 @@ elseif(isset($_REQUEST["test"]))
 			$rsData = $cData->GetList(array("IS_ADMIN" => "DESC"), array("=IS_ADMIN" => "N"), true, false, array("IS_ADMIN", "COUNT", "SUM_PAGE_TIME", "AVG_PAGE_TIME"));
 			$arTotalPage = $rsData->Fetch();
 
-			if(($action == "stop") || (COption::SetOptionString("perfmon", "total_mark_value") == "calc"))
+			if(($action == "stop") || (COption::GetOptionString("perfmon", "total_mark_value") == "calc"))
 			{
 				if($arTotalPage["AVG_PAGE_TIME"] > 0)
 					COption::SetOptionString("perfmon", "total_mark_value", number_format(1/$arTotalPage["AVG_PAGE_TIME"], 2));
@@ -418,7 +425,7 @@ elseif(isset($_REQUEST["test"]))
 					$i--;
 				?>
 					<tr>
-						<td><a href="perfmon_hit_list.php?lang=<?echo LANGUAGE_ID?>&amp;set_filter=Y&amp;find_script_name=<?echo urlencode(htmlspecialcharsbx($ar["SCRIPT_NAME"]))?>"><?echo $ar["SCRIPT_NAME"]?></a></td>
+						<td><a href="<?echo htmlspecialcharsbx("perfmon_hit_list.php?lang=".LANGUAGE_ID."&set_filter=Y&find_script_name=".urlencode($ar["SCRIPT_NAME"]))?>"><?echo htmlspecialcharsEx($ar["SCRIPT_NAME"])?></a></td>
 						<td class="bx-digit-cell" id="err_count_<?echo $i?>"><?
 							$rsHit = CPerfomanceHit::GetList(array("COUNT" => "DESC"), array(
 								'=SCRIPT_NAME' => $ar["SCRIPT_NAME"],
@@ -583,15 +590,10 @@ if($REQUEST_METHOD == "POST" && ($calc.$total_calc!="") && $RIGHT >= "W" && chec
 
 $bComponentCache = COption::GetOptionString("main", "component_cache_on", "Y")=="Y";
 
-$bHTMLCache = CHTMLPagesCache::IsOn();
-$bExtraModule = false;
 $arModulesInstalled = array();
-$arModules = array("main", "iblock", "search", "fileman", "compression", "perfmon", "seo");
 $rsModules = CModule::GetDropDownList();
 while($arModule = $rsModules->Fetch())
 {
-	if(!in_array($arModule["REFERENCE_ID"], $arModules))
-		$bExtraModule = true;
 	$arModulesInstalled[] = $arModule["REFERENCE_ID"];
 }
 
@@ -678,7 +680,6 @@ else
 }
 
 $bOptimal = $bComponentCache
-	&& ($bHTMLCache || $bExtraModule)
 	&& $bManagedCache
 	&& $bEncodedModules
 	&& $bOptimized
@@ -1275,19 +1276,6 @@ else
 				<td><a href="cache.php?lang=<?echo LANGUAGE_ID?>"><?echo GetMessage("PERFMON_PANEL_COMPONENT_CACHE_REC")?></a></td>
 			<?endif?>
 		</tr>
-		<tr>
-			<td nowrap><?echo GetMessage("PERFMON_PANEL_HTML_CACHE")?></td>
-			<?if($bHTMLCache):?>
-				<td class="bx-digit-cell"><?echo GetMessage("PERFMON_PANEL_HTML_CACHE_ON")?></td>
-			<?else:?>
-				<td class="bx-digit-cell"><?echo GetMessage("PERFMON_PANEL_HTML_CACHE_OFF")?></td>
-			<?endif?>
-			<?if($bExtraModule || $bHTMLCache):?>
-				<td>&nbsp;</td>
-			<?else:?>
-				<td><a href="cache.php?lang=<?echo LANGUAGE_ID?>&amp;tabControl_active_tab=fedit3"><?echo GetMessage("PERFMON_PANEL_HTML_CACHE_REC")?></a></td>
-			<?endif?>
-		</tr>
 		<?if(IsModuleInstalled('statistic')):?>
 		<tr>
 			<td nowrap><?echo GetMessage("PERFMON_PANEL_STAT_SAVE_PATH")?></td>
@@ -1433,7 +1421,7 @@ else
 				$i--;
 			?>
 			<tr>
-				<td><a href="perfmon_hit_list.php?lang=<?echo LANGUAGE_ID?>&amp;set_filter=Y&amp;find_script_name=<?echo urlencode(htmlspecialcharsbx($ar["SCRIPT_NAME"]))?>"><?echo $ar["SCRIPT_NAME"]?></a></td>
+				<td><a href="<?echo htmlspecialcharsbx("perfmon_hit_list.php?lang=".LANGUAGE_ID."&set_filter=Y&find_script_name=".urlencode($ar["SCRIPT_NAME"]))?>"><?echo htmlspecialcharsEx($ar["SCRIPT_NAME"])?></a></td>
 				<td class="bx-digit-cell" id="err_count_<?echo $i?>"><?
 					$rsHit = CPerfomanceHit::GetList(array("COUNT" => "DESC"), array(
 						'=SCRIPT_NAME' => $ar["SCRIPT_NAME"],

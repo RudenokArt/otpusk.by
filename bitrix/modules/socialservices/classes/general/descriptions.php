@@ -27,6 +27,12 @@ class CSocServDescription
 				"ICON" => "yandex",
 			),
 			array(
+				"ID" => "MailRu2",
+				"CLASS" => "CSocServMailRu2",
+				"NAME" => GetMessage("socserv_mailru2_name"),
+				"ICON" => "mailru2",
+			),
+			array(
 				"ID" => "MyMailRu",
 				"CLASS" => "CSocServMyMailRu",
 				"NAME" => GetMessage("socserv_mailru_name"),
@@ -38,16 +44,18 @@ class CSocServDescription
 				"NAME" => "OpenID",
 				"ICON" => "openid",
 			),
+/*
 			array(
 				"ID" => "YandexOpenID",
 				"CLASS" => "CSocServYandex",
 				"NAME" => GetMessage("socserv_openid_yandex_openid"),
 				"ICON" => "yandex",
 			),
+*/
 			array(
 				"ID" => "MailRuOpenID",
 				"CLASS" => "CSocServMailRu",
-				"NAME" => "Mail.Ru",
+				"NAME" => GetMessage("socserv_mailru_openid_name"),
 				"ICON" => "openid-mail-ru",
 			),
 			array(
@@ -98,6 +106,12 @@ class CSocServDescription
 				"CLASS" => "CSocServLiveIDOAuth",
 				"NAME" => "LiveID",
 				"ICON" => "liveid",
+			),
+			array(
+				"ID" => "Office365",
+				"CLASS" => "CSocServOffice365OAuth",
+				"NAME" => "Office365",
+				"ICON" => "office365",
 			),
 			array(
 				"ID" => "Odnoklassniki",

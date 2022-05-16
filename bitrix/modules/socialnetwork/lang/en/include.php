@@ -1,5 +1,7 @@
 <?
+$MESS["SONET_FEATURES_marketplace"] = "Applications";
 $MESS["SONET_FEATURES_forum"] = "Forum";
+$MESS["SONET_FEATURES_forum_GROUP"] = "Discussions";
 $MESS["SONET_FEATURES_news"] = "News";
 $MESS["SONET_FEATURES_blog"] = "Conversations";
 $MESS["SONET_FEATURES_microblog"] = "Microblog";
@@ -124,9 +126,11 @@ $MESS["SOCNET_LOG_LIST_U_ALL_MY"] = "My Friends";
 $MESS["SOCNET_LOG_U"] = "User Profile";
 $MESS["SOCNET_LOG_XDI_U"] = "user page";
 $MESS["SONET_INSTALL_LOG_PRESET_FAVORITES"] = "Favorites";
+$MESS["SONET_INSTALL_LOG_PRESET_IMPORTANT"] = "Announcements";
 $MESS["SONET_INSTALL_LOG_PRESET_WORK"] = "Work";
 $MESS["SONET_INSTALL_LOG_PRESET_MY"] = "My Activity";
-$MESS["SONET_INSTALL_LOG_PRESET_IMPORTANT"] = "Announcements";
-$MESS["SONET_INSTALL_LOG_PRESET_BIZPROC"] = "Business Processes";
+$MESS["SONET_INSTALL_LOG_PRESET_BIZPROC"] = "Workflows";
 $MESS["SONET_INSTALL_LOG_PRESET_EXTRANET"] = "Extranet";
+$MESS["SONET_FEATURES_chat"] = "Chat";
+$MESS["SONET_FEATURES_tasks_sort"] = "Users allowed to sort and move tasks";
 ?>

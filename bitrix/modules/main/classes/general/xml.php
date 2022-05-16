@@ -16,7 +16,7 @@ class CDataXMLNode
 	var $attributes;
 	var $_parent;
 
-	function CDataXMLNode()
+	public function __construct()
 	{
 	}
 
@@ -232,7 +232,7 @@ class CDataXMLDocument
 	var $children;
 	var $root;
 
-	function CDataXMLDocument()
+	public function __construct()
 	{
 	}
 
@@ -341,7 +341,7 @@ class CDataXML
 
 	var $delete_ns = true;
 
-	function CDataXML($TrimWhiteSpace = True)
+	public function __construct($TrimWhiteSpace = True)
 	{
 		$this->TrimWhiteSpace = ($TrimWhiteSpace ? True : False);
 		$this->tree = False;
@@ -441,14 +441,14 @@ class CDataXML
 		return $result;
 	}
 
-	function xmlspecialchars($str)
+	public static function xmlspecialchars($str)
 	{
 		static $search = array("&","<",">","\"","'");
 		static $replace = array("&amp;","&lt;","&gt;","&quot;","&apos;");
 		return str_replace($search, $replace, $str);
 	}
 
-	function xmlspecialcharsback($str)
+	public static function xmlspecialcharsback($str)
 	{
 		static $search = array("&lt;","&gt;","&quot;","&apos;","&amp;");
 		static $replace = array("<",">","\"","'","&");
@@ -941,7 +941,7 @@ class CXMLFileStream
 			if($cs)
 			{
 				$error = "";
-				$xmlChunk = CharsetConverter::convertCharset($origChunk, $cs, LANG_CHARSET, $error);
+				$xmlChunk = \Bitrix\Main\Text\Encoding::convertEncoding($origChunk, $cs, LANG_CHARSET, $error);
 			}
 
 			if($xmlChunk[0] == "/")
@@ -965,6 +965,13 @@ class CXMLFileStream
 			else
 			{
 				$this->startElement($bMB, $xmlChunk, $origChunk);
+				//check for self-closing tag
+				$p = strpos($xmlChunk, ">");
+				if (($p !== false) && (substr($xmlChunk, $p - 1, 1)=="/"))
+				{
+					$this->endElement($xmlChunk);
+					return true;
+				}
 			}
 		}
 		$this->eof = true;
@@ -1084,39 +1091,36 @@ class CXMLFileStream
 				$elementAttrs = "";
 			}
 
-			if(substr($xmlChunk, $p - 1, 1) != "/")
+			$this->elementStack[] = $elementName;
+			$this->positionStack[] = $this->filePosition - ($bMB? mb_strlen($origChunk, 'latin1'): strlen($origChunk)) - 1;
+
+			if (isset($this->endNodes[$elementName]))
 			{
-				$this->elementStack[] = $elementName;
-				$this->positionStack[] = $this->filePosition - ($bMB? mb_strlen($origChunk, 'latin1'): strlen($origChunk)) - 1;
-
-				if (isset($this->endNodes[$elementName]))
+				$xmlPath = implode("/", $this->elementStack);
+				if (isset($this->elementHandlers[$xmlPath]))
 				{
-					$xmlPath = implode("/", $this->elementStack);
-					if (isset($this->elementHandlers[$xmlPath]))
+					$attributes = array();
+					if ($elementAttrs !== "")
 					{
-						$attributes = array();
-						if ($elementAttrs !== "")
+						preg_match_all("/(\\S+)\\s*=\\s*[\"](.*?)[\"]/s", $elementAttrs, $attrs_tmp);
+						if(strpos($elementAttrs, "&")===false)
 						{
-							preg_match_all("/(\\S+)\\s*=\\s*[\"](.*?)[\"]/s", $elementAttrs, $attrs_tmp);
-							if(strpos($elementAttrs, "&")===false)
-							{
-								foreach($attrs_tmp[1] as $i=>$attrs_tmp_1)
-									$attributes[$attrs_tmp_1] = $attrs_tmp[2][$i];
-							}
-							else
-							{
-								foreach($attrs_tmp[1] as $i=>$attrs_tmp_1)
-									$attributes[$attrs_tmp_1] = preg_replace($search, $replace, $attrs_tmp[2][$i]);
-							}
+							foreach($attrs_tmp[1] as $i=>$attrs_tmp_1)
+								$attributes[$attrs_tmp_1] = $attrs_tmp[2][$i];
 						}
+						else
+						{
+							foreach($attrs_tmp[1] as $i=>$attrs_tmp_1)
+								$attributes[$attrs_tmp_1] = preg_replace($search, $replace, $attrs_tmp[2][$i]);
+						}
+					}
 
-						foreach ($this->elementHandlers[$xmlPath] as $callableHandler)
-						{
-							call_user_func_array($callableHandler, array(
-								$xmlPath,
-								$attributes,
-							));
-						}
+					foreach ($this->elementHandlers[$xmlPath] as $callableHandler)
+					{
+						call_user_func_array($callableHandler, array(
+							$xmlPath,
+							$attributes,
+						));
 					}
 				}
 			}
@@ -1165,7 +1169,7 @@ class CXMLFileStream
 		if ($xmlChunk && $this->fileCharset)
 		{
 			$error = "";
-			$xmlChunk = CharsetConverter::convertCharset($xmlChunk, $this->fileCharset, LANG_CHARSET, $error);
+			$xmlChunk = \Bitrix\Main\Text\Encoding::convertEncoding($xmlChunk, $this->fileCharset, LANG_CHARSET, $error);
 		}
 
 		$xmlObject = new CDataXML;

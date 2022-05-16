@@ -180,8 +180,8 @@ $arParams["PHOTO"] = array(
 		"PROPERTY_CODE" => array(),
 		"MODERATION" => ($arParams["PHOTO_MODERATION"] == "Y" ? "Y" : "N"),
 /***************** ADDITIONAL **************************************/
-		"SECTION_PAGE_ELEMENTS" => intVal($arParams["PHOTO_SECTION_PAGE_ELEMENTS"]),
-		"ELEMENTS_PAGE_ELEMENTS" => intVal($arParams["PHOTO_ELEMENTS_PAGE_ELEMENTS"]),
+		"SECTION_PAGE_ELEMENTS" => (intVal($arParams["PHOTO_SECTION_PAGE_ELEMENTS"]) > 0 ? intVal($arParams["PHOTO_SECTION_PAGE_ELEMENTS"]) : 15),
+		"ELEMENTS_PAGE_ELEMENTS" => (intVal($arParams["PHOTO_ELEMENTS_PAGE_ELEMENTS"]) > 0 ? intVal($arParams["PHOTO_ELEMENTS_PAGE_ELEMENTS"]) : 50),
 		"PAGE_NAVIGATION_TEMPLATE" => trim($arParams["PHOTO_PAGE_NAVIGATION_TEMPLATE"]),
 		"ELEMENTS_USE_DESC_PAGE" => "Y",
 		"DATE_TIME_FORMAT_SECTION" => "",
@@ -227,7 +227,6 @@ $arParams["PHOTO"] = array(
 		"RATING_MAIN_TYPE" => $arParams["SHOW_RATING"] == "Y"? $arParams["RATING_TYPE"]: "",
 /***************** COMMENTS ****************************************/
 		"USE_COMMENTS" => ($arParams["PHOTO_USE_COMMENTS"] == "Y" && $arResult["GROUP"]["CLOSED"] != "Y" ? "Y" : "N"),
-		"PATH_TO_SMILE" => $arParams["PATH_TO_FORUM_SMILE"],
 		"COMMENTS_TYPE" => ($arParams["PHOTO_COMMENTS_TYPE"] == "blog" ? "BLOG" : "FORUM"),
 		"BLOG_URL" => $arParams["PHOTO_BLOG_URL"],
 		"COMMENTS_COUNT" => $arParams["PHOTO_COMMENTS_COUNT"],

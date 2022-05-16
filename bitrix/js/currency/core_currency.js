@@ -1,11 +1,13 @@
-(function(window) {
+;(function(window) {
 
-if (BX.Currency)
+BX.namespace('BX.Currency');
+
+if (BX.Currency.defaultFormat)
 {
 	return;
 }
 
-BX.Currency = {
+BX.mergeEx(BX.Currency, {
 	currencyList: [],
 	defaultFormat: {
 		'FORMAT_STRING': '#',
@@ -87,9 +89,7 @@ BX.Currency = {
 	{
 		var index = this.getCurrencyIndex(currency);
 		if (index > -1)
-		{
 			this.currencyList = BX.util.deleteFromArray(this.currencyList, index);
-		}
 	},
 
 	clean: function()
@@ -107,16 +107,40 @@ BX.Currency = {
 		{
 			format.CURRENT_DECIMALS = format.DECIMALS;
 			if (format.HIDE_ZERO === 'Y' && price == parseInt(price, 10))
-			{
 				format.CURRENT_DECIMALS = 0;
-			}
+
 			result = BX.util.number_format(price, format.CURRENT_DECIMALS, format.DEC_POINT, format.THOUSANDS_SEP);
 			if (useTemplate)
-			{
-				result = format.FORMAT_STRING.replace('#', result);
-			}
+				result = format.FORMAT_STRING.replace(/(^|[^&])#/, '$1' + result);
 		}
 		return result;
+	},
+
+	loadCurrencyFormat: function (currency)
+	{
+		return new Promise(function (resolve, reject)
+		{
+			var index = this.getCurrencyIndex(currency);
+			if(index > -1)
+			{
+				resolve(this.currencyList[index].format);
+			}
+			else
+			{
+				BX.ajax.runAction("currency.format.get", {data: {currencyId: currency}}).then(
+					function(response)
+					{
+						var format = response.data;
+						this.setCurrencyFormat(currency, format);
+						resolve(format);
+					}.bind(this)
+				).catch(function(response)
+				{
+					reject(response.errors);
+				})
+			}
+		}.bind(this))
 	}
-};
+});
+
 })(window);

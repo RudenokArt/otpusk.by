@@ -3,7 +3,6 @@ namespace Bitrix\Main\Type;
 
 use Bitrix\Main;
 use Bitrix\Main\Context;
-use Bitrix\Main\DB;
 
 class Date
 {
@@ -94,10 +93,43 @@ class Date
 	 *
 	 * @param string $interval Time interval to add.
 	 *
-	 * @return Date
+	 * @return $this
 	 */
 	public function add($interval)
 	{
+		$i = $this->tryToCreateIntervalByDesignators($interval);
+		if ($i == null)
+		{
+			$i = \DateInterval::createFromDateString($interval);
+		}
+
+		$this->value->add($i);
+
+		return $this;
+	}
+
+	/**
+	 * Sets the current date of the DateTime object to a different date.
+	 * @param int $year
+	 * @param int $month
+	 * @param int $day
+	 * 
+	 * @return $this
+	 */
+	public function setDate($year, $month, $day)
+	{
+		$this->value->setDate($year, $month, $day);
+
+		return $this;
+	}
+
+	private function tryToCreateIntervalByDesignators($interval)
+	{
+		if (!is_string($interval) || strpos($interval, ' ') !== false)
+		{
+			return null;
+		}
+
 		$i = null;
 		try
 		{
@@ -125,14 +157,7 @@ class Date
 		{
 		}
 
-		if ($i == null)
-		{
-			$i = \DateInterval::createFromDateString($interval);
-		}
-
-		$this->value->add($i);
-
-		return $this;
+		return $i;
 	}
 
 	/**
@@ -143,6 +168,17 @@ class Date
 	public function getTimestamp()
 	{
 		return $this->value->getTimestamp();
+	}
+
+	/**
+	 * Returns difference between dates.
+	 *
+	 * @param DateTime $time
+	 * @return \DateInterval
+	 */
+	public function getDiff(DateTime $time)
+	{
+		return $this->value->diff($time->value);
 	}
 
 	/**
@@ -184,7 +220,10 @@ class Date
 			if($defaultCulture === null)
 			{
 				$context = Context::getCurrent();
-				$defaultCulture = $context->getCulture();
+				if($context)
+				{
+					$defaultCulture = $context->getCulture();
+				}
 			}
 			$culture = $defaultCulture;
 		}
@@ -201,9 +240,13 @@ class Date
 	 *
 	 * @return string
 	 */
-	protected static function getCultureFormat(Context\Culture $culture)
+	protected static function getCultureFormat(Context\Culture $culture = null)
 	{
-		return $culture->getDateFormat();
+		if($culture)
+		{
+			return $culture->getDateFormat();
+		}
+		return "DD.MM.YYYY";
 	}
 
 	/**
@@ -295,7 +338,7 @@ class Date
 	{
 		/** @var Date $d */
 		$d = new static();
-		$d->value = $datetime;
+		$d->value = clone $datetime;
 		$d->value->setTime(0, 0, 0);
 		return $d;
 	}
@@ -314,5 +357,23 @@ class Date
 		$d->value->setTimestamp($timestamp);
 		$d->value->setTime(0, 0, 0);
 		return $d;
+	}
+
+	/**
+	 * Creates Date object from Text (return array of result object)
+	 * Examples: "end of next week", "tomorrow morning", "friday 25.10"
+	 *
+	 * @param string $text
+	 * @return \Bitrix\Main\Type\DateTime|null
+	 */
+	public static function createFromText($text)
+	{
+		$result = Main\Text\DateConverter::decode($text);
+		if (empty($result))
+		{
+			return null;
+		}
+		
+		return $result[0]->getDate();
 	}
 }

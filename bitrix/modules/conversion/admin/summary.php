@@ -15,7 +15,7 @@ Loc::loadMessages(__FILE__);
 
 Loader::IncludeModule('conversion');
 
-if ($APPLICATION->GetGroupRight('conversion') < 'W')
+if ($APPLICATION->GetGroupRight('conversion') < 'R')
 	$APPLICATION->AuthForm(Loc::getMessage('ACCESS_DENIED'));
 
 $userOptions = CUserOptions::GetOption('conversion', 'filter', array());
@@ -85,6 +85,8 @@ $splits += array(
 
 // RATES
 
+$scale = array(0.5, 1, 1.5, 2, 5);
+
 if ($rateTypes = RateManager::getTypes(array('ACTIVE' => true)))
 {
 	$topRateName = $_GET['rate'] ?: $userOptions['rate'];
@@ -98,13 +100,15 @@ if ($rateTypes = RateManager::getTypes(array('ACTIVE' => true)))
 		list ($topRateName, $topRateType) = each($rateTypes);
 	}
 
-	$scale = $topRateType['SCALE'];
+	if (is_array($topRateType['SCALE']) && count($topRateType['SCALE']) === 5)
+	{
+		$scale = $topRateType['SCALE'];
+	}
 }
 else
 {
 	$topRateName = null;
 	$topRateType = null;
-	$scale = array(0.5, 1, 1.5, 2, 5);
 }
 
 // FILTER
@@ -160,6 +164,15 @@ CJSCore::Init(array('amcharts', 'amcharts_serial'));
 
 function conversion_renderRate(array $rate, array $rateType)
 {
+	if (isset($rateType['UNITS']['SUM']))
+	{
+		$sanitizer = new \CBXSanitizer();
+		$sanitizer->delAllTags();
+		$sanitizer->addTags(array(array()));
+
+		$rateType['UNITS']['SUM'] = $sanitizer->sanitizeHtml($rateType['UNITS']['SUM']);
+	}
+
 	?>
 	<div class="stat-item">
 		<span class="stat-item-subtitle"><?=$rateType['NAME']?></span>
@@ -178,7 +191,7 @@ function conversion_renderRate(array $rate, array $rateType)
 					?>
 					<span class="stat-item-block-title"><?=Loc::getMessage('CONVERSION_SALE_RATE_SUM')?></span>
 					<span class="stat-item-block-digit"><?=number_format($rate['SUM'])?>
-						<span><?=isset($rateType['UNITS']['SUM']) ? $rateType['UNITS']['SUM'] : ''?></span>
+						<span><? if (isset($rateType['UNITS']['SUM'])) echo $rateType['UNITS']['SUM']; ?></span>
 					</span>
 					<?
 				}
@@ -189,7 +202,7 @@ function conversion_renderRate(array $rate, array $rateType)
 		<div class="stat-item-block">
 			<span class="stat-item-block-inner">
 				<span class="stat-item-block-title"><?=Loc::getMessage('CONVERSION_SALE_RATE_QUANTITY')?></span>
-				<span class="stat-item-block-digit"><?=isset($rate['QUANTITY']) ? $rate['QUANTITY'] : $rate['NUMERATOR']?></span>
+				<span class="stat-item-block-digit"><?=(isset($rate['QUANTITY']) ? $rate['QUANTITY'] : $rate['NUMERATOR']) ?></span>
 			</span>
 		</div>
 	</div>
@@ -348,11 +361,11 @@ Bitrix\Conversion\AdminHelpers\renderFilter($filter);
 
 					foreach ($sites as $id => $name)
 					{
-						$menuItems[$name] = array_merge($filter, array('site' => $id));
+						$menuItems[sprintf('%s (%s)', $name, $id)] = array_merge($filter, array('site' => $id));
 					}
 
 					Bitrix\Conversion\AdminHelpers\renderScale(array(
-						'SITE_NAME'  => $siteName,
+						'SITE_NAME'  => sprintf('%s (%s)', $siteName, $site),
 						'SITE_MENU'  => $menuItems,
 						'CONVERSION' => $totalTopConversion,
 						'SCALE'      => $scale,

@@ -1,4 +1,6 @@
 <?
+use Bitrix\Iblock;
+
 global $IBLOCK_CACHE_PROPERTY;
 $IBLOCK_CACHE_PROPERTY = Array();
 IncludeModuleLangFile(__FILE__);
@@ -17,7 +19,7 @@ class CAllIBlockProperty
 		";
 
 		$bJoinIBlock = false;
-		$arSqlSearch = "";
+		$arSqlSearch = array();
 		foreach($arFilter as $key => $val)
 		{
 			$val = $DB->ForSql($val);
@@ -90,27 +92,29 @@ class CAllIBlockProperty
 				WHERE ".implode("\n\t\t\t\tAND ", $arSqlSearch)."
 			";
 
+		$allowKeys = array(
+			"ID" => true,
+			"IBLOCK_ID" => true,
+			"NAME" => true,
+			"ACTIVE" => true,
+			"SORT" => true,
+			"FILTRABLE" => true,
+			"SEARCHABLE" => true
+		);
+		$orderKeys = array();
 		$arSqlOrder = array();
 		foreach($arOrder as $by => $order)
 		{
 			$by = strtoupper($by);
+			if (!isset($allowKeys[$by]))
+				$by = "TIMESTAMP_X";
+			if (isset($orderKeys[$by]))
+				continue;
+			$orderKeys[$by] = true;
 			$order = strtoupper($order) == "ASC"? "ASC": "DESC";
 
-			if(
-				$by === "ID"
-				|| $by === "IBLOCK_ID"
-				|| $by === "NAME"
-				|| $by === "ACTIVE"
-				|| $by === "SORT"
-				|| $by === "FILTRABLE"
-				|| $by === "SEARCHABLE"
-			)
-				$arSqlOrder[] = " BP.".$by." ".$order;
-			else
-				$arSqlOrder[] = " BP.TIMESTAMP_X ".$order;
+			$arSqlOrder[] = "BP.".$by." ".$order;
 		}
-
-		DelDuplicateSort($arSqlOrder);
 
 		if(!empty($arSqlOrder))
 			$strSql .= "
@@ -129,7 +133,7 @@ class CAllIBlockProperty
 	{
 		/** @var CMain $APPLICATION */
 		global $DB, $APPLICATION;
-		$ID = IntVal($ID);
+		$ID = (int)$ID;
 
 		$APPLICATION->ResetException();
 		foreach (GetModuleEvents("iblock", "OnBeforeIBlockPropertyDelete", true) as $arEvent)
@@ -139,7 +143,7 @@ class CAllIBlockProperty
 				$err = GetMessage("MAIN_BEFORE_DEL_ERR").' '.$arEvent['TO_NAME'];
 				if($ex = $APPLICATION->GetException())
 					$err .= ': '.$ex->GetString();
-				$APPLICATION->throwException($err);
+				$APPLICATION->ThrowException($err);
 				return false;
 			}
 		}
@@ -151,6 +155,7 @@ class CAllIBlockProperty
 			return false;
 
 		CIBlockSectionPropertyLink::DeleteByProperty($ID);
+		Iblock\PropertyFeatureTable::deleteByProperty($ID);
 
 		$rsProperty = CIBlockProperty::GetByID($ID);
 		$arProperty = $rsProperty->Fetch();
@@ -208,12 +213,19 @@ class CAllIBlockProperty
 		$seq = new CIBlockSequence($arProperty["IBLOCK_ID"], $ID);
 		$seq->Drop();
 
-		return $DB->Query("DELETE FROM b_iblock_property WHERE ID=".$ID, true);
+		CIBlock::clearIblockTagCache($arProperty["IBLOCK_ID"]);
+
+		$res = $DB->Query("DELETE FROM b_iblock_property WHERE ID=".$ID, true);
+
+		foreach (GetModuleEvents("iblock", "OnAfterIBlockPropertyDelete", true) as $arEvent)
+			ExecuteModuleEventEx($arEvent, array($arProperty));
+
+		return $res;
 	}
 	///////////////////////////////////////////////////////////////////
-	// Update
+	// Add
 	///////////////////////////////////////////////////////////////////
-	function Add($arFields)
+	public function Add($arFields)
 	{
 		global $DB;
 
@@ -242,7 +254,10 @@ class CAllIBlockProperty
 				$arUserType = CIBlockProperty::GetUserType($arFields["USER_TYPE"]);
 				if(array_key_exists("ConvertToDB", $arUserType))
 				{
-					$arValue=array("VALUE"=>$arFields["DEFAULT_VALUE"]);
+					$arValue = array(
+						"VALUE" => $arFields["DEFAULT_VALUE"],
+						"DEFAULT_VALUE" => true
+					);
 					$arValue = call_user_func_array($arUserType["ConvertToDB"], array($arFields, $arValue));
 					if(is_array($arValue) && isset($arValue["VALUE"]) && strlen($arValue["VALUE"]))
 						$arFields["DEFAULT_VALUE"] = $arValue["VALUE"];
@@ -282,7 +297,7 @@ class CAllIBlockProperty
 				}
 				else
 				{
-					$DB->Query("DELETE FROM b_iblock_property WHERE ID = ".intval($ID));
+					$DB->Query("DELETE FROM b_iblock_property WHERE ID = ".(int)$ID);
 					$this->LAST_ERROR = GetMessage("IBLOCK_PROPERTY_ADD_ERROR",array(
 						"#ID#"=>$ID,
 						"#CODE#"=>"[14]".$DB->GetErrorSQL(),
@@ -321,7 +336,24 @@ class CAllIBlockProperty
 						CIBlockSectionPropertyLink::Add(0, $ID, $arLink);
 					}
 				}
+
+				if (!empty($arFields['FEATURES']) && is_array($arFields['FEATURES']))
+				{
+					$featureResult = Iblock\Model\PropertyFeature::addFeatures(
+						$ID,
+						$arFields['FEATURES']
+					);
+					//TODO: add error handling
+					unset($featureResult);
+				}
 			}
+		}
+
+		global $BX_IBLOCK_PROP_CACHE;
+		if (isset($arFields["IBLOCK_ID"]))
+		{
+			unset($BX_IBLOCK_PROP_CACHE[$arFields["IBLOCK_ID"]]);
+			CIBlock::clearIblockTagCache($arFields["IBLOCK_ID"]);
 		}
 
 		$arFields["RESULT"] = &$Result;
@@ -334,7 +366,7 @@ class CAllIBlockProperty
 	///////////////////////////////////////////////////////////////////
 	// This one called before any Update or Add
 	///////////////////////////////////////////////////////////////////
-	function CheckFields(&$arFields, $ID=false, $bFormValidate=false)
+	public function CheckFields(&$arFields, $ID=false, $bFormValidate=false)
 	{
 		/** @var CMain $APPLICATION */
 		global $APPLICATION;
@@ -348,9 +380,9 @@ class CAllIBlockProperty
 		if(array_key_exists("CODE", $arFields) && strlen($arFields["CODE"]))
 		{
 			if(strpos("0123456789", substr($arFields["CODE"], 0, 1))!==false)
-				$this->LAST_ERROR .= GetMessage("IBLOCK_PROPERTY_CODE_FIRST_LETTER")."<br>";
+				$this->LAST_ERROR .= GetMessage("IBLOCK_PROPERTY_CODE_FIRST_LETTER").": ".htmlspecialcharsbx($arFields["CODE"])."<br>";
 			if(preg_match("/[^A-Za-z0-9_]/",  $arFields["CODE"]))
-				$this->LAST_ERROR .= GetMessage("IBLOCK_PROPERTY_WRONG_CODE")."<br>";
+				$this->LAST_ERROR .= GetMessage("IBLOCK_PROPERTY_WRONG_CODE").": ".htmlspecialcharsbx($arFields["CODE"])."<br>";
 		}
 
 		if(!$bFormValidate)
@@ -360,8 +392,8 @@ class CAllIBlockProperty
 
 			if(is_set($arFields, "IBLOCK_ID"))
 			{
-				$arFields["IBLOCK_ID"] = intval($arFields["IBLOCK_ID"]);
-				$r = CIBlock::GetList(Array(), Array("ID"=>$arFields["IBLOCK_ID"], "CHECK_PERMISSIONS" => "N"));
+				$arFields["IBLOCK_ID"] = (int)$arFields["IBLOCK_ID"];
+				$r = CIBlock::GetList(array(), array("ID"=>$arFields["IBLOCK_ID"], "CHECK_PERMISSIONS" => "N"));
 				if(!$r->Fetch())
 					$this->LAST_ERROR .= GetMessage("IBLOCK_BAD_BLOCK_ID")."<br>";
 			}
@@ -420,10 +452,10 @@ class CAllIBlockProperty
 	///////////////////////////////////////////////////////////////////
 	// Update method
 	///////////////////////////////////////////////////////////////////
-	function Update($ID, $arFields, $bCheckDescription = false)
+	public function Update($ID, $arFields, $bCheckDescription = false)
 	{
 		global $DB;
-		$ID = IntVal($ID);
+		$ID = (int)$ID;
 
 		if(is_set($arFields, "ACTIVE") && $arFields["ACTIVE"]!="Y")
 			$arFields["ACTIVE"]="N";
@@ -453,7 +485,10 @@ class CAllIBlockProperty
 				$arUserType = CIBlockProperty::GetUserType($arFields["USER_TYPE"]);
 				if(array_key_exists("ConvertToDB", $arUserType))
 				{
-					$arValue=array("VALUE"=>$arFields["DEFAULT_VALUE"]);
+					$arValue = array(
+						"VALUE" => $arFields["DEFAULT_VALUE"],
+						"DEFAULT_VALUE" => true
+					);
 					$arValue = call_user_func_array($arUserType["ConvertToDB"], array($arFields, $arValue));
 					if(is_array($arValue) && isset($arValue["VALUE"]) && strlen($arValue["VALUE"]))
 						$arFields["DEFAULT_VALUE"] = $arValue["VALUE"];
@@ -463,6 +498,25 @@ class CAllIBlockProperty
 
 				if(array_key_exists("PrepareSettings", $arUserType))
 				{
+					if (!isset($arFields["USER_TYPE_SETTINGS"]))
+					{
+						$oldData = Iblock\PropertyTable::getList(array(
+							'select' => array('ID', 'PROPERTY_TYPE', 'USER_TYPE', 'USER_TYPE_SETTINGS'),
+							'filter' => array('=ID' => $ID)
+						))->fetch();
+						if (!empty($oldData) && is_array($oldData))
+						{
+							if ($arFields["USER_TYPE"] == $oldData["USER_TYPE"] && !empty($oldData["USER_TYPE_SETTINGS"]))
+							{
+								$arFields["USER_TYPE_SETTINGS"] = (
+									is_array($oldData["USER_TYPE_SETTINGS"])
+									? $oldData["USER_TYPE_SETTINGS"]
+									: unserialize($oldData["USER_TYPE_SETTINGS"])
+								);
+							}
+						}
+						unset($oldData);
+					}
 					$arFieldsResult = call_user_func_array($arUserType["PrepareSettings"], array($arFields));
 					if (is_array($arFieldsResult) && array_key_exists('USER_TYPE_SETTINGS', $arFieldsResult))
 					{
@@ -521,11 +575,22 @@ class CAllIBlockProperty
 				}
 			}
 
+			if (!empty($arFields['FEATURES']) && is_array($arFields['FEATURES']))
+			{
+				$featureResult = Iblock\Model\PropertyFeature::setFeatures(
+					$ID,
+					$arFields['FEATURES']
+				);
+				//TODO: add error handling
+				unset($featureResult);
+			}
+
 			global $BX_IBLOCK_PROP_CACHE;
-			if(is_set($arFields, "IBLOCK_ID"))
-				UnSet($BX_IBLOCK_PROP_CACHE[$arFields["IBLOCK_ID"]]);
-			else
-				$BX_IBLOCK_PROP_CACHE = Array();
+			if (isset($arFields["IBLOCK_ID"]))
+			{
+				unset($BX_IBLOCK_PROP_CACHE[$arFields["IBLOCK_ID"]]);
+				CIBlock::clearIblockTagCache($arFields["IBLOCK_ID"]);
+			}
 
 			$Result = true;
 		}
@@ -539,20 +604,19 @@ class CAllIBlockProperty
 		return $Result;
 	}
 
-
 	///////////////////////////////////////////////////////////////////
 	// Get property information by ID
 	///////////////////////////////////////////////////////////////////
 	public static function GetByID($ID, $IBLOCK_ID=false, $IBLOCK_CODE=false)
 	{
 		global $DB;
-		$cond = "";
+
 		if($IBLOCK_CODE && $IBLOCK_ID)
-			$cond = " AND (B.ID = ".IntVal($IBLOCK_ID)." OR B.CODE = '".$DB->ForSql($IBLOCK_CODE)."') ";
+			$cond = " AND (B.ID = ".(int)$IBLOCK_ID." OR B.CODE = '".$DB->ForSql($IBLOCK_CODE)."') ";
 		elseif($IBLOCK_CODE)
 			$cond = " AND B.CODE = '".$DB->ForSql($IBLOCK_CODE)."' ";
 		elseif($IBLOCK_ID)
-			$cond = " AND B.ID = ".IntVal($IBLOCK_ID)." ";
+			$cond = " AND B.ID = ".(int)$IBLOCK_ID." ";
 		else
 			$cond = "";
 
@@ -563,7 +627,7 @@ class CAllIBlockProperty
 			$cond.
 			(is_numeric(substr($ID, 0, 1))
 			?
-				"	AND BP.ID=".IntVal($ID)
+				"	AND BP.ID=".(int)$ID
 			:
 				"	AND UPPER(BP.CODE)=UPPER('".$DB->ForSql($ID)."') "
 			);
@@ -760,7 +824,7 @@ class CAllIBlockProperty
 		$db_res = $this->GetPropertyEnum($ID);
 		while($res = $db_res->Fetch())
 		{
-			$ar_XML_ID[$res["XML_ID"]] = $res["ID"];
+			$ar_XML_ID[rtrim($res["XML_ID"], " ")] = $res["ID"];
 		}
 
 		$sqlWhere = "";
@@ -801,7 +865,7 @@ class CAllIBlockProperty
 
 			if(strlen($VAL)<=0)
 			{
-				unset($ar_XML_ID[$res["XML_ID"]]);
+				unset($ar_XML_ID[rtrim($res["XML_ID"], " ")]);
 
 				$strSql = "
 					DELETE FROM b_iblock_property_enum
@@ -827,17 +891,17 @@ class CAllIBlockProperty
 						$SORT = 0;
 
 					if(array_key_exists("XML_ID", $VALUE) && strlen($VALUE["XML_ID"]))
-						$XML_ID = substr($VALUE["XML_ID"], 0, 200);
+						$XML_ID = substr(rtrim($VALUE["XML_ID"], " "), 0, 200);
 					elseif(array_key_exists("EXTERNAL_ID", $VALUE) && strlen($VALUE["EXTERNAL_ID"]))
-						$XML_ID = substr($VALUE["EXTERNAL_ID"], 0, 200);
+						$XML_ID = substr(rtrim($VALUE["EXTERNAL_ID"], " "), 0, 200);
 				}
 
 				if($XML_ID)
 				{
-					unset($ar_XML_ID[$res["XML_ID"]]);
-					if(array_key_exists($XML_ID, $ar_XML_ID))
+					unset($ar_XML_ID[strtolower(rtrim($res["XML_ID"], " "))]);
+					if (isset($ar_XML_ID[strtolower($XML_ID)]))
 						$XML_ID = md5(uniqid(""));
-					$ar_XML_ID[$XML_ID] = $res["ID"];
+					$ar_XML_ID[strtolower($XML_ID)] = $res["ID"];
 				}
 
 				$strSql = "
@@ -874,22 +938,21 @@ class CAllIBlockProperty
 						$SORT = 0;
 
 					if(array_key_exists("XML_ID", $VALUE) && strlen($VALUE["XML_ID"]))
-						$XML_ID = substr($VALUE["XML_ID"], 0, 200);
+						$XML_ID = substr(rtrim($VALUE["XML_ID"], " "), 0, 200);
 					elseif(array_key_exists("EXTERNAL_ID", $VALUE) && strlen($VALUE["EXTERNAL_ID"]))
-						$XML_ID = substr($VALUE["EXTERNAL_ID"], 0, 200);
+						$XML_ID = substr(rtrim($VALUE["EXTERNAL_ID"], " "), 0, 200);
 				}
 
 				if($XML_ID)
 				{
-					if(array_key_exists($XML_ID, $ar_XML_ID))
+					if (isset($ar_XML_ID[strtolower($XML_ID)]))
 						$XML_ID = md5(uniqid("", true));
-					$ar_XML_ID[$XML_ID] = 0;
 				}
 				else
 				{
 					$XML_ID = md5(uniqid("", true));
-					$ar_XML_ID[$XML_ID] = 0;
 				}
+				$ar_XML_ID[strtolower($XML_ID)] = 0;
 
 				$strSql = "
 					INSERT INTO b_iblock_property_enum
@@ -960,178 +1023,117 @@ class CAllIBlockProperty
 		return GetMessage("IBLOCK_PROPERTY_NOT_FOUND",array("#ID#"=>$ID));
 	}
 
-	function _DateTime_GetUserTypeDescription()
+	/**
+	 * @deprecated deprecated since iblock 17.0.9
+	 * @see \CIBlockPropertyDateTime::GetUserTypeDescription()
+	 *
+	 * @return array
+	 */
+	public static function _DateTime_GetUserTypeDescription()
 	{
-		return array(
-			"PROPERTY_TYPE" => "S",
-			"USER_TYPE" => "DateTime",
-			"DESCRIPTION" => GetMessage("IBLOCK_PROP_DATETIME_DESC"),
-			//optional handlers
-			"GetPublicViewHTML" => array("CIBlockPropertyDateTime","GetPublicViewHTML"),
-			"GetPublicEditHTML" => array("CIBlockPropertyDateTime","GetPublicEditHTML"),
-			"GetAdminListViewHTML" => array("CIBlockPropertyDateTime","GetAdminListViewHTML"),
-			"GetPropertyFieldHtml" => array("CIBlockPropertyDateTime","GetPropertyFieldHtml"),
-			"CheckFields" => array("CIBlockPropertyDateTime","CheckFields"),
-			"ConvertToDB" => array("CIBlockPropertyDateTime","ConvertToDB"),
-			"ConvertFromDB" => array("CIBlockPropertyDateTime","ConvertFromDB"),
-			"GetSettingsHTML" => array("CIBlockPropertyDateTime","GetSettingsHTML"),
-			"GetAdminFilterHTML" => array("CIBlockPropertyDateTime","GetAdminFilterHTML"),
-			"GetPublicFilterHTML" => array("CIBlockPropertyDateTime","GetPublicFilterHTML"),
-			"AddFilterFields" => array("CIBlockPropertyDateTime","AddFilterFields"),
-		);
+		return CIBlockPropertyDateTime::GetUserTypeDescription();
 	}
 
-	function _Date_GetUserTypeDescription()
+	/**
+	 * @deprecated deprecated since iblock 17.0.9
+	 * @see \CIBlockPropertyDate::GetUserTypeDescription()
+	 *
+	 * @return array
+	 */
+	public static function _Date_GetUserTypeDescription()
 	{
-		return array(
-			"PROPERTY_TYPE" => "S",
-			"USER_TYPE" => "Date",
-			"DESCRIPTION" => GetMessage("IBLOCK_PROP_DATE_DESC"),
-			//optional handlers
-			"GetPublicViewHTML" => array("CIBlockPropertyDate","GetPublicViewHTML"),
-			"GetPublicEditHTML" => array("CIBlockPropertyDate","GetPublicEditHTML"),
-			"GetAdminListViewHTML" => array("CIBlockPropertyDate","GetAdminListViewHTML"),
-			"GetPropertyFieldHtml" => array("CIBlockPropertyDate","GetPropertyFieldHtml"),
-			"CheckFields" => array("CIBlockPropertyDate","CheckFields"),
-			"ConvertToDB" => array("CIBlockPropertyDate","ConvertToDB"),
-			"ConvertFromDB" => array("CIBlockPropertyDate","ConvertFromDB"),
-			"GetSettingsHTML" => array("CIBlockPropertyDate","GetSettingsHTML"),
-			"GetAdminFilterHTML" => array("CIBlockPropertyDate","GetAdminFilterHTML"),
-			"GetPublicFilterHTML" => array("CIBlockPropertyDate","GetPublicFilterHTML"),
-			"AddFilterFields" => array("CIBlockPropertyDate","AddFilterFields"),
-		);
+		return CIBlockPropertyDate::GetUserTypeDescription();
 	}
 
-	function _XmlID_GetUserTypeDescription()
+	/**
+	 * @deprecated deprecated since iblock 17.0.9
+	 * @see \CIBlockPropertyXmlID::GetUserTypeDescription()
+	 *
+	 * @return array
+	 */
+	public static function _XmlID_GetUserTypeDescription()
 	{
-		return array(
-			"PROPERTY_TYPE"		=>"S",
-			"USER_TYPE"		=>"ElementXmlID",
-			"DESCRIPTION"		=>GetMessage("IBLOCK_PROP_XMLID_DESC"),
-			"GetPublicViewHTML"	=>array("CIBlockPropertyXmlID","GetPublicViewHTML"),
-			"GetAdminListViewHTML"	=>array("CIBlockPropertyXmlID","GetAdminListViewHTML"),
-			"GetPropertyFieldHtml"	=>array("CIBlockPropertyXmlID","GetPropertyFieldHtml"),
-			"GetSettingsHTML"	=>array("CIBlockPropertyXmlID","GetSettingsHTML"),
-		);
+		return CIBlockPropertyXmlID::GetUserTypeDescription();
 	}
 
-	function _FileMan_GetUserTypeDescription()
+	/**
+	 * @deprecated deprecated since iblock 17.0.9
+	 * @see \CIBlockPropertyFileMan::GetUserTypeDescription()
+	 *
+	 * @return array
+	 */
+	public static function _FileMan_GetUserTypeDescription()
 	{
-		return array(
-			"PROPERTY_TYPE"		=>"S",
-			"USER_TYPE"		=>"FileMan",
-			"DESCRIPTION"		=>GetMessage("IBLOCK_PROP_FILEMAN_DESC"),
-			"GetPropertyFieldHtml"	=>array("CIBlockPropertyFileMan","GetPropertyFieldHtml"),
-			"GetPropertyFieldHtmlMulty" => array('CIBlockPropertyFileMan','GetPropertyFieldHtmlMulty'),
-			"ConvertToDB"		=>array("CIBlockPropertyFileMan","ConvertToDB"),
-			"ConvertFromDB"		=>array("CIBlockPropertyFileMan","ConvertFromDB"),
-			"GetSettingsHTML" => array("CIBlockPropertyFileMan","GetSettingsHTML"),
-		);
+		return CIBlockPropertyFileMan::GetUserTypeDescription();
 	}
 
-	function _HTML_GetUserTypeDescription()
+	/**
+	 * @deprecated deprecated since iblock 17.0.9
+	 * @see \CIBlockPropertyHTML::GetUserTypeDescription()
+	 *
+	 * @return array
+	 */
+	public static function _HTML_GetUserTypeDescription()
 	{
-		return array(
-			"PROPERTY_TYPE" => "S",
-			"USER_TYPE" => "HTML",
-			"DESCRIPTION" => GetMessage("IBLOCK_PROP_HTML_DESC"),
-			"GetPublicViewHTML" => array("CIBlockPropertyHTML","GetPublicViewHTML"),
-			"GetPublicEditHTML" => array("CIBlockPropertyHTML","GetPublicEditHTML"),
-			"GetAdminListViewHTML" => array("CIBlockPropertyHTML","GetAdminListViewHTML"),
-			"GetPropertyFieldHtml" => array("CIBlockPropertyHTML","GetPropertyFieldHtml"),
-			"ConvertToDB" => array("CIBlockPropertyHTML","ConvertToDB"),
-			"ConvertFromDB" => array("CIBlockPropertyHTML","ConvertFromDB"),
-			"GetLength" =>array("CIBlockPropertyHTML","GetLength"),
-			"PrepareSettings" =>array("CIBlockPropertyHTML","PrepareSettings"),
-			"GetSettingsHTML" =>array("CIBlockPropertyHTML","GetSettingsHTML"),
-		);
+		return CIBlockPropertyHTML::GetUserTypeDescription();
 	}
 
-	function _ElementList_GetUserTypeDescription()
+	/**
+	 * @deprecated deprecated since iblock 17.0.9
+	 * @see \CIBlockPropertyElementList::GetUserTypeDescription()
+	 *
+	 * @return array
+	 */
+	public static function _ElementList_GetUserTypeDescription()
 	{
-		return array(
-			"PROPERTY_TYPE" => "E",
-			"USER_TYPE" => "EList",
-			"DESCRIPTION" => GetMessage("IBLOCK_PROP_ELIST_DESC"),
-			"GetPropertyFieldHtml" => array("CIBlockPropertyElementList","GetPropertyFieldHtml"),
-			"GetPropertyFieldHtmlMulty" => array("CIBlockPropertyElementList","GetPropertyFieldHtmlMulty"),
-			"GetPublicEditHTML" => array("CIBlockPropertyElementList","GetPropertyFieldHtml"),
-			"GetPublicEditHTMLMulty" => array("CIBlockPropertyElementList","GetPropertyFieldHtmlMulty"),
-			"GetPublicViewHTML" => array("CIBlockPropertyElementList", "GetPublicViewHTML"),
-			"GetAdminFilterHTML" => array("CIBlockPropertyElementList","GetAdminFilterHTML"),
-			"PrepareSettings" =>array("CIBlockPropertyElementList","PrepareSettings"),
-			"GetSettingsHTML" =>array("CIBlockPropertyElementList","GetSettingsHTML"),
-		);
+		return CIBlockPropertyElementList::GetUserTypeDescription();
 	}
 
-	function _Sequence_GetUserTypeDescription()
+	/**
+	 * @deprecated deprecated since iblock 17.0.9
+	 * @see \CIBlockPropertySequence::GetUserTypeDescription()
+	 *
+	 * @return array
+	 */
+	public static function _Sequence_GetUserTypeDescription()
 	{
-		return array(
-			"PROPERTY_TYPE" => "N",
-			"USER_TYPE" => "Sequence",
-			"DESCRIPTION" => GetMessage("IBLOCK_PROP_SEQUENCE_DESC"),
-			"GetPropertyFieldHtml" => array("CIBlockPropertySequence","GetPropertyFieldHtml"),
-			"GetPublicEditHTML" => array("CIBlockPropertySequence","GetPropertyFieldHtml"),
-			"PrepareSettings" =>array("CIBlockPropertySequence","PrepareSettings"),
-			"GetSettingsHTML" =>array("CIBlockPropertySequence","GetSettingsHTML"),
-			"GetAdminFilterHTML" => array("CIBlockPropertySequence","GetPublicFilterHTML"),
-			"GetPublicFilterHTML" => array("CIBlockPropertySequence","GetPublicFilterHTML"),
-			"AddFilterFields" => array("CIBlockPropertySequence","AddFilterFields"),
-		);
+		return CIBlockPropertySequence::GetUserTypeDescription();
 	}
 
-	function _ElementAutoComplete_GetUserTypeDescription()
+	/**
+	 * @deprecated deprecated since iblock 17.0.9
+	 * @see \CIBlockPropertyElementAutoComplete::GetUserTypeDescription()
+	 *
+	 * @return array
+	 */
+	public static function _ElementAutoComplete_GetUserTypeDescription()
 	{
-		return array(
-			"PROPERTY_TYPE" => "E",
-			"USER_TYPE" => "EAutocomplete",
-			"DESCRIPTION" => GetMessage("IBLOCK_PROP_EAUTOCOMPLETE_DESC"),
-			"GetPropertyFieldHtml" => array("CIBlockPropertyElementAutoComplete", "GetPropertyFieldHtml"),
-			"GetPropertyFieldHtmlMulty" => array('CIBlockPropertyElementAutoComplete','GetPropertyFieldHtmlMulty'),
-			"GetAdminListViewHTML" => array("CIBlockPropertyElementAutoComplete","GetAdminListViewHTML"),
-			"GetPublicViewHTML" => array("CIBlockPropertyElementAutoComplete", "GetPublicViewHTML"),
-			"GetAdminFilterHTML" => array('CIBlockPropertyElementAutoComplete','GetAdminFilterHTML'),
-			"GetSettingsHTML" => array('CIBlockPropertyElementAutoComplete','GetSettingsHTML'),
-			"PrepareSettings" => array('CIBlockPropertyElementAutoComplete','PrepareSettings'),
-			"AddFilterFields" => array('CIBlockPropertyElementAutoComplete','AddFilterFields'),
-		);
+		return CIBlockPropertyElementAutoComplete::GetUserTypeDescription();
 	}
 
-	function _SKU_GetUserTypeDescription()
+	/**
+	 * @deprecated deprecated since iblock 17.0.9
+	 * @see \CIBlockPropertySKU::GetUserTypeDescription()
+	 *
+	 * @return array
+	 */
+	public static function _SKU_GetUserTypeDescription()
 	{
-		return array(
-			"PROPERTY_TYPE" => "E",
-			"USER_TYPE" =>"SKU",
-			"DESCRIPTION" => GetMessage('IBLOCK_PROP_SKU_DESC'),
-			"GetPropertyFieldHtml" => array("CIBlockPropertySKU", "GetPropertyFieldHtml"),
-			"GetPropertyFieldHtmlMulty" => array("CIBlockPropertySKU", "GetPropertyFieldHtml"),
-			"GetPublicViewHTML" => array("CIBlockPropertySKU", "GetPublicViewHTML"),
-			"GetAdminListViewHTML" => array("CIBlockPropertySKU","GetAdminListViewHTML"),
-			"GetAdminFilterHTML" => array('CIBlockPropertySKU','GetAdminFilterHTML'),
-			"GetSettingsHTML" => array('CIBlockPropertySKU','GetSettingsHTML'),
-			"PrepareSettings" => array('CIBlockPropertySKU','PrepareSettings'),
-			"AddFilterFields" => array('CIBlockPropertySKU','AddFilterFields'),
-		);
+		return CIBlockPropertySKU::GetUserTypeDescription();
 	}
 
-	function _SectionAutoComplete_GetUserTypeDescription()
+	/**
+	 * @deprecated deprecated since iblock 17.0.9
+	 * @see \CIBlockPropertySectionAutoComplete::GetUserTypeDescription()
+	 *
+	 * @return array
+	 */
+	public static function _SectionAutoComplete_GetUserTypeDescription()
 	{
-		return array(
-			"PROPERTY_TYPE" => "G",
-			"USER_TYPE" => "SectionAuto",
-			"DESCRIPTION" => GetMessage("IBLOCK_PROP_SAUTOCOMPLETE_DESC"),
-			"GetPropertyFieldHtml" => array("CIBlockPropertySectionAutoComplete", "GetPropertyFieldHtml"),
-			"GetPropertyFieldHtmlMulty" => array('CIBlockPropertySectionAutoComplete','GetPropertyFieldHtmlMulty'),
-			"GetAdminListViewHTML" => array("CIBlockPropertySectionAutoComplete","GetAdminListViewHTML"),
-			"GetPublicViewHTML" => array("CIBlockPropertySectionAutoComplete", "GetPublicViewHTML"),
-			"GetAdminFilterHTML" => array('CIBlockPropertySectionAutoComplete','GetAdminFilterHTML'),
-			"GetSettingsHTML" => array('CIBlockPropertySectionAutoComplete','GetSettingsHTML'),
-			"PrepareSettings" => array('CIBlockPropertySectionAutoComplete','PrepareSettings'),
-			"AddFilterFields" => array('CIBlockPropertySectionAutoComplete','AddFilterFields'),
-		);
+		return CIBlockPropertySectionAutoComplete::GetUserTypeDescription();
 	}
 
-	function _Update($ID, $arFields)
+	function _Update($ID, $arFields, $bCheckDescription = false)
 	{
 		return false;
 	}

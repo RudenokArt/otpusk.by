@@ -1,4 +1,16 @@
 <?
-$PERM["desktop_app"]["*"]="R";
+$PERM["/"]["15"]="W";
 $PERM["/"]["*"]="R";
+$PERM["tury-na-novyy-god"]["2"]="X";
+$PERM["tury-na-novyy-god"]["5"]="X";
+$PERM["tury-na-novyy-god"]["3"]="X";
+$PERM["tury-na-novyy-god"]["4"]="X";
+$PERM["tury-na-novyy-god"]["12"]="X";
+$PERM["tury-na-novyy-god"]["13"]="X";
+$PERM["tury-na-novyy-god"]["8"]="X";
+$PERM["tury-na-novyy-god"]["*"]="D";
+$PERM["upload"]["8"]="W";
+$PERM["upload"]["9"]="R";
+$PERM["desktop_app"]["*"]="R";
+$PERM["online"]["*"]="R";
 ?>

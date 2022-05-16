@@ -19,7 +19,7 @@ if (
 )
 {
 	$feature = "search";
-	$arEntityActiveFeatures = CSocNetFeatures::GetActiveFeaturesNames(SONET_ENTITY_GROUP, $arResult["VARIABLES"]["group_id"]);		
+	$arEntityActiveFeatures = CSocNetFeatures::GetActiveFeaturesNames(SONET_ENTITY_GROUP, $arResult["VARIABLES"]["group_id"]);
 	$strFeatureTitle = ((array_key_exists($feature, $arEntityActiveFeatures) && StrLen($arEntityActiveFeatures[$feature]) > 0) ? $arEntityActiveFeatures[$feature] : GetMessage("GROUP_CONTENT_SEARCH_TITLE"));
 
 	$GLOBALS["APPLICATION"]->SetTitle($arGroupFields["NAME"].": ".$strFeatureTitle);
@@ -87,7 +87,6 @@ if (
 	"SOCNET_GROUP_ID" => $arResult["VARIABLES"]["group_id"],
 	"FILES_GROUP_IBLOCK_ID" => $arParams["FILES_GROUP_IBLOCK_ID"],
 	"CALENDAR_GROUP_IBLOCK_ID" => $arParams["CALENDAR_GROUP_IBLOCK_ID"],
-	"TASKS_GROUP_IBLOCK_ID" => $arParams["TASK_IBLOCK_ID"],
 	"PHOTO_GROUP_IBLOCK_ID" => $arParams["PHOTO_GROUP_IBLOCK_ID"],	),
 	$component
 );?>

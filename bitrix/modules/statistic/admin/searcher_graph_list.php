@@ -1,6 +1,6 @@
-<?
+<?php
 require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_admin_before.php");
-
+/** @var CMain $APPLICATION */
 $sTableID = "tbl_graph_list";
 $oSort = new CAdminSorting($sTableID, "ID", "asc");
 $lAdmin = new CAdminList($sTableID, $oSort);
@@ -111,7 +111,7 @@ if (strlen($strError)<=0 && count($arrLegend)>0 && count($arrDays)>1) :
 					<td nowrap>
 					<?
 					if ($arrL["COUNTER_TYPE"]=="DETAIL") :
-						?>[<a title="<?=GetMessage("STAT_SEARCHER_LIST_OPEN")?> " href="<?htmlspecialcharsbx("/bitrix/admin/searcher_list.php?lang=".urlencode(LANGUAGE_ID)."&find_id=".urlencode($keyL)."&set_filter=Y")?>"><?=$keyL?></a>]&nbsp;<a title="<?=GetMessage("STAT_SEARCHER_DYNAMIC")?>" href="<?htmlspecialcharsbx("/bitrix/admin/searcher_dynamic_list.php?lang=".urlencode(LANGUAGE_ID)."&find_searcher_id=".urlencode($keyL)."&find_date1=".urlencode($arFilter["DATE1"])."&find_date2=".urlencode($arFilter["DATE2"])."&set_filter=Y")?>"><?=$arrL["NAME"]?></a><?
+						?>[<a title="<?=GetMessage("STAT_SEARCHER_LIST_OPEN")?> " href="<?= htmlspecialcharsbx("/bitrix/admin/searcher_list.php?lang=".urlencode(LANGUAGE_ID)."&find_id=".urlencode($keyL)."&set_filter=Y")?>"><?=$keyL?></a>]&nbsp;<a title="<?=GetMessage("STAT_SEARCHER_DYNAMIC")?>" href="<?= htmlspecialcharsbx("/bitrix/admin/searcher_dynamic_list.php?lang=".urlencode(LANGUAGE_ID)."&find_searcher_id=".urlencode($keyL)."&find_date1=".urlencode($arFilter["DATE1"])."&find_date2=".urlencode($arFilter["DATE2"])."&set_filter=Y")?>"><?=$arrL["NAME"]?></a><?
 					else :
 						?><?=GetMessage("STAT_SUMMARIZED")?><?
 					endif;
@@ -208,7 +208,6 @@ if (is_array($arrSEARCHERS))
 <?
 $oFilter->Buttons(array("table_id"=>$sTableID, "url"=>$APPLICATION->GetCurPage()));
 $oFilter->End();
-#############################################################
 ?>
 </form>
 
@@ -235,4 +234,4 @@ $context->Show();
 $lAdmin->DisplayList();
 ?>
 
-<?require_once ($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/epilog_admin.php");?>
+<?require_once ($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/epilog_admin.php");

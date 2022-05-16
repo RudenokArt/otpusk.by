@@ -29,6 +29,12 @@ class socialservices extends CModule
 		if(!$DB->Query("SELECT 'x' FROM b_socialservices_user", true))
 		{
 			$errors = $DB->RunSQLBatch($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialservices/install/db/".$DBType."/install.sql");
+			if (\Bitrix\Main\Entity\CryptoField::cryptoAvailable())
+			{
+				\Bitrix\Main\Config\Option::set("socialservices", "allow_encrypted_tokens", true);
+				\Bitrix\Main\ORM\Data\DataManager::enableCrypto('OATOKEN', 'b_socialservices_user');
+				\Bitrix\Main\ORM\Data\DataManager::enableCrypto('REFRESH_TOKEN', 'b_socialservices_user');
+			}
 		}
 
 		if ($errors !== false)
@@ -44,6 +50,27 @@ class socialservices extends CModule
 		RegisterModuleDependences('timeman', 'OnAfterTMDayStart', 'socialservices', 'CSocServAuthDB', 'OnAfterTMDayStart');
 		RegisterModuleDependences('timeman', 'OnTimeManShow', 'socialservices', 'CSocServEventHandlers', 'OnTimeManShow');
 		RegisterModuleDependences('main', 'OnFindExternalUser', 'socialservices', 'CSocServAuthDB', 'OnFindExternalUser');
+		RegisterModuleDependences('perfmon', 'OnGetTableSchema', 'socialservices', 'socialservices', 'OnGetTableSchema');
+		RegisterModuleDependences('socialservices', 'OnFindSocialservicesUser', 'socialservices', "CSocServAuthManager", "checkOldUser");
+		RegisterModuleDependences('socialservices', 'OnFindSocialservicesUser', 'socialservices', "CSocServAuthManager", "checkAbandonedUser");
+
+		if(
+			\Bitrix\Main\Loader::includeModule('socialservices')
+			&& \Bitrix\Main\Config\Option::get('socialservices', 'bitrix24net_id', '') === ''
+		)
+		{
+			$request = \Bitrix\Main\Context::getCurrent()->getRequest();
+			$host = ($request->isHttps() ? 'https://' : 'http://').$request->getHttpHost();
+
+			$registerResult = \CSocServBitrix24Net::registerSite($host);
+
+			if(is_array($registerResult) && isset($registerResult["client_id"]) && isset($registerResult["client_secret"]))
+			{
+				\Bitrix\Main\Config\Option::set('socialservices', 'bitrix24net_domain', $host);
+				\Bitrix\Main\Config\Option::set('socialservices', 'bitrix24net_id', $registerResult["client_id"]);
+				\Bitrix\Main\Config\Option::set('socialservices', 'bitrix24net_secret', $registerResult["client_secret"]);
+			}
+		}
 
 		return true;
 	}
@@ -67,8 +94,11 @@ class socialservices extends CModule
 		UnRegisterModuleDependences('timeman', 'OnAfterTMDayStart', 'socialservices', 'CSocServAuthDB', 'OnAfterTMDayStart');
 		UnRegisterModuleDependences('timeman', 'OnTimeManShow', 'socialservices', 'CSocServEventHandlers', 'OnTimeManShow');
 		UnRegisterModuleDependences('main', 'OnFindExternalUser', 'socialservices', 'CSocServAuthDB', 'OnFindExternalUser');
+		UnRegisterModuleDependences('perfmon', 'OnGetTableSchema', 'socialservices', 'socialservices', 'OnGetTableSchema');
+		UnRegisterModuleDependences('socialservices', 'OnFindSocialservicesUser', 'socialservices', "CSocServAuthManager", "checkOldUser");
+		UnRegisterModuleDependences('socialservices', 'OnFindSocialservicesUser', 'socialservices', "CSocServAuthManager", "checkAbandonedUser");
 
-		$dbSites = CSite::GetList(($b="sort"), ($o="asc"), array("ACTIVE" => "Y"));
+		$dbSites = CSite::GetList($b="sort", $o="asc", array("ACTIVE" => "Y"));
 		while ($arSite = $dbSites->Fetch())
 		{
 			$siteId = $arSite['ID'];
@@ -99,6 +129,7 @@ class socialservices extends CModule
 			CopyDirFiles($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialservices/install/js", $_SERVER["DOCUMENT_ROOT"]."/bitrix/js", true, true);
 			CopyDirFiles($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialservices/install/images", $_SERVER["DOCUMENT_ROOT"]."/bitrix/images", true, true);
 			CopyDirFiles($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialservices/install/tools", $_SERVER["DOCUMENT_ROOT"]."/bitrix/tools", true, true);
+			CopyDirFiles($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/socialservices/install/gadgets", $_SERVER["DOCUMENT_ROOT"]."/bitrix/gadgets", true, true);
 		}
 		return true;
 	}
@@ -116,10 +147,18 @@ class socialservices extends CModule
 
 	function DoInstall()
 	{
-		global $DOCUMENT_ROOT, $APPLICATION;
-		$this->InstallFiles();
-		$this->InstallDB();
-		$APPLICATION->IncludeAdminFile(GetMessage("socialservices_install_title_inst"), $DOCUMENT_ROOT."/bitrix/modules/socialservices/install/step.php");
+		global $DOCUMENT_ROOT, $APPLICATION, $step;
+		$step = IntVal($step);
+		if($step<2)
+		{
+			$APPLICATION->IncludeAdminFile(GetMessage("socialservices_install_title_inst"), $DOCUMENT_ROOT."/bitrix/modules/socialservices/install/step1.php");
+		}
+		else
+		{
+			$this->InstallFiles();
+			$this->InstallDB();
+			$APPLICATION->IncludeAdminFile(GetMessage("socialservices_install_title_inst"), $DOCUMENT_ROOT."/bitrix/modules/socialservices/install/step2.php");
+		}
 	}
 
 	function DoUninstall()
@@ -143,5 +182,40 @@ class socialservices extends CModule
 			$APPLICATION->IncludeAdminFile(GetMessage("socialservices_install_title_inst"), $DOCUMENT_ROOT."/bitrix/modules/socialservices/install/unstep2.php");
 		}
 	}
+
+	public function migrateToBox()
+	{
+		COption::RemoveOption($this->MODULE_ID);
+	}
+
+	function OnGetTableSchema()
+	{
+		return array(
+			"socialservices" => array(
+				"b_socialservices_user" => array(
+					"ID" => array(
+						"b_socialservices_message" => "SOCSERV_USER_ID",
+						"b_socialservices_user_link" => "SOCSERV_USER_ID",
+					),
+				),
+			),
+			"main" => array(
+				"b_user" => array(
+					"ID" => array(
+						"b_socialservices_user" => "USER_ID",
+						"b_socialservices_message" => "USER_ID",
+						"b_socialservices_user_link" => "USER_ID",
+						"b_socialservices_user_link^" => "LINK_USER_ID",
+						"b_socialservices_contact" => "USER_ID",
+						"b_socialservices_contact^" => "CONTACT_USER_ID",
+					)
+				),
+				"b_file" => array(
+					"ID" => array(
+						"b_socialservices_user" => "PERSONAL_PHOTO",
+					)
+				),
+			),
+		);
+	}
 }
-?>

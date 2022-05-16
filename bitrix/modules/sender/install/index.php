@@ -59,6 +59,16 @@ class sender extends CModule
 			RegisterModule("sender");
 			CModule::IncludeModule("sender");
 
+			if (strtolower($DB->type) == 'mysql')
+			{
+				$errors = $DB->RunSQLBatch($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/sender/install/db/".$DBType."/install_ft.sql");
+				if ($errors === false)
+				{
+					$entity = \Bitrix\Sender\Internals\Model\LetterTable::getEntity();
+					$entity->enableFullTextIndex("SEARCH_CONTENT");
+				}
+			}
+
 			// read and click notifications
 			RegisterModuleDependences("main", "OnMailEventMailRead", "sender", "bitrix\\sender\\postingmanager", "onMailEventMailRead");
 			RegisterModuleDependences("main", "OnMailEventMailClick", "sender", "bitrix\\sender\\postingmanager", "onMailEventMailClick");
@@ -67,15 +77,21 @@ class sender extends CModule
 			RegisterModuleDependences("main", "OnMailEventSubscriptionDisable", "sender", "Bitrix\\Sender\\Subscription", "onMailEventSubscriptionDisable");
 			RegisterModuleDependences("main", "OnMailEventSubscriptionEnable", "sender", "Bitrix\\Sender\\Subscription", "onMailEventSubscriptionEnable");
 			RegisterModuleDependences("main", "OnMailEventSubscriptionList", "sender", "Bitrix\\Sender\\Subscription", "onMailEventSubscriptionList");
+			RegisterModuleDependences(
+				"main", \Bitrix\Main\Mail\Tracking::onChangeStatus,
+				"sender", \Bitrix\Sender\Integration\EventHandler::class, "onMailEventMailChangeStatus"
+			);
 
 			// connectors of module sender
 			RegisterModuleDependences("sender", "OnConnectorList", "sender", "bitrix\\sender\\connectormanager", "onConnectorListContact");
 			RegisterModuleDependences("sender", "OnConnectorList", "sender", "bitrix\\sender\\connectormanager", "onConnectorListRecipient");
+			RegisterModuleDependences("sender", "OnConnectorList", "sender", "bitrix\\sender\\connectormanager", "onConnectorList");
 
 			// mail templates and blocks
 			RegisterModuleDependences("sender", "OnPresetTemplateList", "sender", "Bitrix\\Sender\\Preset\\TemplateBase", "onPresetTemplateList");
 			RegisterModuleDependences("sender", "OnPresetTemplateList", "sender", "Bitrix\\Sender\\TemplateTable", "onPresetTemplateList");
 			RegisterModuleDependences("sender", "OnPresetMailBlockList", "sender", "Bitrix\\Sender\\Preset\\MailBlockBase", "OnPresetMailBlockList");
+			RegisterModuleDependences("sender", "OnPresetTemplateList", "sender", "Bitrix\\Sender\\Preset\\TemplateBase", "onPresetTemplateListSite");
 
 			// triggers
 			RegisterModuleDependences("sender", "OnTriggerList", "sender", "bitrix\\sender\\triggermanager", "onTriggerList");
@@ -87,11 +103,14 @@ class sender extends CModule
 			RegisterModuleDependences("main", "OnBeforeProlog", "sender", "Bitrix\\Sender\\Internals\\ConversionHandler", "onBeforeProlog");
 			RegisterModuleDependences("conversion", "OnGetAttributeTypes", "sender", "Bitrix\\Sender\\Internals\\ConversionHandler", "onGetAttributeTypes");
 
+			// voximplant
+			RegisterModuleDependences("voximplant", "OnInfoCallResult", "sender", "Bitrix\\Sender\\Integration\\VoxImplant\\Service", "onInfoCallResult");
+
 			CTimeZone::Disable();
 
-			\Bitrix\Sender\MailingManager::actualizeAgent();
-			CAgent::AddAgent( \Bitrix\Sender\MailingManager::getAgentNamePeriod(), "sender", "N", COption::GetOptionString("sender", "reiterate_interval"));
-			\Bitrix\Sender\TriggerManager::activateAllHandlers(true);
+			\Bitrix\Sender\Runtime\Job::actualizeAll();
+			\Bitrix\Sender\Trigger\Manager::activateAllHandlers(true);
+			\Bitrix\Sender\Security\Role\Manager::installRoles();
 
 			CTimeZone::Enable();
 
@@ -105,7 +124,7 @@ class sender extends CModule
 		$this->errors = false;
 
 		CModule::IncludeModule("sender");
-		\Bitrix\Sender\TriggerManager::activateAllHandlers(false);
+		\Bitrix\Sender\Trigger\Manager::activateAllHandlers(false);
 
 		if(!array_key_exists("save_tables", $arParams) || ($arParams["save_tables"] != "Y"))
 		{
@@ -120,13 +139,19 @@ class sender extends CModule
 		UnRegisterModuleDependences("main", "OnMailEventSubscriptionDisable", "sender", "Bitrix\\Sender\\Subscription", "onMailEventSubscriptionDisable");
 		UnRegisterModuleDependences("main", "OnMailEventSubscriptionEnable", "sender", "Bitrix\\Sender\\Subscription", "onMailEventSubscriptionEnable");
 		UnRegisterModuleDependences("main", "OnMailEventSubscriptionList", "sender", "Bitrix\\Sender\\Subscription", "onMailEventSubscriptionList");
+		UnRegisterModuleDependences(
+			"main", \Bitrix\Main\Mail\Tracking::onChangeStatus,
+			"sender", \Bitrix\Sender\Integration\EventHandler::class, "onMailEventMailChangeStatus"
+		);
 
 		UnRegisterModuleDependences("sender", "OnConnectorList", "sender", "bitrix\\sender\\connectormanager", "onConnectorListContact");
 		UnRegisterModuleDependences("sender", "OnConnectorList", "sender", "bitrix\\sender\\connectormanager", "onConnectorListRecipient");
+		UnRegisterModuleDependences("sender", "OnConnectorList", "sender", "bitrix\\sender\\connectormanager", "onConnectorList");
 
 		UnRegisterModuleDependences("sender", "OnPresetTemplateList", "sender", "Bitrix\\Sender\\Preset\\TemplateBase", "onPresetTemplateList");
 		UnRegisterModuleDependences("sender", "OnPresetTemplateList", "sender", "Bitrix\\Sender\\TemplateTable", "onPresetTemplateList");
 		UnRegisterModuleDependences("sender", "OnPresetMailBlockList", "sender", "Bitrix\\Sender\\Preset\\MailBlockBase", "OnPresetMailBlockList");
+		UnRegisterModuleDependences("sender", "OnPresetTemplateList", "sender", "Bitrix\\Sender\\Preset\\TemplateBase", "onPresetTemplateListSite");
 
 		UnRegisterModuleDependences("sender", "OnTriggerList", "sender", "bitrix\\sender\\triggermanager", "onTriggerList");
 		UnRegisterModuleDependences("sender", "OnAfterRecipientUnsub", "sender", "Bitrix\\Sender\\TriggerManager", "onAfterRecipientUnsub");
@@ -135,6 +160,9 @@ class sender extends CModule
 		UnRegisterModuleDependences("conversion", "OnSetDayContextAttributes", "sender", "Bitrix\\Sender\\Internals\\ConversionHandler", "onSetDayContextAttributes");
 		UnRegisterModuleDependences("main", "OnBeforeProlog", "sender", "Bitrix\\Sender\\Internals\\ConversionHandler", "onBeforeProlog");
 		UnRegisterModuleDependences("conversion", "OnGetAttributeTypes", "sender", "Bitrix\\Sender\\Internals\\ConversionHandler", "onGetAttributeTypes");
+
+		// voximplant
+		UnRegisterModuleDependences("voximplant", "OnInfoCallResult", "sender", "Bitrix\\Sender\\Integration\\VoxImplant\\Service", "onInfoCallResult");
 
 		UnRegisterModule("sender");
 

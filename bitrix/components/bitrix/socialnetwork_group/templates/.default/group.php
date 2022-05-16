@@ -1,11 +1,35 @@
-<?if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)die();?>
+<?php
+if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true)
+	die();
 
-<?
+use Bitrix\Main\Loader;
+
+/** @var CBitrixComponentTemplate $this */
+/** @var array $arParams */
+/** @var array $arResult */
+/** @global CDatabase $DB */
+/** @global CUser $USER */
+/** @global CMain $APPLICATION */
+
+$component = $this->getComponent();
+
 $pageId = "group";
 include("util_group_menu.php");
-?>
 
-<?
+if (Loader::includeModule("blog"))
+{
+	$APPLICATION->includeComponent(
+		"bitrix:socialnetwork.copy.checker",
+		"",
+		[
+			"QUEUE_ID" => $arResult["VARIABLES"]["group_id"],
+			"HELPER" => new Bitrix\Blog\Copy\Integration\Group()
+		],
+		$component,
+		["HIDE_ICONS" => "Y"]
+	);
+}
+
 $APPLICATION->IncludeComponent(
 	"bitrix:socialnetwork.group",
 	"",
@@ -14,6 +38,7 @@ $APPLICATION->IncludeComponent(
 		"PATH_TO_GROUP" => $arResult["PATH_TO_GROUP"],
 		"PATH_TO_GROUP_EDIT" => $arResult["PATH_TO_GROUP_EDIT"],
 		"PATH_TO_GROUP_CREATE" => $arResult["PATH_TO_GROUP_CREATE"],
+		"PATH_TO_GROUP_COPY" => $arResult["PATH_TO_GROUP_COPY"],
 		"PATH_TO_GROUP_REQUEST_SEARCH" => $arResult["PATH_TO_GROUP_REQUEST_SEARCH"],
 		"PATH_TO_USER_REQUEST_GROUP" => $arResult["PATH_TO_USER_REQUEST_GROUP"],
 		"PATH_TO_GROUP_REQUESTS" => $arResult["PATH_TO_GROUP_REQUESTS"],
@@ -40,7 +65,6 @@ $APPLICATION->IncludeComponent(
 		"PATH_TO_POST" => $arParams["PATH_TO_USER_BLOG_POST"],
 		"PATH_TO_POST_EDIT" => $arParams["PATH_TO_USER_BLOG_POST_EDIT"],
 		"PATH_TO_USER_BLOG_POST_IMPORTANT" => $arResult["PATH_TO_USER_BLOG_POST_IMPORTANT"],
-		"PATH_TO_SMILE" => $arResult["PATH_TO_FORUM_SMILE"],
 		"PATH_TO_GROUP_FORUM" => $arResult["PATH_TO_GROUP_FORUM"],
 		"PATH_TO_GROUP_FORUM_TOPIC" => $arResult["~PATH_TO_GROUP_FORUM_TOPIC"],
 		"PATH_TO_GROUP_FORUM_MESSAGE" => $arResult["~PATH_TO_GROUP_FORUM_MESSAGE"],
@@ -48,14 +72,12 @@ $APPLICATION->IncludeComponent(
 		"PATH_TO_GROUP_SUBSCRIBE" => $arResult["PATH_TO_GROUP_SUBSCRIBE"],
 		"PATH_TO_MESSAGE_TO_GROUP" => $arResult["PATH_TO_MESSAGE_TO_GROUP"],
 		"BLOG_GROUP_ID" => $arParams["BLOG_GROUP_ID"],
-		"TASK_IBLOCK_ID" => $arParams["TASK_IBLOCK_ID"],
 		"TASK_VAR" => $arResult["ALIASES"]["task_id"],
 		"TASK_ACTION_VAR" => $arResult["ALIASES"]["action"],
 		"PATH_TO_GROUP_TASKS" => $arResult["PATH_TO_GROUP_TASKS"],
 		"PATH_TO_GROUP_TASKS_TASK" => $arResult["PATH_TO_GROUP_TASKS_TASK"],
 		"PATH_TO_GROUP_TASKS_VIEW" => $arResult["PATH_TO_GROUP_TASKS_VIEW"],
-		"PATH_TO_GROUP_CONTENT_SEARCH" => $arResult["PATH_TO_GROUP_CONTENT_SEARCH"],		
-		"TASKS_FIELDS_SHOW" => $arParams["TASKS_FIELDS_SHOW"],
+		"PATH_TO_GROUP_CONTENT_SEARCH" => $arResult["PATH_TO_GROUP_CONTENT_SEARCH"],
 		"TASK_FORUM_ID" => $arParams["TASK_FORUM_ID"],
 		"THUMBNAIL_LIST_SIZE" => 30,
 		"PATH_TO_MESSAGES_CHAT" => $arParams["PATH_TO_MESSAGES_CHAT"],
@@ -68,6 +90,7 @@ $APPLICATION->IncludeComponent(
 		"CACHE_TYPE" => $arParams["CACHE_TYPE"],
 		"CACHE_TIME" => $arParams["CACHE_TIME"],
 		"PATH_TO_CONPANY_DEPARTMENT" => $arParams["PATH_TO_CONPANY_DEPARTMENT"],
+		"SHOW_SEARCH_TAGS_CLOUD" => $arParams["SHOW_SEARCH_TAGS_CLOUD"],
 		"SEARCH_TAGS_PAGE_ELEMENTS" => $arParams["SEARCH_TAGS_PAGE_ELEMENTS"],
 		"SEARCH_TAGS_PERIOD" => $arParams["SEARCH_TAGS_PERIOD"],
 		"SEARCH_TAGS_FONT_MAX" => $arParams["SEARCH_TAGS_FONT_MAX"],
@@ -88,4 +111,3 @@ $APPLICATION->IncludeComponent(
 	),
 	$component
 );
-?>

@@ -1,6 +1,7 @@
 <?
 
 use Bitrix\Bizproc\FieldType;
+use Bitrix\Iblock\BizprocType;
 
 if (!CModule::IncludeModule("iblock") || !class_exists("CIBlockDocument"))
 	return;
@@ -10,6 +11,26 @@ IncludeModuleLangFile(__FILE__);
 class CBPVirtualDocument
 	extends CIBlockDocument
 {
+	public static function getEntityName()
+	{
+		return GetMessage('BPVDX_ENTITY_NAME');
+	}
+
+	public static function getDocumentTypeName($documentType)
+	{
+		if (strpos($documentType, 'type_') !== 0)
+			return $documentType;
+
+		$id = (int) substr($documentType, 5);
+
+		$iterator = CIBlock::GetList(false,array('ID' => $id));
+		$result = $iterator->fetch();
+		if (!$result)
+			return $documentType;
+
+		return $result['NAME'];
+	}
+
 	function GetFieldInputControlOptions($documentType, &$arFieldType, $jsFunctionName, &$value)
 	{
 		$result = "";
@@ -203,15 +224,15 @@ class CBPVirtualDocument
 					$a = array_values($fieldValueTmp);
 					echo htmlspecialcharsbx($a[0]);
 				}
-				?>">
-				<input type="button" value="..." onclick="BPAShowSelector('id_<?= htmlspecialcharsbx($arFieldName["Field"]) ?>_text', 'select');">
-				<?
+				?>"><?
+				echo CBPHelper::renderControlSelectorButton('id_'.$arFieldName["Field"].'_text', 'select');
 			}
 		}
 		elseif ($arFieldType["Type"] == "S:UserID")
 		{
 			$fieldValue = CBPHelper::UsersArrayToString($fieldValue, null, array("bizproc", "CBPVirtualDocument", $documentType));
-			?><input type="text" size="40" style="max-width: 85%" id="id_<?= $arFieldName["Field"] ?>" name="<?= $arFieldName["Field"] ?>" value="<?= htmlspecialcharsbx($fieldValue) ?>"><input type="button" value="..." onclick="BPAShowSelector('id_<?= $arFieldName["Field"] ?>', 'user');"><?
+			?><input type="text" size="40" style="max-width: 85%" id="id_<?= $arFieldName["Field"] ?>" name="<?= $arFieldName["Field"] ?>" value="<?= htmlspecialcharsbx($fieldValue) ?>">
+			<? echo CBPHelper::renderControlSelectorButton('id_'.$arFieldName["Field"], 'user');
 		}
 		elseif ((strpos($arFieldType["Type"], ":") !== false)
 			&& $arFieldType["Multiple"]
@@ -250,8 +271,6 @@ class CBPVirtualDocument
 				static $fl = true;
 				if ($fl)
 				{
-					if (!empty($_SERVER['HTTP_BX_AJAX']))
-						$GLOBALS["APPLICATION"]->ShowAjaxHead();
 					$GLOBALS["APPLICATION"]->AddHeadScript('/bitrix/js/iblock/iblock_edit.js');
 				}
 
@@ -292,9 +311,12 @@ class CBPVirtualDocument
 					$a = array_values($fieldValueTmp1);
 					echo htmlspecialcharsbx($a[0]);
 				}
-				?>">
-				<input type="button" value="..." onclick="BPAShowSelector('id_<?= htmlspecialcharsbx($arFieldName["Field"]) ?>_text', '<?= htmlspecialcharsbx($arFieldType["BaseType"]) ?>', '<?= $arFieldType["Type"] == 'S:employee'? 'employee' : '' ?>');">
-				<?
+				?>"><?
+				echo CBPHelper::renderControlSelectorButton(
+					'id_'.$arFieldName["Field"].'_text',
+					$arFieldType["BaseType"],
+					array('mode' => $arFieldType["Type"] == 'S:employee'? 'employee' : '')
+				);
 			}
 		}
 		else
@@ -443,7 +465,7 @@ class CBPVirtualDocument
 				{
 					if (!in_array($arFieldType["Type"], array("F", "B")) && (is_array($customMethodName) && count($customMethodName) <= 0 || !is_array($customMethodName) && strlen($customMethodName) <= 0))
 					{
-						?><input type="button" value="..." onclick="BPAShowSelector('<?= $fieldNameId ?>', '<?= htmlspecialcharsbx($arFieldType["BaseType"]) ?>');"><?
+						echo CBPHelper::renderControlSelectorButton($fieldNameId, $arFieldType["BaseType"]);
 					}
 				}
 
@@ -468,9 +490,12 @@ class CBPVirtualDocument
 						$a = array_values($fieldValueTmp);
 						echo htmlspecialcharsbx($a[0]);
 					}
-					?>">
-					<input type="button" value="..." onclick="BPAShowSelector('id_<?= htmlspecialcharsbx($arFieldName["Field"]) ?>_text', '<?= htmlspecialcharsbx($arFieldType["BaseType"]) ?>', '<?= $arFieldType["Type"] == 'S:employee'? 'employee' : '' ?>');">
-					<?
+					?>"><?
+					echo CBPHelper::renderControlSelectorButton(
+						'id_'.$arFieldName["Field"].'_text',
+						$arFieldType["BaseType"],
+						array('mode' => $arFieldType["Type"] == 'S:employee'? 'employee' : '')
+					);
 				}
 			}
 		}
@@ -635,7 +660,7 @@ class CBPVirtualDocument
 							if (!array_key_exists("MODULE_ID", $value))
 								$value["MODULE_ID"] = "bizproc";
 
-							$value = CFile::SaveFile($value, "bizproc_wf", true, true);
+							$value = CFile::SaveFile($value, "bizproc_wf", true);
 							if (!$value)
 							{
 								$value = null;
@@ -1025,8 +1050,6 @@ class CBPVirtualDocument
 
 	function GetList($arOrder = array("SORT" => "ASC"), $arFilter = array(), $arGroupBy = false, $arNavStartParams = false, $arSelectFields=array())
 	{
-		global $USER;
-
 		$arFilter["SHOW_NEW"] = "Y";
 		$arFilter["ACTIVE"] = "Y";
 
@@ -1167,9 +1190,9 @@ class CBPVirtualDocument
 		foreach ($valueTmp as $val)
 		{
 			$dbUser = CUser::GetByID($val);
-			if ($arUser = $dbUser->GetNext())
+			if ($arUser = $dbUser->fetch())
 			{
-				$formatName = CUser::FormatName($nameTemplate, $arUser, true);
+				$formatName = CUser::FormatName($nameTemplate, $arUser, true, false);
 				$arReturn[] = $formatName." <".$arUser["EMAIL"]."> [".$arUser["ID"]."]";
 			}
 		}
@@ -1255,7 +1278,7 @@ class CBPVirtualDocument
 				if (in_array($fieldKey, array("MODIFIED_BY", "CREATED_BY")))
 				{
 					$arResult[$fieldKey] = "user_".$fieldValue;
-					$arResult[$fieldKey."_PRINTABLE"] = $arDocumentFields[($fieldKey == "MODIFIED_BY") ? "USER_NAME" : "CREATED_USER_NAME"];
+					$arResult[$fieldKey."_PRINTABLE"] = $arDocumentFields[($fieldKey == "MODIFIED_BY") ? "~USER_NAME" : "~CREATED_USER_NAME"];
 				}
 				elseif (in_array($fieldKey, array("PREVIEW_TEXT", "DETAIL_TEXT")))
 				{
@@ -1274,10 +1297,10 @@ class CBPVirtualDocument
 						if (!is_array($propertyValue["VALUE"]))
 						{
 							$db = CUser::GetByID($propertyValue["VALUE"]);
-							if ($ar = $db->GetNext())
+							if ($ar = $db->fetch())
 							{
 								$arResult["PROPERTY_".$propertyKey] = "user_".intval($propertyValue["VALUE"]);
-								$arResult["PROPERTY_".$propertyKey."_PRINTABLE"] = "(".$ar["LOGIN"].")".((strlen($ar["NAME"]) > 0 || strlen($ar["LAST_NAME"]) > 0) ? " " : "").CUser::FormatName(COption::GetOptionString("bizproc", "name_template", CSite::GetNameFormat(false), SITE_ID), $ar);
+								$arResult["PROPERTY_".$propertyKey."_PRINTABLE"] = "(".$ar["LOGIN"].")".((strlen($ar["NAME"]) > 0 || strlen($ar["LAST_NAME"]) > 0) ? " " : "").CUser::FormatName(COption::GetOptionString("bizproc", "name_template", CSite::GetNameFormat(false), SITE_ID), $ar, false, false);
 							}
 						}
 						else
@@ -1285,10 +1308,10 @@ class CBPVirtualDocument
 							for ($i = 0, $cnt = count($propertyValue["VALUE"]); $i < $cnt; $i++)
 							{
 								$db = CUser::GetByID($propertyValue["VALUE"][$i]);
-								if ($ar = $db->GetNext())
+								if ($ar = $db->fetch())
 								{
 									$arResult["PROPERTY_".$propertyKey][] = "user_".intval($propertyValue["VALUE"][$i]);
-									$arResult["PROPERTY_".$propertyKey."_PRINTABLE"][$propertyValue["VALUE"][$i]] = "(".$ar["LOGIN"].")".((strlen($ar["NAME"]) > 0 || strlen($ar["LAST_NAME"]) > 0) ? " " : "").CUser::FormatName(COption::GetOptionString("bizproc", "name_template", CSite::GetNameFormat(false), SITE_ID), $ar);
+									$arResult["PROPERTY_".$propertyKey."_PRINTABLE"][$propertyValue["VALUE"][$i]] = "(".$ar["LOGIN"].")".((strlen($ar["NAME"]) > 0 || strlen($ar["LAST_NAME"]) > 0) ? " " : "").CUser::FormatName(COption::GetOptionString("bizproc", "name_template", CSite::GetNameFormat(false), SITE_ID), $ar, false, false);
 								}
 							}
 						}
@@ -1614,11 +1637,6 @@ class CBPVirtualDocument
 
 	public function GetDocumentFieldTypes($documentType)
 	{
-		$v = substr($documentType, strlen("type_"));
-		if (intval($v)."!" != $v."!")
-			throw new CBPArgumentOutOfRangeException("documentType", $documentType);
-		$iblockId = intval($v);
-
 		$typesMap = FieldType::getBaseTypesMap();
 
 		$arResult = array(
@@ -1627,8 +1645,6 @@ class CBPVirtualDocument
 			"N" => array("Name" => GetMessage("BPVDX_NUM"), "BaseType" => "double", 'typeClass' => $typesMap[FieldType::DOUBLE]),
 			"L" => array("Name" => GetMessage("BPVDX_LIST"), "BaseType" => "select", "Complex" => true, 'typeClass' => $typesMap[FieldType::SELECT]),
 			"F" => array("Name" => GetMessage("BPVDX_FILE"), "BaseType" => "file", 'typeClass' => $typesMap[FieldType::FILE]),
-			//"G" => array("Name" => GetMessage("BPVDX_SECT"), "BaseType" => "int"),
-			//"E" => array("Name" => GetMessage("BPVDX_ELEM"), "BaseType" => "int"),
 			"B" => array("Name" => GetMessage("BPVDX_YN"), "BaseType" => "bool", 'typeClass' => $typesMap[FieldType::BOOL]),
 		);
 
@@ -1636,15 +1652,26 @@ class CBPVirtualDocument
 		{
 			$t = $ar["PROPERTY_TYPE"].":".$ar["USER_TYPE"];
 
+			if($t == "S:ECrm")
+			{
+				$t = "E:ECrm";
+			}
+
 			if (COption::GetOptionString("bizproc", "SkipNonPublicCustomTypes", "N") == "Y"
 				&& !array_key_exists("GetPublicEditHTML", $ar) && $t != "S:UserID" && $t != "S:DateTime")
 				continue;
 
-			$arResult[$t] = array("Name" => $ar["DESCRIPTION"], "BaseType" => "string");
+			$arResult[$t] = array("Name" => $ar["DESCRIPTION"], "BaseType" => "string", 'typeClass' => BizprocType\UserTypeProperty::class);
 			if ($t == "S:UserID")
+			{
 				$arResult[$t]["BaseType"] = "user";
+				$arResult[$t]['typeClass'] = $typesMap[FieldType::USER];
+			}
 			elseif ($t == "S:employee" && COption::GetOptionString("bizproc", "employee_compatible_mode", "N") != "Y")
+			{
 				$arResult[$t]["BaseType"] = "user";
+				$arResult[$t]['typeClass'] = BizprocType\UserTypePropertyEmployee::class;
+			}
 			elseif ($t == "S:DateTime")
 			{
 				$arResult[$t]["BaseType"] = "datetime";
@@ -1659,10 +1686,22 @@ class CBPVirtualDocument
 			{
 				$arResult[$t]["BaseType"] = "string";
 				$arResult[$t]["Complex"] = true;
+				$arResult[$t]['typeClass'] = BizprocType\UserTypePropertyElist::class;
 			}
 			elseif ($t == 'S:HTML')
 			{
-				$arResult[$t]['typeClass'] = '\Bitrix\Iblock\BizprocType\UserTypePropertyHtml';
+				$arResult[$t]['typeClass'] = BizprocType\UserTypePropertyHtml::class;
+			}
+			elseif($t == 'S:DiskFile')
+			{
+				$arResult[$t]["BaseType"] = "int";
+				$arResult[$t]['typeClass'] = BizprocType\UserTypePropertyDiskFile::class;
+			}
+			elseif($t == 'E:ECrm')
+			{
+				$arResult[$t]["BaseType"] = "string";
+				$arResult[$t]["Complex"] = true;
+				$arResult[$t]['typeClass'] = BizprocType\ECrm::class;
 			}
 		}
 
@@ -1804,6 +1843,10 @@ class CBPVirtualDocument
 
 				$arFields[$key] = $ar;
 			}
+			elseif ($arDocumentFields[$key]['Type'] == 'S:employee')
+			{
+				$arFields[$key] = CBPHelper::StripUserPrefix($arFields[$key]);
+			}
 			elseif ($arDocumentFields[$key]["Type"] == "L")
 			{
 				$realKey = ((substr($key, 0, strlen("PROPERTY_")) == "PROPERTY_") ? substr($key, strlen("PROPERTY_")) : $key);
@@ -1872,6 +1915,7 @@ class CBPVirtualDocument
 		$arDocumentFields = self::GetDocumentFields("type_".$arFields["IBLOCK_ID"]);
 
 		$arKeys = array_keys($arFields);
+		$arFieldsPropertyValues = [];
 		foreach ($arKeys as $key)
 		{
 			if (!array_key_exists($key, $arDocumentFields))
@@ -1898,7 +1942,7 @@ class CBPVirtualDocument
 					}
 					else
 					{
-						$a1 = self::GetUsersFromUserGroup($v1, $documentId);
+						$a1 = self::GetUsersFromUserGroup($v1, $parentDocumentId);
 						foreach ($a1 as $a11)
 							$ar[] = $a11;
 					}
@@ -1969,7 +2013,7 @@ class CBPVirtualDocument
 	}
 
 	// array("1" => "Admins", 2 => "Guests", 3 => ..., "Author" => "Author")
-	public function GetAllowableUserGroups($documentType)
+	public function GetAllowableUserGroups($documentType, $withExtended = false)
 	{
 		$documentType = trim($documentType);
 		if (strlen($documentType) <= 0)
@@ -2019,9 +2063,16 @@ class CBPVirtualDocument
 
 		$arResult = array();
 
-		$dbUsersList = CUser::GetList(($b = "ID"), ($o = "ASC"), array("GROUPS_ID" => $group, "ACTIVE" => "Y"));
+		$dbUsersList = CUser::GetList(
+			($b = "ID"),
+			($o = "ASC"),
+			['GROUPS_ID' => $group, 'ACTIVE' => 'Y', 'IS_REAL_USER' => true],
+			['FIELDS' => ['ID']]
+		);
 		while ($arUser = $dbUsersList->Fetch())
+		{
 			$arResult[] = $arUser["ID"];
+		}
 		return $arResult;
 	}
 
@@ -2255,4 +2306,3 @@ class CBPVirtualDocument
 		return false;
 	}
 }
-?>
