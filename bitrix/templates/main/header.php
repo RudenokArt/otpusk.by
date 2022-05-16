@@ -248,7 +248,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 								
 							</div>
 
-							<div style="width:23% !important; font-size: 90%; padding-left: 0px !important; padding-right: 0px !important;" class="col-sm-2">
+							<div style="" class="col-sm-2 navbar-phonebook">
 							
 <?
 // phonebook
