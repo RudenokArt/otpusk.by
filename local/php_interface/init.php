@@ -7,7 +7,8 @@ $interface_include_path = '/local/php_interface/include/';
 		array(
 				 "AjaxContent" 	=> $interface_include_path ."/classes/ajax.php",
 					     'Set' 	=> $interface_include_path ."/classes/settings.php",
-			'\travelsoft\Cart' 	=> $interface_include_path ."/classes/cart.php"
+			'\travelsoft\Cart' 	=> $interface_include_path ."/classes/cart.php",
+      'InfoBlock'   => $interface_include_path ."/classes/InfoBlock.php",
 		)
 	);
 

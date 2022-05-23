@@ -161,7 +161,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 							</div>
 							<div class="flex-columns ts-width-sm__100">
 							<? if(!$USER->IsAdmin()) {
-								$APPLICATION->IncludeFile($SERVER["DOCUMENT_ROOT"]."/include/courses.php", Array(), Array(
+								$APPLICATION->IncludeFile($SERVER["DOCUMENT_ROOT"]."/include/exchange_rates.php", Array(), Array(
 								    "MODE"      => "html",        // будет редактировать в веб-редакторе
 								    "NAME"      => "Курсы валют",      // текст всплывающей подсказки на иконке
 								    ));
