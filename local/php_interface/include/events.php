@@ -280,9 +280,9 @@ AddEventHandler("iblock", "OnAfterIBlockElementAdd", function ($arFields) {
   }
 });
 
-AddEventHandler("iblock", "OnAfterIBlockElementUpdate", function ($arFields) {
-  if ($arFields['ID']>0 and $arFields['IBLOCK_ID']==23) {
-    $exchange_rates = new InfoBlock([], ['ID'=>$arFields['ID']], false, false,[
+AddEventHandler("iblock", "OnAfterIBlockElementSetPropertyValuesEx", function ($item_id, $iblock_id) {
+  if ($iblock_id==23) {
+    $exchange_rates = new InfoBlock([], ['ID'=>$item_id], false, false,[
       'ID',
       'IBLOCK_ID',
       'CODE',
@@ -296,7 +296,5 @@ AddEventHandler("iblock", "OnAfterIBlockElementUpdate", function ($arFields) {
     $url = 'https://vetliva.ru/rest/otpusk-by/?EXCHANGE_RATES=UPDATE&CODE='
     .$arr['CODE'].'&USD='.$arr['PROPERTY_USD_VALUE'].'&EUR='.$arr['PROPERTY_EUR_VALUE'].'&RUB='.$arr['PROPERTY_RUB_VALUE'];
     file_get_contents($url);
-    file_put_contents($_SERVER['DOCUMENT_ROOT'].'/test.html', $url);
-    file_put_contents($_SERVER['DOCUMENT_ROOT'].'/test.json', json_encode($exchange_rates->items_arr[0]));
   }
 });
