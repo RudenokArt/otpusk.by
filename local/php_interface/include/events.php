@@ -257,3 +257,46 @@ function bxOnBeforeUserChangePassword($arFields) {
         }
 
 }
+
+
+AddEventHandler("iblock", "OnAfterIBlockElementAdd", function ($arFields) {
+  if ($arFields['ID']>0 and $arFields['IBLOCK_ID']==23) {
+    file_put_contents($_SERVER['DOCUMENT_ROOT'].'/test.json', json_encode($arFields));
+    $exchange_rates = new InfoBlock(['ID'=>'DESC'], ['IBLOCK_ID'=>23], false, ['nTopCount'=>2],[
+      'ID',
+      'IBLOCK_ID',
+      'CODE',
+      'CREATED_DATE',
+      'PROPERTY_USD',
+      'PROPERTY_EUR',
+      'PROPERTY_RUB',
+      'NAME',
+    ]);
+    CIBlockElement::SetPropertyValuesEx($arFields['ID'],23, [
+      'USD'=>$exchange_rates->items_arr[1]['PROPERTY_USD_VALUE'],
+      'EUR'=>$exchange_rates->items_arr[1]['PROPERTY_EUR_VALUE'],
+      'RUB'=>$exchange_rates->items_arr[1]['PROPERTY_RUB_VALUE'],
+    ]);
+  }
+});
+
+AddEventHandler("iblock", "OnAfterIBlockElementUpdate", function ($arFields) {
+  if ($arFields['ID']>0 and $arFields['IBLOCK_ID']==23) {
+    $exchange_rates = new InfoBlock([], ['ID'=>$arFields['ID']], false, false,[
+      'ID',
+      'IBLOCK_ID',
+      'CODE',
+      'CREATED_DATE',
+      'PROPERTY_USD',
+      'PROPERTY_EUR',
+      'PROPERTY_RUB',
+      'NAME',
+    ]);
+    $arr = $exchange_rates->items_arr[0];
+    $url = 'https://vetliva.ru/rest/otpusk-by/?EXCHANGE_RATES=UPDATE&CODE='
+    .$arr['CODE'].'&USD='.$arr['PROPERTY_USD_VALUE'].'&EUR='.$arr['PROPERTY_EUR_VALUE'].'&RUB='.$arr['PROPERTY_RUB_VALUE'];
+    file_get_contents($url);
+    file_put_contents($_SERVER['DOCUMENT_ROOT'].'/test.html', $url);
+    file_put_contents($_SERVER['DOCUMENT_ROOT'].'/test.json', json_encode($exchange_rates->items_arr[0]));
+  }
+});
