@@ -5,7 +5,7 @@ $APPLICATION->SetPageProperty("description", "Актуальные курсы в
 $APPLICATION->SetTitle("Курсы валют ");
 ?>
 
-<?$APPLICATION->IncludeComponent("bitrix:news.list", "courses", Array(
+<?$APPLICATION->IncludeComponent("bitrix:news.list", "exchange_rates", Array(
 	"IBLOCK_TYPE" => "Reference",	// Тип информационного блока (используется только для проверки)
 		"IBLOCK_ID" => "23",	// Код информационного блока
 		"NEWS_COUNT" => "31",	// Количество новостей на странице
@@ -30,7 +30,7 @@ $APPLICATION->SetTitle("Курсы валют ");
 		"AJAX_OPTION_JUMP" => "N",	// Включить прокрутку к началу компонента
 		"AJAX_OPTION_STYLE" => "Y",	// Включить подгрузку стилей
 		"AJAX_OPTION_HISTORY" => "N",	// Включить эмуляцию навигации браузера
-		"CACHE_TYPE" => "A",	// Тип кеширования
+		"CACHE_TYPE" => "N",	// Тип кеширования
 		"CACHE_TIME" => "36000000",	// Время кеширования (сек.)
 		"CACHE_FILTER" => "N",	// Кешировать при установленном фильтре
 		"CACHE_GROUPS" => "N",	// Учитывать права доступа
