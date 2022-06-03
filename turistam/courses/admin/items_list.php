@@ -1,23 +1,18 @@
-<?php $exchange_rates = new InfoBlock(['ID'=>'DESC'],['IBLOCK_ID'=>23], false, [
-  'nPageSize'=>10,
-  'iNumPage'=>$_GET['page_number'],
-], [
-  'ID',
-  'IBLOCK_ID',
-  'CODE',
-  'CREATED_DATE',
-  'PROPERTY_USD',
-  'PROPERTY_EUR',
-  'PROPERTY_RUB',
-  'PROPERTY_DATE',
-]); ?>
 
 <div class="container">
-    <div class="row">
-      <div class="col">
-        <div class="h1">Курсы валют</div>
-      </div>
+  <div class="row">
+    <div class="col">
+      <div class="h1">Курсы валют</div>
     </div>
+  </div>
+  <div class="row justify-content-end">
+    <div class="col-lg-4 col-md-6 col-sm-12 text-right">
+      <a href="?add=Y" class="btn btn-outline-info">
+        <i class="fa fa-plus-circle" aria-hidden="true"></i>
+        Добавить
+      </a>
+    </div>
+  </div>
   <?php foreach ($exchange_rates->items_arr as $key => $value): ?>
     <div class="row border-bottom pt-1 pb-1">
       <div class="col"><?php echo $value['PROPERTY_DATE_VALUE'] ?></div>
@@ -57,3 +52,4 @@
   </div>
 </div>
 </div>
+

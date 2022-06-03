@@ -1,28 +1,4 @@
-<?php $exchange_rates = new InfoBlock([],['ID'=>$_GET['update']], false, false, [
-  'ID',
-  'IBLOCK_ID',
-  'CODE',
-  'CREATED_DATE',
-  'PROPERTY_USD',
-  'PROPERTY_EUR',
-  'PROPERTY_RUB',
-  'NAME',
-]); ?>
 
-<?php if (isset($_POST['update'])): ?>
-  <?php CIBlockElement::SetPropertyValuesEx($_POST['update'],23, [
-    'USD'=>$_POST['USD'],
-    'EUR'=>$_POST['EUR'],
-    'RUB'=>$_POST['RUB'],
-  ]); ?>
-  <div class="container">
-    <div class="alert alert-info" role="alert">
-      Данные сохранены в базу.
-    </div>
-  </div>
-  <?php header('Location: ?page_number='.$_GET['page_number']);?>
-
-<?php else: ?>
   <div class="container">
     <div class="row p-5">
       <div class="h1">
@@ -85,5 +61,4 @@
 </div>
 </div>
 </div>
-<?php endif ?>
 
