@@ -296,6 +296,8 @@ function bxOnBeforeUserChangePassword($arFields) {
         'PROPERTY_RUB',
         'NAME',
       ]);
+      $arr = $exchange_rates->items_arr[0];
+      exchangeRatesAdd ($arr);
       if (ConvertTimeStamp(time(),'SHORT') == $arFields['NAME']) {
         CIBlockElement::SetPropertyValuesEx($arFields['ID'],23, [
           'USD'=>$exchange_rates->items_arr[1]['PROPERTY_USD_VALUE'],
@@ -326,5 +328,11 @@ function bxOnBeforeUserChangePassword($arFields) {
   function exchangeRatesUpdate ($arr) {
     $url = 'https://vetliva.ru/rest/otpusk-by/?EXCHANGE_RATES=UPDATE&CODE='
     .$arr['CODE'].'&USD='.$arr['PROPERTY_USD_VALUE'].'&EUR='.$arr['PROPERTY_EUR_VALUE'].'&RUB='.$arr['PROPERTY_RUB_VALUE'];
+    file_get_contents($url);
+  }
+
+  function exchangeRatesAdd ($arr) {
+    $url = 'https://vetliva.ru/rest/otpusk-by/?EXCHANGE_RATES=ADD&CODE='.$arr['CODE'].'&NAME='.$arr['NAME'].
+    '&USD='.$arr['PROPERTY_USD_VALUE'].'&EUR='.$arr['PROPERTY_EUR_VALUE'].'&RUB='.$arr['PROPERTY_RUB_VALUE'];
     file_get_contents($url);
   }

@@ -40,6 +40,7 @@
   $( function() {
     $('input[name="DATE"]').datepicker({
       dateFormat: 'dd.mm.yy',
+      firstDay: 1,
     });
   } );
 </script>
