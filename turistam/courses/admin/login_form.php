@@ -12,7 +12,7 @@
               </div>
               <div class="row pt-3 pb-3">
                 <div class="col-12">
-                  <input type="text" class="form-control" name="password" placeholder="password">
+                  <input type="password" class="form-control" name="password" placeholder="password">
                 </div>
               </div>
               <div class="row pt-3 pb-3">
