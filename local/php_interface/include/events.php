@@ -275,7 +275,6 @@ function bxOnBeforeUserChangePassword($arFields) {
         'NAME',
       ]);
       global $APPLICATION;
-      file_put_contents($_SERVER['DOCUMENT_ROOT'].'/test.json', json_encode($check_date->items_arr));
       if(count($check_date->items_arr) > 0) {
         exchangeRatesUpdate($check_date->items_arr[0]);
         $APPLICATION->ThrowException('Запись на указанную дату уже существует!'); 
