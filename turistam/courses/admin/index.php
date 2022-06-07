@@ -83,7 +83,10 @@ if (isset($_POST['login']) and isset($_POST['password'])) {
     }
     
   } else {
-    $exchange_rates = new InfoBlock(['ACTIVE_FROM'=>'DESC', 'CREATED_DATE'=>'DESC'],['IBLOCK_ID'=>23], false, [
+    $exchange_rates = new InfoBlock(Array(
+     "LOGIC" => "AND",
+     array("ID" => "DESC"),
+     array("DATE_ACTIVE_FROM" => "ASC")),['IBLOCK_ID'=>23], false, [
       'nPageSize'=>10,
       'iNumPage'=>$_GET['page_number'],
     ], [
