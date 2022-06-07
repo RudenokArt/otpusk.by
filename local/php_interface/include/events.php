@@ -259,30 +259,6 @@ function bxOnBeforeUserChangePassword($arFields) {
 
 // ===== СИНХРОНИЗАЦИЯ КУРСОВ ВАЛЮТ =====
 
-  AddEventHandler("iblock", "OnBeforeIBlockElementAdd", function ($arFields) {
-    if ($arFields['IBLOCK_ID']==23) {
-      $check_date = new InfoBlock([],[
-        'NAME'=> $arFields['NAME'],
-        'IBLOCK_ID'=>23,
-      ],false,false, [
-        'ID',
-        'IBLOCK_ID',
-        'CODE',
-        'CREATED_DATE',
-        'PROPERTY_USD',
-        'PROPERTY_EUR',
-        'PROPERTY_RUB',
-        'NAME',
-      ]);
-      global $APPLICATION;
-      if(count($check_date->items_arr) > 0) {
-        exchangeRatesUpdate($check_date->items_arr[0]);
-        $APPLICATION->ThrowException('Запись на указанную дату уже существует!'); 
-        return false;
-      }
-    }
-  });
-
   AddEventHandler("iblock", "OnAfterIBlockElementAdd", function ($arFields) {
     if ($arFields['ID']>0 and $arFields['IBLOCK_ID']==23) {
       $exchange_rates = new InfoBlock(['ID'=>'DESC'], ['IBLOCK_ID'=>23], false, ['nTopCount'=>2],[
@@ -295,15 +271,11 @@ function bxOnBeforeUserChangePassword($arFields) {
         'PROPERTY_RUB',
         'NAME',
       ]);
-      $arr = $exchange_rates->items_arr[0];
-      exchangeRatesAdd ($arr);
-      if (ConvertTimeStamp(time(),'SHORT') == $arFields['NAME']) {
-        CIBlockElement::SetPropertyValuesEx($arFields['ID'],23, [
-          'USD'=>$exchange_rates->items_arr[1]['PROPERTY_USD_VALUE'],
-          'EUR'=>$exchange_rates->items_arr[1]['PROPERTY_EUR_VALUE'],
-          'RUB'=>$exchange_rates->items_arr[1]['PROPERTY_RUB_VALUE'],
-        ]); 
-      }
+      CIBlockElement::SetPropertyValuesEx($arFields['ID'],23, [
+        'USD'=>$exchange_rates->items_arr[1]['PROPERTY_USD_VALUE'],
+        'EUR'=>$exchange_rates->items_arr[1]['PROPERTY_EUR_VALUE'],
+        'RUB'=>$exchange_rates->items_arr[1]['PROPERTY_RUB_VALUE'],
+      ]); 
     }
   });
 
@@ -320,18 +292,8 @@ function bxOnBeforeUserChangePassword($arFields) {
         'NAME',
       ]);
       $arr = $exchange_rates->items_arr[0];
-      exchangeRatesUpdate($arr);
+      $url = 'https://vetliva.ru/rest/otpusk-by/?EXCHANGE_RATES=UPDATE&CODE='
+      .$arr['CODE'].'&USD='.$arr['PROPERTY_USD_VALUE'].'&EUR='.$arr['PROPERTY_EUR_VALUE'].'&RUB='.$arr['PROPERTY_RUB_VALUE'];
+      file_get_contents($url);
     }
   });
-
-  function exchangeRatesUpdate ($arr) {
-    $url = 'https://vetliva.ru/rest/otpusk-by/?EXCHANGE_RATES=UPDATE&CODE='
-    .$arr['CODE'].'&USD='.$arr['PROPERTY_USD_VALUE'].'&EUR='.$arr['PROPERTY_EUR_VALUE'].'&RUB='.$arr['PROPERTY_RUB_VALUE'];
-    file_get_contents($url);
-  }
-
-  function exchangeRatesAdd ($arr) {
-    $url = 'https://vetliva.ru/rest/otpusk-by/?EXCHANGE_RATES=ADD&CODE='.$arr['CODE'].'&NAME='.$arr['NAME'].
-    '&USD='.$arr['PROPERTY_USD_VALUE'].'&EUR='.$arr['PROPERTY_EUR_VALUE'].'&RUB='.$arr['PROPERTY_RUB_VALUE'];
-    file_get_contents($url);
-  }
